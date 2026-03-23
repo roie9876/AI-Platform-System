@@ -276,6 +276,29 @@ class IngestURLRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2048)
 
 
+# --- AI Services Schemas ---
+
+class PlatformToolResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    input_schema: dict
+    service_name: str
+    is_enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class PlatformToolListResponse(BaseModel):
+    tools: List[PlatformToolResponse]
+    total: int
+
+
+class PlatformToolToggleRequest(BaseModel):
+    tool_id: UUID
+    enabled: bool
+
+
 class AgentDataSourceResponse(BaseModel):
     id: UUID
     agent_id: UUID

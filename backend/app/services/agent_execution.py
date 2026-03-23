@@ -11,6 +11,7 @@ from app.models.tool import Tool, AgentTool
 from app.services.model_abstraction import ModelAbstractionService, ModelError
 from app.services.tool_executor import ToolExecutor, ToolExecutionError
 from app.services.rag_service import RAGService
+from app.services.platform_tools import get_adapter_by_name as get_platform_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -177,13 +178,22 @@ class AgentExecutionService:
                                 continue
                             try:
                                 args = json.loads(tc.function.arguments)
-                                result = await self._tool_executor.execute(
-                                    tool_name=tool.name,
-                                    input_data=args,
-                                    input_schema=tool.input_schema,
-                                    execution_command=tool.execution_command,
-                                    timeout_seconds=tool.timeout_seconds,
-                                )
+                                if tool.is_platform_tool:
+                                    # Execute via platform adapter (direct call)
+                                    adapter = get_platform_adapter(tool.name)
+                                    if adapter:
+                                        result = await adapter.execute(args)
+                                    else:
+                                        result = {"error": f"No adapter for platform tool: {tool.name}"}
+                                else:
+                                    # Execute via subprocess sandbox
+                                    result = await self._tool_executor.execute(
+                                        tool_name=tool.name,
+                                        input_data=args,
+                                        input_schema=tool.input_schema,
+                                        execution_command=tool.execution_command,
+                                        timeout_seconds=tool.timeout_seconds,
+                                    )
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tc.id,
