@@ -73,7 +73,7 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Backend models, migration, Tool + DataSource CRUD APIs
+- [x] 04-01-PLAN.md — Backend models, migration, Tool + DataSource CRUD APIs
 - [ ] 04-02-PLAN.md — Tool sandbox execution + tool-calling loop integration
 - [ ] 04-03-PLAN.md — RAG pipeline: document ingestion, retrieval, context injection
 - [ ] 04-04-PLAN.md — Platform AI Services adapter framework + AI Services API
