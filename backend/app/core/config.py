@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     ENVIRONMENT: str = "development"
+    ENCRYPTION_KEY: str = "change-me-in-production-use-fernet-key"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
