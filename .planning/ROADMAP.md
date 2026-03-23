@@ -70,7 +70,14 @@ Plans:
 ### Phase 4: Tools, Data Sources, RAG & Platform AI Services
 **Goal:** Build the tool registry, sandboxed tool execution, data source management, RAG pipeline (via Azure AI Search), and platform-managed AI capabilities so agents can use custom tools, access knowledge from connected data sources, and leverage Azure AI Services as toggleable platform tools.
 **Requirements:** [TOOL-01, TOOL-02, TOOL-03, DATA-01, DATA-02, DATA-03, AISV-01, AISV-02]
-**Plans:** [To be planned]
+**Plans:** 5 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Backend models, migration, Tool + DataSource CRUD APIs
+- [ ] 04-02-PLAN.md — Tool sandbox execution + tool-calling loop integration
+- [ ] 04-03-PLAN.md — RAG pipeline: document ingestion, retrieval, context injection
+- [ ] 04-04-PLAN.md — Platform AI Services adapter framework + AI Services API
+- [ ] 04-05-PLAN.md — Frontend UI: tools, data sources, AI services management + verification
 
 **Success Criteria:**
 1. User can register tools with JSON Schema and attach them to agents
