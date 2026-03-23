@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.api.v1.router import api_router
+from app.middleware.tenant import TenantMiddleware
 
 app = FastAPI(
     title="AI Agent Platform",
@@ -10,6 +11,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.add_middleware(TenantMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
