@@ -10,6 +10,7 @@ from app.models.model_endpoint import ModelEndpoint
 from app.models.tool import Tool, AgentTool
 from app.services.model_abstraction import ModelAbstractionService, ModelError
 from app.services.tool_executor import ToolExecutor, ToolExecutionError
+from app.services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,36 @@ class AgentExecutionService:
     def __init__(self) -> None:
         self._model_service = ModelAbstractionService()
         self._tool_executor = ToolExecutor()
+        self._rag_service = RAGService()
+
+    async def _inject_rag_context(
+        self,
+        messages: List[Dict[str, Any]],
+        agent: Agent,
+        user_message: str,
+        db: AsyncSession,
+    ) -> None:
+        """Retrieve relevant document chunks and inject as system context."""
+        chunks = await self._rag_service.retrieve(
+            query=user_message,
+            agent_id=agent.id,
+            tenant_id=agent.tenant_id,
+            db=db,
+            top_k=5,
+        )
+        if not chunks:
+            return
+
+        context_text = "\n\n---\n\n".join(c["content"] for c in chunks)
+        rag_system_msg = (
+            "The following context from attached documents may be relevant "
+            "to the user's question. Use it if helpful:\n\n"
+            f"{context_text}"
+        )
+
+        # Insert RAG context after system prompt, before conversation
+        insert_idx = 1 if messages and messages[0]["role"] == "system" else 0
+        messages.insert(insert_idx, {"role": "system", "content": rag_system_msg})
 
     async def _load_agent_tools(self, agent_id, db: AsyncSession) -> List[Tool]:
         """Load all tools attached to this agent."""
@@ -89,6 +120,9 @@ class AgentExecutionService:
         if conversation_history:
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
+
+        # Inject RAG context from attached data sources
+        await self._inject_rag_context(messages, agent, user_message, db)
 
         # Update agent status to active
         agent.status = "active"

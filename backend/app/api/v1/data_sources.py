@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,9 @@ from app.api.v1.auth import get_current_user
 from app.models.user import User
 from app.models.agent import Agent
 from app.models.data_source import DataSource, AgentDataSource
+from app.models.document import Document
 from app.services.secret_store import encrypt_api_key
+from app.services.rag_service import RAGService
 from app.api.v1.schemas import (
     DataSourceCreateRequest,
     DataSourceUpdateRequest,
@@ -18,10 +20,17 @@ from app.api.v1.schemas import (
     DataSourceListResponse,
     AgentDataSourceAttachRequest,
     AgentDataSourceResponse,
+    DocumentResponse,
+    DocumentListResponse,
+    IngestURLRequest,
 )
 
 router = APIRouter()
 agent_data_sources_router = APIRouter()
+
+_rag_service = RAGService()
+ALLOWED_EXTENSIONS = {"pdf", "txt", "md", "docx"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 @router.post("/", response_model=DataSourceResponse, status_code=201)
@@ -136,6 +145,121 @@ async def delete_data_source(
         raise HTTPException(status_code=404, detail="Data source not found")
     await db.delete(data_source)
     await db.flush()
+
+
+# --- Document management endpoints ---
+
+
+@router.post("/{data_source_id}/documents", response_model=DocumentResponse, status_code=201)
+async def upload_document(
+    data_source_id: UUID,
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Upload and ingest a document into a data source."""
+    # Verify data source ownership
+    result = await db.execute(
+        select(DataSource).where(
+            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Data source not found")
+
+    # Validate file extension
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: .{ext}. Allowed: {ALLOWED_EXTENSIONS}",
+        )
+
+    # Read and validate file size
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
+        )
+
+    doc = await _rag_service.ingest_file(
+        data_source_id=data_source_id,
+        tenant_id=UUID(tenant_id),
+        filename=file.filename,
+        file_content=content,
+        db=db,
+    )
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+@router.post("/{data_source_id}/ingest-url", response_model=DocumentResponse, status_code=201)
+async def ingest_url(
+    data_source_id: UUID,
+    body: IngestURLRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Ingest a URL's content into a data source."""
+    result = await db.execute(
+        select(DataSource).where(
+            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Data source not found")
+
+    try:
+        doc = await _rag_service.ingest_url(
+            data_source_id=data_source_id,
+            tenant_id=UUID(tenant_id),
+            url=body.url,
+            db=db,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to ingest URL: {str(e)}")
+
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+@router.get("/{data_source_id}/documents", response_model=DocumentListResponse)
+async def list_documents(
+    data_source_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """List all documents in a data source."""
+    result = await db.execute(
+        select(DataSource).where(
+            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Data source not found")
+
+    result = await db.execute(
+        select(Document)
+        .where(
+            Document.data_source_id == data_source_id,
+            Document.tenant_id == tenant_id,
+        )
+        .order_by(Document.created_at.desc())
+    )
+    documents = list(result.scalars().all())
+    return DocumentListResponse(documents=documents, total=len(documents))
 
 
 # --- Agent-DataSource attachment endpoints ---

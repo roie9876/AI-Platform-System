@@ -249,6 +249,33 @@ class AgentDataSourceAttachRequest(BaseModel):
     data_source_id: UUID
 
 
+# --- Document Schemas ---
+
+class DocumentResponse(BaseModel):
+    id: UUID
+    data_source_id: UUID
+    filename: str
+    content_type: Optional[str]
+    file_size: Optional[int]
+    content_hash: Optional[str]
+    status: str
+    chunk_count: int
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentListResponse(BaseModel):
+    documents: List[DocumentResponse]
+    total: int
+
+
+class IngestURLRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048)
+
+
 class AgentDataSourceResponse(BaseModel):
     id: UUID
     agent_id: UUID
