@@ -12,7 +12,8 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] HLD documentation — vendor-agnostic architecture with Mermaid diagrams (Validated in Phase 2: HLD & Microsoft Architecture Documentation)
+- [x] Microsoft architecture design — maps HLD to concrete Azure/Microsoft services (Validated in Phase 2: HLD & Microsoft Architecture Documentation)
 
 ### Active
 
@@ -33,8 +34,6 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - [ ] Cost & token observability — dashboard for tracking usage, costs, and token consumption
 - [ ] Terminal & CLI execution — programmatic agent interaction via CLI
 - [ ] Agent marketplace — discover, share, and reuse agent configurations
-- [ ] HLD documentation — vendor-agnostic architecture with Mermaid diagrams
-- [ ] Microsoft architecture design — maps HLD to concrete Azure/Microsoft services
 - [ ] RAG system integration — retrieval-augmented generation pipeline for agents
 
 ### Out of Scope
@@ -93,4 +92,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after initialization*
+*Last updated: 2026-03-23 after Phase 2 completion*
