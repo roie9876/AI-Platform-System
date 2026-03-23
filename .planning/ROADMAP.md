@@ -30,7 +30,11 @@ Plans:
 ### Phase 2: HLD & Microsoft Architecture Documentation
 **Goal:** Create comprehensive vendor-agnostic HLD with Mermaid diagrams and Microsoft product-mapped architecture with detailed system flows and decision rationale.
 **Requirements:** [ARCH-01, ARCH-02, ARCH-03]
-**Plans:** [To be planned]
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Core HLD document with system architecture, Mermaid diagrams, Azure service mappings, SKUs, and pricing
+- [ ] 02-02-PLAN.md — ADR appendix, inline technology comparisons, and human verification
 
 **Success Criteria:**
 1. HLD document exists with Mermaid diagrams for control plane, runtime plane, data flows, and security boundaries
