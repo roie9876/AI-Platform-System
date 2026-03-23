@@ -63,14 +63,13 @@ async def get_current_user(
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 async def register(body: UserRegisterRequest, db: AsyncSession = Depends(get_db)):
-    # Look up tenant
+    # Look up tenant, auto-create if it doesn't exist
     result = await db.execute(select(Tenant).where(Tenant.slug == body.tenant_slug))
     tenant = result.scalar_one_or_none()
     if not tenant:
-        raise HTTPException(
-            status_code=404,
-            detail="Tenant not found",
-        )
+        tenant = Tenant(name=body.tenant_slug, slug=body.tenant_slug)
+        db.add(tenant)
+        await db.flush()
 
     # Check existing email
     result = await db.execute(select(User).where(User.email == body.email))

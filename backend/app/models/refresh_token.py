@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
@@ -7,7 +7,7 @@ from app.models.base import Base, UUIDMixin, TimestampMixin
 class RefreshToken(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "refresh_tokens"
 
-    token = Column(String(255), unique=True, nullable=False, index=True)
+    token = Column(Text, unique=True, nullable=False, index=True)
     user_id = Column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
