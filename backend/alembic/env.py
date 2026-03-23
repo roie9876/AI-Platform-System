@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -13,13 +14,15 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Use DATABASE_URL from environment if available (for Docker), else fall back to alembic.ini
+database_url = os.environ.get("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -37,7 +40,7 @@ def do_run_migrations(connection):
 
 async def run_async_migrations():
     connectable = create_async_engine(
-        config.get_main_option("sqlalchemy.url"),
+        database_url,
         poolclass=pool.NullPool,
     )
 
