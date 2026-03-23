@@ -36,7 +36,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Secrets and certificates are stored in Key Vault with managed identity access — no hardcoded secrets anywhere
   4. Application Insights and Azure Monitor collect telemetry from deployed workloads
   5. CI/CD pipeline deploys infrastructure changes automatically on push to source control
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Monorepo scaffold + networking foundation (shared, networking, firewall Bicep modules)
+- [ ] 01-02-PLAN.md — Compute & security infrastructure (AKS, ACR, Key Vault Bicep modules)
+- [ ] 01-03-PLAN.md — Observability + orchestrator (monitoring module, main.bicep, environment parameter files)
+- [ ] 01-04-PLAN.md — CI/CD pipelines (GitHub Actions for infra deploy + service deploy)
 
 ### Phase 2: Identity & Authentication
 **Goal**: Users can securely authenticate and access the platform with role-based permissions
