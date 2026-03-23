@@ -81,6 +81,12 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **COST-03**: User can view usage dashboards with per-agent, per-team, and per-model cost breakdowns
 - [ ] **COST-04**: Platform sends cost alerts and enforces budget limits when spending exceeds thresholds
 
+### AI Services Integration (Platform-Managed Capabilities)
+
+- [ ] **AISV-01**: Platform exposes Azure AI Services (search, speech, vision, document intelligence, content safety, language, translation) as toggleable platform-managed tools that agents can use without provisioning separate services
+- [ ] **AISV-02**: Platform tool adapter layer provides unified interface to Azure AI Services with managed authentication via Managed Identity — users never handle API keys
+- [ ] **AISV-03**: Platform meters AI service usage per tenant/agent and integrates with cost observability dashboard
+
 ### Terminal & CLI
 
 - [ ] **TERM-01**: User can execute agents and view results from the command line
@@ -182,12 +188,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COST-02 | Phase 8 | Pending |
 | COST-03 | Phase 8 | Pending |
 | COST-04 | Phase 8 | Pending |
+| AISV-01 | Phase 4 | Pending |
+| AISV-02 | Phase 4 | Pending |
+| AISV-03 | Phase 8 | Pending |
 | TERM-01 | Phase 8 | Pending |
 | TERM-02 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 42 total
-- Mapped to phases: 42
+- v1 requirements: 45 total
+- Mapped to phases: 45
 - Unmapped: 0
 
 ---

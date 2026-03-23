@@ -8,7 +8,9 @@
 
 **Frontend:** Next.js 15+ / React 19+ with Shadcn/ui + Tailwind. React Flow for the visual workflow builder. Zustand for state, TanStack Query for data fetching.
 
-**Database:** PostgreSQL 16+ with pgvector for RAG embeddings. Redis 7+ for cache, pub-sub, and task queue backend.
+**Database:** PostgreSQL 16+ with pgvector for platform-internal embeddings (agent similarity, tool search). Redis 7+ for cache, pub-sub, and task queue backend. Azure AI Search as primary RAG engine for tenant data sources (hybrid search, semantic ranking, managed scaling).
+
+**Platform AI Services:** Azure AI Services exposed as toggleable platform-managed tools (search, speech, vision, document intelligence, content safety, translation). Users enable capabilities per agent without provisioning services — same pattern as Azure AI Foundry. Platform handles auth via Managed Identity and meters usage per tenant.
 
 **Model Abstraction:** OpenAI-compatible API format as canonical interface. Custom adapter layer normalizing all model responses. Customer-provided endpoints registered in model registry.
 
@@ -68,7 +70,8 @@
 | Decision | Why | Alternative Considered |
 |----------|-----|----------------------|
 | Control Plane / Runtime Plane split | Same pattern as Kubernetes, clear separation of concerns, independent scaling | Monolithic API (doesn't scale) |
-| PostgreSQL + pgvector (not separate vector DB) | Reduces operational complexity, pgvector sufficient at PoC scale | Pinecone/Weaviate (overkill for PoC) |
+| Azure AI Search for RAG + pgvector for internal | AI Search provides hybrid search, semantic ranking, indexers for tenant RAG. pgvector for lightweight platform-internal search only | Pinecone/Weaviate (third service unnecessary), pgvector-only (lacks hybrid search at scale) |
+| Platform-managed AI Services (Foundry-style) | Expose Azure AI Services as toggleable tools — users enable search/speech/vision per agent, platform handles auth and metering | Require users to provision their own AI services (poor UX, no cost tracking) |
 | OpenAI-compatible canonical format | Industry standard, most providers support it | Custom format (more work, no standard) |
 | Custom execution loop + SK as SDK | All major platforms (Azure, GCP, AWS) own their orchestration engine. SK provides plugin/tool abstractions without owning the loop | All-in on any single framework (loss of control, debugging opacity) |
 | Multi-tenancy from day one | Avoids costly retrofit, demonstrates production thinking | Add multi-tenancy later (technical debt) |

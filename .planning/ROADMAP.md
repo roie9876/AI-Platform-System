@@ -52,9 +52,9 @@
 
 ---
 
-### Phase 4: Tools, Data Sources & RAG
-**Goal:** Build the tool registry, sandboxed tool execution, data source management, and RAG pipeline so agents can use tools and access knowledge from connected data sources.
-**Requirements:** [TOOL-01, TOOL-02, TOOL-03, DATA-01, DATA-02, DATA-03]
+### Phase 4: Tools, Data Sources, RAG & Platform AI Services
+**Goal:** Build the tool registry, sandboxed tool execution, data source management, RAG pipeline (via Azure AI Search), and platform-managed AI capabilities so agents can use custom tools, access knowledge from connected data sources, and leverage Azure AI Services as toggleable platform tools.
+**Requirements:** [TOOL-01, TOOL-02, TOOL-03, DATA-01, DATA-02, DATA-03, AISV-01, AISV-02]
 **Plans:** [To be planned]
 
 **Success Criteria:**
@@ -62,8 +62,10 @@
 2. Agent can invoke tools during execution with validated inputs
 3. Tool execution runs in sandboxed environment with timeout
 4. User can connect data sources and credentials are stored securely
-5. RAG pipeline ingests documents, generates embeddings, and retrieves relevant chunks
+5. RAG pipeline ingests documents via Azure AI Search (hybrid vector + keyword search) and retrieves relevant chunks
 6. Agent responses incorporate RAG context from connected data sources
+7. Platform AI Services (search, content safety, document intelligence) available as toggleable platform tools
+8. Platform tool adapter authenticates to Azure AI Services via Managed Identity — no API keys exposed to users
 
 **UI hint**: yes
 
@@ -118,7 +120,7 @@
 
 ### Phase 8: Observability, Evaluation, Marketplace & CLI
 **Goal:** Build the cost/token observability dashboard, evaluation engine, agent/tool marketplace, and CLI to complete the full platform feature set.
-**Requirements:** [COST-01, COST-02, COST-03, COST-04, EVAL-01, EVAL-02, EVAL-03, AGNT-05, TOOL-04, TERM-01]
+**Requirements:** [COST-01, COST-02, COST-03, COST-04, EVAL-01, EVAL-02, EVAL-03, AGNT-05, TOOL-04, TERM-01, AISV-03]
 **Plans:** [To be planned]
 
 **Success Criteria:**
@@ -157,8 +159,8 @@ Phase 1 (Foundation)
 
 ## Coverage Check
 
-- v1 requirements: 42 total
-- Mapped to phases: 42
+- v1 requirements: 45 total
+- Mapped to phases: 45
 - Unmapped: 0
 - All requirements covered ✓
 

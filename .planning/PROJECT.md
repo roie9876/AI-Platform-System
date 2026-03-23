@@ -18,6 +18,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 
 - [ ] Agent control plane — UI for creating, configuring, and managing agents
 - [ ] Agent runtime plane — secure, isolated execution environment for agents
+- [ ] Platform AI Services — Azure AI capabilities (search, speech, vision, document intelligence, content safety) exposed as toggleable platform-managed tools per agent
 - [ ] Model abstraction & routing layer — model-agnostic endpoint routing with customer-provided endpoints
 - [ ] Multi-model routing — intelligent routing across multiple model endpoints
 - [ ] Tool marketplace — attach, manage, and discover tools for agents
@@ -65,6 +66,8 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Custom execution loop + SK as optional SDK | All major platforms (Azure Foundry, Vertex AI, Bedrock) own their orchestration engine. SK provides Microsoft-aligned plugin abstractions without owning the core loop. LangGraph patterns borrowed for multi-agent graphs. | Decided |
+| Azure AI Search as primary RAG + pgvector internal only | AI Search provides hybrid search, semantic ranking, indexers for tenant RAG at scale. pgvector limited to platform-internal embeddings (agent/tool similarity). | Decided |
+| Platform-managed AI Services (Foundry-style) | Expose Azure AI Services as toggleable tools per agent. Platform handles auth (Managed Identity) and metering. Same pattern as Azure AI Foundry. | Decided |
 | Python/FastAPI for backend | AI/ML ecosystem is Python-native; FastAPI provides async performance + automatic OpenAPI docs | — Pending |
 | React/Next.js for frontend | Industry-standard for complex UIs; SSR for performance; rich component ecosystem | — Pending |
 | Model-agnostic via customer endpoints | Avoids vendor lock-in; customers own their model relationships; platform focuses on orchestration not model hosting | — Pending |

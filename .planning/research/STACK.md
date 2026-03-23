@@ -33,10 +33,27 @@
 | Component | Recommendation | Version | Confidence | Rationale |
 |-----------|---------------|---------|------------|-----------|
 | Primary Database | PostgreSQL | 16+ | HIGH | Relational data (agents, configs, users, policies), JSONB for flexible schemas |
-| Vector Database | pgvector (PostgreSQL extension) | 0.7+ | HIGH | RAG embeddings, keeps infra simple vs. separate vector DB |
+| RAG & Search Engine | Azure AI Search | — | HIGH | Primary RAG engine for tenant data sources — hybrid search (vector + BM25), semantic ranking, built-in chunking/indexers, multi-tenant via index-per-tenant or security filters |
+| Platform-Internal Vectors | pgvector (PostgreSQL extension) | 0.7+ | MEDIUM | Lightweight internal embeddings only — agent similarity, tool search, marketplace search. NOT for tenant RAG pipelines |
 | Cache / Pub-Sub | Redis | 7+ | HIGH | Session cache, pub-sub for real-time updates, task queue backend |
 | Object Storage | Azure Blob / S3-compatible | — | HIGH | File attachments, agent artifacts, large outputs |
-| Search (optional) | Azure AI Search | — | MEDIUM | Full-text search across agents, tools, marketplace |
+
+### Platform AI Services (Managed Capabilities)
+
+Azure AI Services exposed as toggleable platform-managed tools — users enable capabilities per agent without provisioning services. Mirrors Azure AI Foundry's approach.
+
+| Capability | Azure Service | Tool Interface | Priority |
+|-----------|---------------|----------------|----------|
+| Search / Grounding | Azure AI Search | `search(query)`, `index(documents)` | P0 — core RAG |
+| Content Safety | Azure AI Content Safety | `moderate(text)`, `analyze_image(url)` | P0 — governance |
+| Document Extraction | Azure AI Document Intelligence | `extract(document)`, `analyze_layout(file)` | P1 — data source ingestion |
+| Speech-to-Text | Azure AI Speech | `transcribe(audio)` | P1 — voice input |
+| Text-to-Speech | Azure AI Speech | `synthesize(text)` | P2 — voice output |
+| Vision / OCR | Azure AI Vision | `analyze_image(url)`, `ocr(image)` | P2 — multimodal |
+| Language Analysis | Azure AI Language | `extract_entities(text)`, `summarize(text)`, `sentiment(text)` | P2 — NLP tools |
+| Translation | Azure AI Translator | `translate(text, target_lang)` | P2 — multilingual |
+
+**Architecture:** Platform authenticates to Azure AI Services via Managed Identity — users never handle API keys. Usage is metered per tenant/agent for cost dashboard.
 
 ### Infrastructure & Runtime
 
@@ -70,7 +87,7 @@
 | Technology | Why Not |
 |------------|---------|
 | LangChain / LangGraph (as core framework) | Heavy abstraction, frequent breaking changes, hard to debug at scale. Borrow patterns from LangGraph for multi-agent graphs, but don't take the dependency. All major platforms (Azure, GCP, AWS) use custom loops |
-| Separate vector DB (Pinecone/Weaviate) | pgvector sufficient for PoC scale, reduces infrastructure complexity |
+| Separate vector DB (Pinecone/Weaviate) | Azure AI Search covers RAG needs with hybrid search; pgvector covers internal embeddings. No need for a third vector service |
 | GraphQL | REST + WebSocket simpler for this domain, agent APIs are mostly CRUD + streaming |
 | MongoDB | PostgreSQL with JSONB covers flexible schema needs without losing relational integrity |
 | Electron/Desktop | Web-first platform, no desktop app needed |
@@ -88,6 +105,12 @@
 | Secrets | Azure Key Vault |
 | AI Models | Azure OpenAI Service (default) + customer endpoints |
 | Search / RAG | Azure AI Search |
+| Content Safety | Azure AI Content Safety |
+| Document Processing | Azure AI Document Intelligence |
+| Speech | Azure AI Speech |
+| Vision / OCR | Azure AI Vision |
+| Language / NLP | Azure AI Language |
+| Translation | Azure AI Translator |
 | Monitoring | Azure Monitor + Application Insights |
 | API Gateway | Azure API Management |
 | Message Queue | Azure Service Bus |
