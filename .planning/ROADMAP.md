@@ -52,7 +52,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md — Backend models, migrations, Agent + ModelEndpoint CRUD APIs
 - [x] 03-02-PLAN.md — Model abstraction layer (LiteLLM), agent execution engine, SSE streaming
-- [ ] 03-03-PLAN.md — Frontend agent dashboard, model endpoint management UI
+- [x] 03-03-PLAN.md — Frontend agent dashboard, model endpoint management UI
 - [ ] 03-04-PLAN.md — Frontend AI Foundry-style chat interface + human verification
 
 **Success Criteria:**
