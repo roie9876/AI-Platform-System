@@ -9,7 +9,12 @@
 ### Phase 1: Foundation & Project Scaffold
 **Goal:** Establish the project structure, database schema, authentication, and API skeleton that all subsequent phases build on.
 **Requirements:** [TERM-02]
-**Plans:** [To be planned]
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Project scaffold: backend skeleton + frontend scaffold + Docker
+- [ ] 01-02-PLAN.md — Database models + auth endpoints + multi-tenant middleware
+- [ ] 01-03-PLAN.md — Frontend auth UI + end-to-end integration verification
 
 **Success Criteria:**
 1. FastAPI backend serves requests on localhost with OpenAPI docs
