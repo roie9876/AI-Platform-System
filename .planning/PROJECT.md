@@ -1,12 +1,12 @@
-# AI Platform System
+# AI Agent Platform as a Service
 
 ## What This Is
 
-A comprehensive AI Agent Platform as a Service (PaaS) — similar to Azure AI Foundry, Google Vertex AI, and AWS Bedrock — that provides a unified interface for discovering, deploying, managing, and consuming AI models and AI agents. Built on Azure Cloud for STU-MSFT, it serves as an enterprise-grade AI orchestration platform enabling product teams to create AI agents, attach tools and data sources, orchestrate multi-agent workflows, and monitor cost and quality at scale.
+A multi-tenant AI Agent Platform as a Service (PaaS) that enables product teams at STU-MSFT to create, configure, and orchestrate AI agents through a self-service UI. Teams can attach tools, connect data sources, build multi-agent workflows, and monitor agent performance — all within secure, isolated runtime environments. The platform is model-agnostic: customers bring their own model endpoints while Azure OpenAI serves as the default.
 
 ## Core Value
 
-Provide a single, unified platform where product teams can create and configure AI agents through a UI, connect them to tools and data sources, orchestrate workflows with sub-agents, and consume them through standardized APIs — with built-in evaluation, cost observability, and policy enforcement.
+Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
 
 ## Requirements
 
@@ -16,67 +16,60 @@ Provide a single, unified platform where product teams can create and configure 
 
 ### Active
 
-- [ ] Model catalog with discovery and search across multiple AI model providers
-- [ ] One-click model deployment to managed endpoints on Azure
-- [ ] Standardized API gateway for unified model consumption (REST/gRPC)
-- [ ] User authentication and RBAC with Azure Entra ID integration
-- [ ] Project/workspace organization for team collaboration
-- [ ] Model fine-tuning and customization workflows
-- [ ] Prompt engineering playground and experimentation tools
-- [ ] Usage monitoring, logging, and cost tracking dashboards
-- [ ] Multi-model orchestration and chaining (AI pipelines)
-- [ ] Data management for training datasets and evaluation sets
-- [ ] Model evaluation and benchmarking framework
-- [ ] Responsible AI guardrails and content safety filters
-- [ ] SDK and CLI tooling for programmatic access
-- [ ] Billing and quota management per project/team
-- [ ] Agent control plane — create, configure, version, and manage AI agents via UI and API
-- [ ] Agent runtime plane — secure, isolated execution environments for agents
-- [ ] Tool management — attach, configure, and share tools per agent
-- [ ] Data source connection — connect and manage multiple data sources per agent
-- [ ] Sub-agent orchestration — parallel execution and agent composition
-- [ ] Workflow builder — sequential and autonomous agent execution flows
-- [ ] Agent marketplace — discover and share pre-built agents and templates
-- [ ] Memory management — long-term and short-term memory for agent context
-- [ ] Thread and state management — persistent conversation and execution state
-- [ ] Policy engine — governance rules for agent behavior and resource access
-- [ ] Evaluation engine — quality assessment and benchmarking per agent
-- [ ] Terminal & CLI execution — run and debug agents from CLI
-- [ ] Cost & token observability — per-agent, per-model cost tracking dashboard
+- [ ] Agent control plane — UI for creating, configuring, and managing agents
+- [ ] Agent runtime plane — secure, isolated execution environment for agents
+- [ ] Model abstraction & routing layer — model-agnostic endpoint routing with customer-provided endpoints
+- [ ] Multi-model routing — intelligent routing across multiple model endpoints
+- [ ] Tool marketplace — attach, manage, and discover tools for agents
+- [ ] Data source management — connect and manage multiple data sources per agent
+- [ ] Sub-agent orchestration — parallel execution and sub-agent coordination
+- [ ] Workflow builder — sequential and autonomous execution flows connecting agents
+- [ ] Memory management — long-term and short-term memory for agents
+- [ ] Thread management — conversation thread lifecycle and persistence
+- [ ] State management — agent state tracking across executions
+- [ ] Policy engine — governance, guardrails, and access control for agents
+- [ ] Evaluation engine — quality assessment and scoring for agent outputs
+- [ ] Cost & token observability — dashboard for tracking usage, costs, and token consumption
+- [ ] Terminal & CLI execution — programmatic agent interaction via CLI
+- [ ] Agent marketplace — discover, share, and reuse agent configurations
+- [ ] HLD documentation — vendor-agnostic architecture with Mermaid diagrams
+- [ ] Microsoft architecture design — maps HLD to concrete Azure/Microsoft services
+- [ ] RAG system integration — retrieval-augmented generation pipeline for agents
 
 ### Out of Scope
 
-- Custom hardware/chip provisioning — Azure manages infrastructure
-- Building proprietary foundation models — platform consumes existing models
-- On-premises deployment — cloud-native Azure only for v1
-- Mobile native apps — web-first platform, API-driven
+- IaC / deployment scripts — focus is on architecture docs + running PoC code
+- Mobile app — web-first platform
+- Billing / payment system — internal enterprise platform, no customer billing
+- Multi-cloud deployment — Microsoft-first, single-cloud architecture
 
 ## Context
 
-- **Target platform:** Azure Cloud (Azure-native services, ARM/Bicep IaC)
-- **Company:** STU-MSFT
-- **Competitive landscape:** Azure AI Foundry, Google Vertex AI, AWS Bedrock, Hugging Face
-- **Key differentiator opportunity:** Agent-first platform with multi-provider model routing, tool marketplace, sub-agent orchestration, and built-in evaluation — not just model serving
-- **User segments:** Product teams, ML engineers, application developers, data scientists, platform administrators
-- **Scale target:** Enterprise-grade, multi-tenant SaaS platform at large scale
+- **Company:** STU-MSFT — internal enterprise AI platform team
+- **Audience:** Manager presentation — demonstrate technical leadership, decisions made, and rationale
+- **Deliverables:** Three-tier approach: (1) vendor-agnostic HLD with Mermaid diagrams, (2) Microsoft product-mapped architecture, (3) working PoC
+- **Scale:** Designed for large-scale, multi-tenant enterprise deployment
+- **Model strategy:** Bring-your-own-endpoint — customers provide model API endpoints, platform routes to them. Azure OpenAI as the default provider
+- **Microsoft-first:** Product architecture maps to Microsoft services as extensively as possible
 
 ## Constraints
 
-- **Cloud:** Azure-only deployment — leverage Azure-native services (AKS, Cosmos DB, API Management, Azure OpenAI, etc.)
-- **Security:** Enterprise-grade — SOC 2, Azure compliance, data encryption at rest and in transit
-- **Architecture:** Microservices on AKS with event-driven patterns
-- **Auth:** Azure Entra ID (formerly Azure AD) for identity and RBAC
-- **IaC:** Bicep/ARM templates for all infrastructure provisioning
+- **Tech Stack**: Python/FastAPI backend, React/Next.js frontend — chosen for AI ecosystem compatibility and modern web UX
+- **Microsoft Products**: Use Microsoft services as extensively as possible for the product architecture mapping
+- **Model Agnostic**: Must support any model endpoint provided by customers, not locked to a single vendor
+- **Multi-tenant**: Secure isolation between tenants — agents, data, and execution environments must be fully isolated
+- **Presentation-ready**: All documentation and PoC must be explainable — decisions documented with "why" rationale
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Azure-native architecture | User requirement — build on Azure Cloud | — Pending |
-| Multi-provider model catalog | Differentiate from single-provider platforms (Azure AI Foundry = Azure models only) | — Pending |
-| Microservices on AKS | Scale independently, enterprise patterns, Azure-native container orchestration | — Pending |
-| Shared infra + logical isolation | Cost-efficient multi-tenancy via partition keys, RBAC, APIM subscriptions — see ADR-001 | Accepted |
-| Fine granularity phases | Complex platform with many subsystems — fine-grained control needed | — Pending |
+| Python/FastAPI for backend | AI/ML ecosystem is Python-native; FastAPI provides async performance + automatic OpenAPI docs | — Pending |
+| React/Next.js for frontend | Industry-standard for complex UIs; SSR for performance; rich component ecosystem | — Pending |
+| Model-agnostic via customer endpoints | Avoids vendor lock-in; customers own their model relationships; platform focuses on orchestration not model hosting | — Pending |
+| Three-tier deliverable (HLD → MSFT Arch → PoC) | Shows progression from abstract design thinking to concrete implementation; demonstrates architectural rigor for manager review | — Pending |
+| Mermaid for HLD diagrams | Embeddable in markdown, version-controllable, no external tooling needed | — Pending |
+| No IaC/deployment scripts | Keeps focus on architecture design + working code; deployment is separate concern for production readiness | — Pending |
 
 ## Evolution
 
