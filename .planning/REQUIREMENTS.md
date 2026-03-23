@@ -164,69 +164,69 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
-| INFRA-05 | Phase 1 | Pending |
-| INFRA-06 | Phase 1 | Pending |
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
-| AUTH-04 | Phase 2 | Pending |
-| AUTH-05 | Phase 2 | Pending |
-| PROJ-01 | Phase 2 | Pending |
-| PROJ-02 | Phase 2 | Pending |
-| PROJ-03 | Phase 2 | Pending |
-| PROJ-04 | Phase 2 | Pending |
-| PROJ-05 | Phase 2 | Pending |
-| CATL-01 | Phase 3 | Pending |
-| CATL-02 | Phase 3 | Pending |
-| CATL-03 | Phase 3 | Pending |
-| CATL-04 | Phase 3 | Pending |
-| CATL-05 | Phase 3 | Pending |
-| CATL-06 | Phase 3 | Pending |
-| DEPL-01 | Phase 4 | Pending |
-| DEPL-02 | Phase 4 | Pending |
-| DEPL-03 | Phase 4 | Pending |
-| DEPL-04 | Phase 4 | Pending |
-| DEPL-05 | Phase 4 | Pending |
-| DEPL-06 | Phase 4 | Pending |
-| API-01 | Phase 5 | Pending |
-| API-02 | Phase 5 | Pending |
-| API-03 | Phase 5 | Pending |
-| API-04 | Phase 5 | Pending |
-| API-05 | Phase 5 | Pending |
-| API-06 | Phase 5 | Pending |
-| SAFE-01 | Phase 5 | Pending |
-| SAFE-02 | Phase 5 | Pending |
-| SAFE-03 | Phase 5 | Pending |
-| SAFE-04 | Phase 5 | Pending |
-| SAFE-05 | Phase 5 | Pending |
-| COST-01 | Phase 6 | Pending |
-| COST-02 | Phase 6 | Pending |
-| COST-03 | Phase 6 | Pending |
-| COST-04 | Phase 6 | Pending |
-| UMON-01 | Phase 6 | Pending |
-| UMON-02 | Phase 6 | Pending |
-| UMON-03 | Phase 6 | Pending |
-| UMON-04 | Phase 6 | Pending |
-| UMON-05 | Phase 6 | Pending |
-| PLAY-01 | Phase 7 | Pending |
-| PLAY-02 | Phase 7 | Pending |
-| PLAY-03 | Phase 7 | Pending |
-| PLAY-04 | Phase 7 | Pending |
-| PLAY-05 | Phase 7 | Pending |
-| SDK-01 | Phase 8 | Pending |
-| SDK-02 | Phase 8 | Pending |
-| SDK-03 | Phase 8 | Pending |
-| SDK-04 | Phase 8 | Pending |
+| INFRA-01 | Phase 1: Infrastructure Foundation | Pending |
+| INFRA-02 | Phase 1: Infrastructure Foundation | Pending |
+| INFRA-03 | Phase 1: Infrastructure Foundation | Pending |
+| INFRA-04 | Phase 1: Infrastructure Foundation | Pending |
+| INFRA-05 | Phase 1: Infrastructure Foundation | Pending |
+| INFRA-06 | Phase 1: Infrastructure Foundation | Pending |
+| AUTH-01 | Phase 2: Identity & Authentication | Pending |
+| AUTH-02 | Phase 2: Identity & Authentication | Pending |
+| AUTH-03 | Phase 2: Identity & Authentication | Pending |
+| AUTH-04 | Phase 2: Identity & Authentication | Pending |
+| AUTH-05 | Phase 2: Identity & Authentication | Pending |
+| PROJ-01 | Phase 3: Projects & Multi-Tenancy | Pending |
+| PROJ-02 | Phase 3: Projects & Multi-Tenancy | Pending |
+| PROJ-03 | Phase 3: Projects & Multi-Tenancy | Pending |
+| PROJ-04 | Phase 3: Projects & Multi-Tenancy | Pending |
+| PROJ-05 | Phase 3: Projects & Multi-Tenancy | Pending |
+| CATL-01 | Phase 4: Model Catalog & Discovery | Pending |
+| CATL-02 | Phase 4: Model Catalog & Discovery | Pending |
+| CATL-03 | Phase 4: Model Catalog & Discovery | Pending |
+| CATL-04 | Phase 4: Model Catalog & Discovery | Pending |
+| CATL-05 | Phase 4: Model Catalog & Discovery | Pending |
+| CATL-06 | Phase 4: Model Catalog & Discovery | Pending |
+| DEPL-01 | Phase 5: Model Deployment & Serving | Pending |
+| DEPL-02 | Phase 5: Model Deployment & Serving | Pending |
+| DEPL-03 | Phase 5: Model Deployment & Serving | Pending |
+| DEPL-04 | Phase 5: Model Deployment & Serving | Pending |
+| DEPL-05 | Phase 5: Model Deployment & Serving | Pending |
+| DEPL-06 | Phase 5: Model Deployment & Serving | Pending |
+| API-01 | Phase 6: API Gateway & Unified Inference | Pending |
+| API-02 | Phase 6: API Gateway & Unified Inference | Pending |
+| API-03 | Phase 6: API Gateway & Unified Inference | Pending |
+| API-04 | Phase 6: API Gateway & Unified Inference | Pending |
+| API-05 | Phase 6: API Gateway & Unified Inference | Pending |
+| API-06 | Phase 6: API Gateway & Unified Inference | Pending |
+| SAFE-01 | Phase 7: Content Safety & Guardrails | Pending |
+| SAFE-02 | Phase 7: Content Safety & Guardrails | Pending |
+| SAFE-03 | Phase 7: Content Safety & Guardrails | Pending |
+| SAFE-04 | Phase 7: Content Safety & Guardrails | Pending |
+| SAFE-05 | Phase 7: Content Safety & Guardrails | Pending |
+| UMON-01 | Phase 8: Usage Monitoring & Observability | Pending |
+| UMON-02 | Phase 8: Usage Monitoring & Observability | Pending |
+| UMON-03 | Phase 8: Usage Monitoring & Observability | Pending |
+| UMON-04 | Phase 8: Usage Monitoring & Observability | Pending |
+| UMON-05 | Phase 8: Usage Monitoring & Observability | Pending |
+| COST-01 | Phase 9: Cost Tracking & Billing | Pending |
+| COST-02 | Phase 9: Cost Tracking & Billing | Pending |
+| COST-03 | Phase 9: Cost Tracking & Billing | Pending |
+| COST-04 | Phase 9: Cost Tracking & Billing | Pending |
+| PLAY-01 | Phase 10: Prompt Playground | Pending |
+| PLAY-02 | Phase 10: Prompt Playground | Pending |
+| PLAY-03 | Phase 10: Prompt Playground | Pending |
+| PLAY-04 | Phase 10: Prompt Playground | Pending |
+| PLAY-05 | Phase 10: Prompt Playground | Pending |
+| SDK-01 | Phase 11: SDK & CLI | Pending |
+| SDK-02 | Phase 11: SDK & CLI | Pending |
+| SDK-03 | Phase 11: SDK & CLI | Pending |
+| SDK-04 | Phase 11: SDK & CLI | Pending |
 
 **Coverage:**
-- v1 requirements: 55 total
-- Mapped to phases: 55
+- v1 requirements: 57 total
+- Mapped to phases: 57
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after initialization*
+*Last updated: 2026-03-23 after roadmap creation*
