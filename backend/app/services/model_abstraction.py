@@ -1,7 +1,6 @@
 import logging
 import time
 from typing import Optional, List, Dict, Any, AsyncGenerator
-from uuid import UUID
 
 import litellm
 
@@ -73,6 +72,8 @@ def _build_litellm_params(
     max_tokens: int,
     timeout: int,
     stream: bool,
+    tools: Optional[list] = None,
+    tool_choice: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build kwargs for litellm.acompletion based on provider and auth type."""
     provider = endpoint.provider_type
@@ -107,6 +108,11 @@ def _build_litellm_params(
         params["model"] = model_name
         if endpoint.api_key_encrypted:
             params["api_key"] = decrypt_api_key(endpoint.api_key_encrypted)
+
+    if tools:
+        params["tools"] = tools
+    if tool_choice:
+        params["tool_choice"] = tool_choice
 
     return params
 
@@ -191,4 +197,55 @@ class ModelAbstractionService:
 
         raise ModelError(
             f"All model endpoints failed. Last error: {last_error}"
+        )
+
+    async def complete_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        endpoints: List[ModelEndpoint],
+        tools: Optional[list] = None,
+        tool_choice: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        timeout: int = 30,
+    ) -> Dict[str, Any]:
+        """Non-streaming completion that returns full response including tool_calls.
+        Returns dict with keys: content (str|None), tool_calls (list|None), finish_reason (str)."""
+        sorted_endpoints = sorted(endpoints, key=lambda e: e.priority)
+        last_error: Optional[Exception] = None
+
+        for endpoint in sorted_endpoints:
+            endpoint_id = str(endpoint.id)
+            if not _circuit_breaker.is_available(endpoint_id):
+                logger.info(
+                    "Skipping endpoint %s — circuit breaker open",
+                    endpoint.name,
+                )
+                continue
+
+            params = _build_litellm_params(
+                endpoint, messages, temperature, max_tokens, timeout,
+                stream=False, tools=tools, tool_choice=tool_choice,
+            )
+            try:
+                response = await litellm.acompletion(**params)
+                _circuit_breaker.record_success(endpoint_id)
+                message = response.choices[0].message
+                return {
+                    "content": message.content,
+                    "tool_calls": getattr(message, "tool_calls", None),
+                    "finish_reason": response.choices[0].finish_reason,
+                }
+            except Exception as exc:
+                _circuit_breaker.record_failure(endpoint_id)
+                last_error = exc
+                logger.warning(
+                    "Endpoint %s failed, trying next fallback: %s",
+                    endpoint.name,
+                    str(exc),
+                )
+                continue
+
+        raise ModelError(
+            f"All endpoints failed: {last_error}"
         )
