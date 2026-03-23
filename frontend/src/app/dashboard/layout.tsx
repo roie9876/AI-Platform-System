@@ -9,6 +9,8 @@ import { ProtectedRoute } from "@/components/protected-route";
 const navItems = [
   { href: "/dashboard/agents", label: "Agents", icon: "🤖" },
   { href: "/dashboard/models", label: "Models", icon: "⚡" },
+  { href: "/dashboard/tools", label: "Tools", icon: "🔧" },
+  { href: "/dashboard/data-sources", label: "Data Sources", icon: "📁" },
 ];
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {

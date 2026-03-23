@@ -136,6 +136,24 @@ export default function AgentDetailPage() {
         <h1 className="text-2xl font-bold text-gray-900">Edit Agent</h1>
         <div className="flex gap-2">
           <Link
+            href={`/dashboard/agents/${agentId}/tools`}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Tools
+          </Link>
+          <Link
+            href={`/dashboard/agents/${agentId}/data-sources`}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Data Sources
+          </Link>
+          <Link
+            href={`/dashboard/agents/${agentId}/ai-services`}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            AI Services
+          </Link>
+          <Link
             href={`/dashboard/agents/${agentId}/versions`}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
