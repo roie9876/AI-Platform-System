@@ -64,6 +64,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Custom execution loop + SK as optional SDK | All major platforms (Azure Foundry, Vertex AI, Bedrock) own their orchestration engine. SK provides Microsoft-aligned plugin abstractions without owning the core loop. LangGraph patterns borrowed for multi-agent graphs. | Decided |
 | Python/FastAPI for backend | AI/ML ecosystem is Python-native; FastAPI provides async performance + automatic OpenAPI docs | — Pending |
 | React/Next.js for frontend | Industry-standard for complex UIs; SSR for performance; rich component ecosystem | — Pending |
 | Model-agnostic via customer endpoints | Avoids vendor lock-in; customers own their model relationships; platform focuses on orchestration not model hosting | — Pending |

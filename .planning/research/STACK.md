@@ -9,8 +9,9 @@
 | Language | Python | 3.12+ | HIGH | AI/ML ecosystem is Python-native; all major agent frameworks (LangChain, AutoGen, Semantic Kernel, CrewAI) are Python-first |
 | API Framework | FastAPI | 0.115+ | HIGH | Async-native, automatic OpenAPI spec generation, Pydantic validation, WebSocket support for streaming |
 | Task Queue | Celery + Redis | 5.4+ | HIGH | Proven for async agent execution, supports priority queues, result backends, task chains |
-| Agent Framework | Semantic Kernel (Python SDK) | 1.x | HIGH | Microsoft-native, supports multi-model routing, plugin architecture maps to tool marketplace, function calling built-in |
-| Alternative Agent Framework | AutoGen | 0.4+ | MEDIUM | Microsoft Research project, strong multi-agent orchestration, but API is less stable |
+| Agent Orchestration | Custom execution loop | — | HIGH | Own the core ReAct/plan-execute cycle — same pattern used by Azure AI Foundry, Google Vertex AI, AWS Bedrock. Full control over execution, debugging, and extension |
+| Agent SDK (optional) | Semantic Kernel (Python SDK) | 1.x | MEDIUM | Microsoft-native plugin/function-calling abstractions. Used as SDK layer for tool management and model routing, not as the orchestration engine |
+| Multi-Agent Patterns | LangGraph-inspired | — | MEDIUM | Graph-based multi-agent patterns (fan-out, supervisor, handoff). Borrow design patterns, not the library dependency |
 | ORM / DB Access | SQLAlchemy + Alembic | 2.0+ | HIGH | Async support, migration management, works with PostgreSQL |
 | WebSocket | FastAPI WebSockets + Socket.IO | — | HIGH | Real-time agent streaming, thread updates |
 
@@ -68,7 +69,7 @@
 
 | Technology | Why Not |
 |------------|---------|
-| LangChain (as core framework) | Heavy abstraction, frequent breaking changes, hard to debug at scale. Use Semantic Kernel instead for Microsoft alignment |
+| LangChain / LangGraph (as core framework) | Heavy abstraction, frequent breaking changes, hard to debug at scale. Borrow patterns from LangGraph for multi-agent graphs, but don't take the dependency. All major platforms (Azure, GCP, AWS) use custom loops |
 | Separate vector DB (Pinecone/Weaviate) | pgvector sufficient for PoC scale, reduces infrastructure complexity |
 | GraphQL | REST + WebSocket simpler for this domain, agent APIs are mostly CRUD + streaming |
 | MongoDB | PostgreSQL with JSONB covers flexible schema needs without losing relational integrity |

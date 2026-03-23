@@ -2,7 +2,9 @@
 
 ## Stack Decision
 
-**Backend:** Python 3.12+ / FastAPI — AI ecosystem is Python-native, FastAPI provides async performance + auto-generated OpenAPI docs. Use Semantic Kernel as the agent framework for Microsoft alignment.
+**Backend:** Python 3.12+ / FastAPI — AI ecosystem is Python-native, FastAPI provides async performance + auto-generated OpenAPI docs.
+
+**Agent Framework:** Custom execution loop (own the core ReAct/plan-execute cycle) + Semantic Kernel as optional SDK for plugin/function-calling abstractions + LangGraph-inspired patterns for multi-agent orchestration. This mirrors how Azure AI Foundry, Google Vertex AI, and AWS Bedrock all built their platforms — custom engine, frameworks as SDK layers only.
 
 **Frontend:** Next.js 15+ / React 19+ with Shadcn/ui + Tailwind. React Flow for the visual workflow builder. Zustand for state, TanStack Query for data fetching.
 
@@ -68,7 +70,7 @@
 | Control Plane / Runtime Plane split | Same pattern as Kubernetes, clear separation of concerns, independent scaling | Monolithic API (doesn't scale) |
 | PostgreSQL + pgvector (not separate vector DB) | Reduces operational complexity, pgvector sufficient at PoC scale | Pinecone/Weaviate (overkill for PoC) |
 | OpenAI-compatible canonical format | Industry standard, most providers support it | Custom format (more work, no standard) |
-| Semantic Kernel (not LangChain) | Microsoft-native, more stable API, plugin model maps to tool marketplace | LangChain (frequent breaking changes) |
+| Custom execution loop + SK as SDK | All major platforms (Azure, GCP, AWS) own their orchestration engine. SK provides plugin/tool abstractions without owning the loop | All-in on any single framework (loss of control, debugging opacity) |
 | Multi-tenancy from day one | Avoids costly retrofit, demonstrates production thinking | Add multi-tenancy later (technical debt) |
 | JSONB for agent configs | Flexible schema, avoids migration churn as configs evolve | Strict columns (too rigid for agent platform) |
 
