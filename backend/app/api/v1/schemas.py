@@ -151,3 +151,108 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     conversation_history: Optional[List[ChatMessage]] = None
+
+
+# --- Tool Schemas ---
+
+class ToolCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    input_schema: dict
+    output_schema: Optional[dict] = None
+    docker_image: Optional[str] = Field(default=None, max_length=512)
+    execution_command: Optional[str] = Field(default=None, max_length=1024)
+    timeout_seconds: int = Field(default=30, ge=1, le=300)
+
+
+class ToolUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    input_schema: Optional[dict] = None
+    output_schema: Optional[dict] = None
+    docker_image: Optional[str] = Field(default=None, max_length=512)
+    execution_command: Optional[str] = Field(default=None, max_length=1024)
+    timeout_seconds: Optional[int] = Field(default=None, ge=1, le=300)
+
+
+class ToolResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    input_schema: dict
+    output_schema: Optional[dict]
+    docker_image: Optional[str]
+    execution_command: Optional[str]
+    timeout_seconds: int
+    is_platform_tool: bool
+    tenant_id: Optional[UUID]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ToolListResponse(BaseModel):
+    tools: List[ToolResponse]
+    total: int
+
+
+class AgentToolAttachRequest(BaseModel):
+    tool_id: UUID
+
+
+class AgentToolResponse(BaseModel):
+    id: UUID
+    agent_id: UUID
+    tool_id: UUID
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# --- DataSource Schemas ---
+
+class DataSourceCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    source_type: str = Field(..., min_length=1)
+    config: Optional[dict] = None
+    credentials: Optional[str] = None
+
+
+class DataSourceUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    config: Optional[dict] = None
+
+
+class DataSourceResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    source_type: str
+    config: Optional[dict]
+    status: str
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DataSourceListResponse(BaseModel):
+    data_sources: List[DataSourceResponse]
+    total: int
+
+
+class AgentDataSourceAttachRequest(BaseModel):
+    data_source_id: UUID
+
+
+class AgentDataSourceResponse(BaseModel):
+    id: UUID
+    agent_id: UUID
+    data_source_id: UUID
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
