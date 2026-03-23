@@ -101,6 +101,8 @@ The Control Plane provides the management API surface for the platform. All oper
 - **Validation**: Pydantic v2 models for request/response schemas with automatic validation.
 - **Streaming**: WebSocket and Server-Sent Events (SSE) support for real-time agent response streaming.
 
+> **Why FastAPI?** We chose FastAPI over Django REST Framework because FastAPI provides native async support, automatic OpenAPI spec generation, and Pydantic-based validation — critical for an API-first platform with real-time agent streaming. Django was considered but its synchronous-first model adds complexity for WebSocket/SSE streaming and async agent execution.
+
 ### Authentication & Authorization
 
 - **JWT Tokens**: Access tokens (30-minute expiry) and refresh tokens (7-day expiry) stored in httpOnly cookies.
@@ -159,6 +161,8 @@ The model abstraction layer provides a unified interface to any LLM provider:
 - **Fallback Chains**: If the primary model endpoint fails, automatically fall back to secondary endpoints.
 - **Circuit Breaker**: Prevent cascading failures by temporarily disabling unhealthy endpoints.
 - **Provider Support**: Via LiteLLM — supports 100+ model providers with a unified interface.
+
+> **Why Semantic Kernel over LangChain?** We chose Semantic Kernel as the agent orchestration framework because it's Microsoft-native with a stable API and plugin architecture that maps directly to our tool marketplace concept. LangChain has a larger community but its frequent breaking changes and heavy abstraction layers make it harder to debug at scale. AutoGen (Microsoft Research) was also considered but its API is less stable than Semantic Kernel.
 
 ### Tool Execution Sandbox
 
@@ -243,6 +247,10 @@ Redis provides high-performance caching, real-time messaging, and task queue inf
 - **Hybrid Search**: Vector + keyword search for RAG retrieval.
 - **Document Ingestion**: Automated chunking and indexing of connected data sources.
 - **Integration**: Direct integration with the Memory System for knowledge retrieval.
+
+> **Why pgvector over Pinecone/Weaviate?** We chose pgvector (PostgreSQL extension) over dedicated vector databases because it eliminates a separate infrastructure component while providing sufficient vector search performance for PoC scale (~10k-100k embeddings). Pinecone offers better scaling at millions of vectors but adds operational complexity, cost, and another service to manage.
+
+> **Why Azure AI Search over Elasticsearch?** We chose Azure AI Search for RAG retrieval because it provides native hybrid (vector + keyword) search, integrates with Azure Blob Storage for document ingestion, and is fully managed. Elasticsearch was considered but requires more operational overhead and doesn't integrate as tightly with the Azure ecosystem.
 
 ```mermaid
 flowchart LR
@@ -420,6 +428,8 @@ Security is built into every layer of the platform, from network boundaries to d
 - **Refresh Token Rotation**: 7-day refresh tokens with rotation on each use. Stored in PostgreSQL for revocation capability.
 - **Enterprise SSO**: Microsoft Entra ID integration for single sign-on across the organization.
 
+> **Why httpOnly cookies over Bearer tokens?** We chose httpOnly cookies for JWT transport because they provide automatic XSS protection — the token is never accessible to JavaScript. Bearer tokens were considered but require manual token management in frontend code and are vulnerable to XSS attacks that can steal tokens from localStorage/sessionStorage.
+
 ### Multi-Tenant Isolation
 
 - **JWT Tenant Claims**: `tenant_id` embedded in JWT, extracted by middleware on every request.
@@ -474,6 +484,8 @@ flowchart TD
 - **Namespace Isolation**: Each tenant gets a Kubernetes namespace with network policies for workload isolation.
 - **Autoscaling**: Horizontal Pod Autoscaler (HPA) for API and runtime pods based on CPU/memory and custom metrics.
 - **Node Pools**: Separate node pools for Control Plane (general-purpose) and Runtime Plane (compute-optimized) workloads.
+
+> **Why AKS over Azure Container Apps?** We chose AKS for production because multi-tenant workload isolation requires fine-grained control over pod scheduling, network policies, and namespace isolation. Azure Container Apps was considered for its simplicity but lacks the namespace-level isolation and network policy controls needed for enterprise multi-tenancy.
 
 ### CI/CD
 
@@ -560,3 +572,212 @@ Each platform component maps to a specific Azure service with recommended SKUs f
 - **Queue-Based Scheduling**: Celery task queue distributes agent executions across available runtime pods.
 - **Priority Queues**: High-priority agent executions bypass the standard queue for latency-sensitive use cases.
 - **Autoscale Trigger**: Custom metrics (queue depth, active executions) drive HPA scaling decisions.
+
+---
+
+## Appendix: Architecture Decision Records (ADRs)
+
+This section documents the major architectural decisions made for the AI Agent Platform. Each decision follows the Architecture Decision Record (ADR) format with Status, Context, Decision, and Consequences.
+
+### ADR-001: Python as Backend Language
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs a backend language for both the management API and the agent execution runtime. The AI/ML ecosystem — including all major agent frameworks (LangChain, AutoGen, Semantic Kernel, CrewAI) — is Python-first. Alternatives considered: TypeScript/Node.js (unified with frontend), Go (performance), Java (enterprise ecosystem).
+
+**Decision:**  
+Use Python 3.12+ as the backend language.
+
+**Consequences:**  
+- Positive: Native access to AI/ML ecosystem, all agent frameworks available, large talent pool for AI development
+- Positive: Async performance via asyncio and FastAPI sufficient for API workloads
+- Negative: Frontend/backend language mismatch (TypeScript frontend, Python backend)
+- Neutral: Requires careful dependency management (pip/poetry) compared to compiled languages
+
+---
+
+### ADR-002: FastAPI as API Framework
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs an async web framework with automatic API documentation and strong validation. Alternatives considered: Django REST Framework (mature, batteries-included), Flask (lightweight), Litestar (modern alternative).
+
+**Decision:**  
+Use FastAPI with Pydantic v2 for request/response validation.
+
+**Consequences:**  
+- Positive: Automatic OpenAPI spec generation — critical for API-first design (TERM-02)
+- Positive: Native async support for WebSocket/SSE streaming of agent responses
+- Positive: Pydantic integration for type-safe request/response schemas
+- Negative: Smaller community and ecosystem compared to Django
+- Neutral: Need to manually add features Django provides out-of-box (admin, ORM migrations handled by SQLAlchemy/Alembic)
+
+---
+
+### ADR-003: PostgreSQL + pgvector Over Separate Vector Database
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs both relational storage (tenants, agents, configs) and vector storage (RAG embeddings, long-term memory). Options evaluated: PostgreSQL + pgvector (unified), PostgreSQL + Pinecone (managed vector), PostgreSQL + Weaviate (open-source vector), PostgreSQL + Milvus.
+
+**Decision:**  
+Use PostgreSQL 16+ with the pgvector extension for both relational and vector storage.
+
+**Consequences:**  
+- Positive: Single database to provision, manage, backup, and monitor
+- Positive: Reduced infrastructure complexity — no additional service to maintain
+- Positive: Sufficient performance for PoC scale (~10k-100k embeddings)
+- Negative: May need dedicated vector database at extreme scale (millions of embeddings per tenant)
+- Neutral: pgvector supports HNSW and IVFFlat indexes for approximate nearest neighbor search
+
+---
+
+### ADR-004: Semantic Kernel as Agent Framework
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs an agent orchestration framework for building and executing AI agents. Options evaluated: Semantic Kernel (Microsoft, Python SDK), AutoGen (Microsoft Research), LangChain (community standard), CrewAI (multi-agent focused).
+
+**Decision:**  
+Use Semantic Kernel (Python SDK) as the primary agent orchestration framework.
+
+**Consequences:**  
+- Positive: Microsoft-native alignment — organizational fit with STU-MSFT
+- Positive: Stable, well-documented API with predictable release cycle
+- Positive: Plugin architecture maps directly to the platform's tool marketplace concept
+- Positive: Built-in function calling support for tool invocation
+- Negative: Smaller community and fewer tutorials compared to LangChain
+- Neutral: AutoGen remains available as alternative for complex multi-agent scenarios
+
+---
+
+### ADR-005: Multi-Tenancy via Row-Level Isolation
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform must be multi-tenant from day one. Isolation strategies considered: database-per-tenant (strongest isolation, highest cost), schema-per-tenant (moderate isolation, moderate cost), row-level with tenant_id (lowest isolation, lowest cost).
+
+**Decision:**  
+Use row-level isolation with `tenant_id` in JWT claims, enforced by middleware on every database query.
+
+**Consequences:**  
+- Positive: Simple infrastructure — single database instance serves all tenants
+- Positive: Easy to add new tenants — no schema or database provisioning needed
+- Positive: Cost efficient — no per-tenant database overhead
+- Negative: Requires discipline in every query — a missing tenant filter leaks data
+- Negative: Less isolation than database-per-tenant — a noisy neighbor can impact shared resources
+- Neutral: Mitigated by middleware-enforced tenant context and code review practices
+
+---
+
+### ADR-006: Next.js with App Router for Frontend
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs a modern frontend framework for a complex admin and agent management UI. Options evaluated: Next.js (App Router), Remix (web standards), Vite + React SPA (lightweight).
+
+**Decision:**  
+Use Next.js 15+ with App Router, React 19, Shadcn/ui + Tailwind CSS.
+
+**Consequences:**  
+- Positive: Server-Side Rendering (SSR) for fast initial page loads
+- Positive: API routes enable Backend-for-Frontend (BFF) pattern
+- Positive: Large ecosystem of components, libraries, and deployment options
+- Positive: Shadcn/ui provides accessible, customizable components without heavy dependency
+- Negative: App Router adds complexity (server vs. client components, caching behavior)
+- Neutral: Tailwind CSS requires learning utility-first approach but enables rapid UI development
+
+---
+
+### ADR-007: JWT in httpOnly Cookies Over Bearer Tokens
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs a secure token transport mechanism for authentication. Options evaluated: Bearer tokens in Authorization header, httpOnly cookies, server-side sessions.
+
+**Decision:**  
+Use JWT in httpOnly cookies with access tokens (30-minute expiry) and refresh tokens (7-day expiry) with rotation.
+
+**Consequences:**  
+- Positive: XSS protection — token never accessible to JavaScript
+- Positive: Automatic inclusion on every request — no manual header management
+- Positive: Refresh token rotation prevents token reuse after leak
+- Negative: Requires careful CORS configuration for cross-origin requests
+- Negative: Slightly more complex than simple Bearer token flow
+- Neutral: Refresh tokens stored in PostgreSQL enable server-side revocation
+
+---
+
+### ADR-008: Azure-First Cloud Strategy
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform needs a cloud deployment target. The organization (STU-MSFT) is Microsoft-aligned, and the platform leverages Microsoft Entra ID for identity and Azure OpenAI as the default model provider.
+
+**Decision:**  
+Use Azure as the primary cloud platform with Microsoft services wherever possible.
+
+**Consequences:**  
+- Positive: Organizational alignment — existing Azure subscriptions, expertise, and support agreements
+- Positive: Entra ID integration for enterprise SSO without third-party identity providers
+- Positive: Azure OpenAI as default model provider with enterprise compliance and data residency
+- Negative: Vendor lock-in to Microsoft ecosystem — migration to AWS/GCP would be costly
+- Neutral: Platform's model-agnostic design (ADR-009) mitigates AI model vendor lock-in specifically
+
+---
+
+### ADR-009: Model-Agnostic via OpenAI-Compatible Interface
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+The platform must support multiple model providers (Azure OpenAI, OpenAI, Anthropic, Google, open-source). Options: vendor-specific SDKs per provider, custom unified abstraction, OpenAI-compatible API format as universal interface.
+
+**Decision:**  
+Use the OpenAI-compatible API format as the universal model interface, with LiteLLM for provider abstraction.
+
+**Consequences:**  
+- Positive: Most model providers already support OpenAI-compatible endpoints
+- Positive: Single abstraction layer for all providers — consistent code path
+- Positive: LiteLLM provides 100+ provider support with minimal custom code
+- Negative: Some provider-specific features (e.g., Anthropic's XML prompting) may not map cleanly
+- Neutral: Custom extensions can be added for provider-specific features when needed
+
+---
+
+### ADR-010: Celery + Redis for Async Task Execution
+
+**Status:** Accepted  
+**Date:** 2026-03-23
+
+**Context:**  
+Agent execution can be long-running (seconds to minutes). The platform needs async task processing to avoid blocking API threads. Options evaluated: Celery + Redis (proven), Dramatiq (simpler), Taskiq (modern), in-process asyncio (no queue).
+
+**Decision:**  
+Use Celery with Redis as both message broker and result backend.
+
+**Consequences:**  
+- Positive: Battle-tested at scale — used by Instagram, Mozilla, and many large platforms
+- Positive: Priority queues for latency-sensitive agent executions
+- Positive: Task chains and groups for orchestration workflows
+- Positive: Redis as result backend enables real-time status polling
+- Negative: Operational complexity — requires monitoring Celery workers, beat scheduler, and Redis
+- Negative: Redis as broker is less durable than RabbitMQ (mitigated by Azure Service Bus in production)
+- Neutral: Can migrate broker to Azure Service Bus for production without changing task code
