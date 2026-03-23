@@ -1,146 +1,124 @@
-# Requirements: AI Platform System
+# Requirements: AI Agent Platform as a Service
 
 **Defined:** 2026-03-23
-**Core Value:** Provide a single, unified platform where users can discover AI models from multiple providers, deploy them with one click, and consume them through standardized APIs
+**Core Value:** Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
 
 ## v1 Requirements
 
 Requirements for initial release. Each maps to roadmap phases.
 
-### Infrastructure
+### Architecture & Documentation
 
-- [ ] **INFRA-01**: Platform deploys on Azure with Bicep IaC templates for all resources
-- [ ] **INFRA-02**: AKS cluster provisioned with private networking (VNet, subnets, private endpoints)
-- [ ] **INFRA-03**: Azure Container Registry available for container image storage
-- [ ] **INFRA-04**: Azure Key Vault stores all secrets and certificates with managed identity access
-- [ ] **INFRA-05**: Azure Monitor and Application Insights configured for platform observability
-- [ ] **INFRA-06**: CI/CD pipeline deploys infrastructure and services from source control
+- [ ] **ARCH-01**: Vendor-agnostic HLD with Mermaid diagrams covering control plane, runtime plane, all subsystems, data flows, security boundaries, and scalability model
+- [ ] **ARCH-02**: Microsoft product-mapped architecture translating each HLD component to concrete Azure/Microsoft services with detailed system flows
+- [ ] **ARCH-03**: Decision documentation with rationale for every major architectural choice ("the why")
 
-### Authentication & Authorization
+### Agent Management
 
-- [ ] **AUTH-01**: User can authenticate via Azure Entra ID (SSO)
-- [ ] **AUTH-02**: Admin can assign roles at project, team, and resource levels (RBAC)
-- [ ] **AUTH-03**: API requests authenticated via Entra ID tokens or API keys
-- [ ] **AUTH-04**: Service-to-service authentication uses managed identities (no stored secrets)
-- [ ] **AUTH-05**: User can view and manage their active sessions
+- [ ] **AGNT-01**: User can create, view, edit, and delete agents through the UI
+- [ ] **AGNT-02**: User can configure agent settings (system prompt, model endpoint, temperature, max tokens, timeout)
+- [ ] **AGNT-03**: User can version agent configurations and rollback to previous versions
+- [ ] **AGNT-04**: User can view agent status (running, stopped, error) and health metrics
+- [ ] **AGNT-05**: User can discover, share, and import agent templates from the agent marketplace
 
-### Projects & Workspaces
+### Tool Management
 
-- [ ] **PROJ-01**: User can create a project with name, description, and member list
-- [ ] **PROJ-02**: User can invite team members to a project with role assignment
-- [ ] **PROJ-03**: Project provides isolated scope for deployments, API keys, and cost tracking
-- [ ] **PROJ-04**: Admin can set quotas and budgets per project
-- [ ] **PROJ-05**: User can view all projects they belong to with activity summary
+- [ ] **TOOL-01**: User can register tools with name, description, and JSON Schema definitions
+- [ ] **TOOL-02**: User can attach and detach tools to/from agents
+- [ ] **TOOL-03**: Platform executes tools in sandboxed environments with input validation and timeout handling
+- [ ] **TOOL-04**: User can discover and import shared tools from the tool marketplace
 
-### Model Catalog
+### Data Sources & RAG
 
-- [ ] **CATL-01**: User can browse a searchable catalog of AI models from multiple providers
-- [ ] **CATL-02**: User can filter models by provider, task type, modality, and capabilities
-- [ ] **CATL-03**: Each model has a detail card showing parameters, license, benchmarks, and pricing
-- [ ] **CATL-04**: Catalog includes models from Azure OpenAI and at least one additional provider
-- [ ] **CATL-05**: User can compare models side-by-side on key metrics
-- [ ] **CATL-06**: Model versions tracked with lifecycle status (preview, GA, deprecated)
+- [ ] **DATA-01**: User can connect, configure, and manage multiple data sources per agent
+- [ ] **DATA-02**: Platform provides RAG pipeline (ingest, chunk, embed, index, retrieve) for connected data sources
+- [ ] **DATA-03**: Platform securely stores and manages data source credentials
 
-### Model Deployment
+### Model Abstraction & Routing
 
-- [ ] **DEPL-01**: User can deploy a model from the catalog to a managed endpoint with one click
-- [ ] **DEPL-02**: User can view deployment status (provisioning, running, failed, stopped)
-- [ ] **DEPL-03**: User can scale deployment up/down or change instance configuration
-- [ ] **DEPL-04**: User can stop and delete deployments
-- [ ] **DEPL-05**: Deployments scoped to projects with per-project resource limits
-- [ ] **DEPL-06**: Async deployment provisioning with status notifications
+- [ ] **MODL-01**: User can register model endpoints (provider URL, API key, capabilities) — bring your own endpoint
+- [ ] **MODL-02**: Platform provides OpenAI-compatible abstraction layer normalizing all model interactions
+- [ ] **MODL-03**: Platform supports multi-model routing based on task type, cost, and latency
+- [ ] **MODL-04**: Platform implements fallback chains with circuit breaker for model endpoint failures
 
-### API Gateway & Unified Inference
+### Memory Management
 
-- [ ] **API-01**: User can consume any deployed model through a single standardized REST API
-- [ ] **API-02**: API supports chat completions, text completions, and embeddings endpoints
-- [ ] **API-03**: API supports streaming responses (SSE) for real-time token generation
-- [ ] **API-04**: API gateway handles routing to correct model backend based on model ID
-- [ ] **API-05**: Per-project rate limiting and quota enforcement at the gateway
-- [ ] **API-06**: API responses include usage metadata (tokens consumed, latency)
+- [ ] **MEMO-01**: Platform maintains short-term memory (conversation history within a thread/session)
+- [ ] **MEMO-02**: Platform maintains long-term memory (cross-session persistent knowledge via vector store)
+- [ ] **MEMO-03**: Memory is scoped and isolated per-agent, per-user, and per-tenant
 
-### Content Safety & Guardrails
+### Thread & State Management
 
-- [ ] **SAFE-01**: Configurable content filters on both input prompts and output completions
-- [ ] **SAFE-02**: Content filtering categories include hate, sexual, violence, and self-harm
-- [ ] **SAFE-03**: PII detection and optional redaction on input/output
-- [ ] **SAFE-04**: Admin can configure guardrail policies per project
-- [ ] **SAFE-05**: Guardrail violations logged with reason and severity
+- [ ] **THRD-01**: User can create, view, resume, and delete conversation threads
+- [ ] **THRD-02**: Platform captures state snapshots and maintains full execution history for debugging
+- [ ] **THRD-03**: Platform supports cross-agent threading for multi-agent workflows
 
-### Prompt Playground
+### Orchestration & Workflows
 
-- [ ] **PLAY-01**: User can test deployed models interactively in a web-based playground
-- [ ] **PLAY-02**: Playground supports chat mode and completion mode
-- [ ] **PLAY-03**: User can tune parameters (temperature, top-p, max tokens, stop sequences)
-- [ ] **PLAY-04**: User can view token count and cost estimate per request
-- [ ] **PLAY-05**: User can save and load prompt configurations
+- [ ] **ORCH-01**: User can chain agents sequentially (output of one feeds input of next)
+- [ ] **ORCH-02**: User can execute multiple agents in parallel with result aggregation
+- [ ] **ORCH-03**: Agents can delegate subtasks to sub-agents during execution
+- [ ] **ORCH-04**: User can build workflows visually using drag-and-drop flow editor
+- [ ] **ORCH-05**: Platform supports autonomous execution mode where agents determine their own flow
 
-### Usage Monitoring
+### Policy Engine & Governance
 
-- [ ] **UMON-01**: User can view request count, token usage, and latency per deployment
-- [ ] **UMON-02**: User can view usage metrics aggregated per project
-- [ ] **UMON-03**: Request/response logs available for debugging and auditing
-- [ ] **UMON-04**: Dashboard shows real-time and historical usage trends
-- [ ] **UMON-05**: Alerts on error rate spikes or quota threshold breaches
+- [ ] **PLCY-01**: Platform applies content filtering on agent inputs and outputs (pre and post execution)
+- [ ] **PLCY-02**: Platform enforces rate limits per-agent, per-user, and per-tenant
+- [ ] **PLCY-03**: Platform implements RBAC with role-based permissions for agents, tools, and data sources
+- [ ] **PLCY-04**: Platform maintains audit logs of all agent actions, user operations, and policy events
 
-### Cost Tracking & Billing
+### Evaluation Engine
 
-- [ ] **COST-01**: Token usage aggregated with per-model pricing to show cost per project
-- [ ] **COST-02**: Admin can set budget limits per project with alerts at thresholds
-- [ ] **COST-03**: Cost breakdown available by model, deployment, and time period
-- [ ] **COST-04**: Usage and cost data exportable for external billing systems
+- [ ] **EVAL-01**: User can create and manage test suites with input/expected-output pairs per agent
+- [ ] **EVAL-02**: Platform computes automated evaluation metrics (semantic similarity, latency, token efficiency)
+- [ ] **EVAL-03**: User can view evaluation dashboards comparing agent versions and configurations
 
-### SDK & CLI
+### Cost & Token Observability
 
-- [ ] **SDK-01**: Python SDK available for model inference, catalog browsing, and deployment management
-- [ ] **SDK-02**: SDK handles authentication, retries, and streaming transparently
-- [ ] **SDK-03**: CLI tool available for platform operations (deploy, list, delete, query)
-- [ ] **SDK-04**: OpenAPI specification published for all platform APIs
+- [ ] **COST-01**: Platform counts input/output tokens per model request
+- [ ] **COST-02**: Platform calculates cost per request based on model pricing tables
+- [ ] **COST-03**: User can view usage dashboards with per-agent, per-team, and per-model cost breakdowns
+- [ ] **COST-04**: Platform sends cost alerts and enforces budget limits when spending exceeds thresholds
+
+### Terminal & CLI
+
+- [ ] **TERM-01**: User can execute agents and view results from the command line
+- [ ] **TERM-02**: All UI operations are available via REST API (API-first design)
 
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
 
-### Fine-Tuning
+### Advanced Agent Features
 
-- **TUNE-01**: User can submit supervised fine-tuning jobs with training datasets
-- **TUNE-02**: User can fine-tune with LoRA/PEFT for parameter-efficient tuning
-- **TUNE-03**: Fine-tuning job progress trackable with metrics and checkpoints
-- **TUNE-04**: Fine-tuned models automatically added to project's model catalog
+- **AGNT-06**: Agent A/B testing — run multiple agent versions against same inputs and compare
+- **AGNT-07**: Agent cloning with configuration diff view
 
-### AI Pipelines
+### Advanced Tool Features
 
-- **PIPE-01**: User can chain multiple models into sequential or parallel pipelines
-- **PIPE-02**: Visual pipeline editor for building multi-model workflows
-- **PIPE-03**: Pipeline execution tracked with per-step metrics and cost
+- **TOOL-05**: Custom tool builder UI — define tools via OpenAPI spec or function signature in the browser
+- **TOOL-06**: Tool versioning with semantic versioning and compatibility checks
 
-### Model Evaluation
+### Advanced Memory
 
-- **EVAL-01**: User can run automated evaluation benchmarks against deployed models
-- **EVAL-02**: User can upload custom evaluation datasets
-- **EVAL-03**: Evaluation results displayed alongside model catalog entries
+- **MEMO-04**: Memory summarization — compress long conversations into summaries automatically
+- **MEMO-05**: Shared memory spaces for cross-agent collaborative workflows
 
-### Prompt Management
+### Advanced Evaluation
 
-- **PMGT-01**: User can version prompts with git-like history
-- **PMGT-02**: User can create prompt templates with variable substitution
-- **PMGT-03**: Prompt analytics show which prompts perform best
-
-### Agent Builder
-
-- **AGNT-01**: User can build AI agents with tool registration and memory
-- **AGNT-02**: Agent supports multi-step planning with human-in-the-loop
-- **AGNT-03**: Agent framework built on open standards (MCP, A2A)
-
-### Data Management
-
-- **DATA-01**: User can upload and version datasets for training and evaluation
-- **DATA-02**: Dataset schema validation and train/test/val split management
+- **EVAL-04**: LLM-as-judge — use a stronger model to evaluate agent output quality
+- **EVAL-05**: Regression testing — detect quality degradation after config changes
 
 ### Advanced Observability
 
-- **OBSV-01**: LLM-specific tracing with token-level latency breakdown
-- **OBSV-02**: Cost per request tracking with OpenTelemetry integration
+- **COST-05**: Cost forecasting — predict future costs based on usage trends
+- **COST-06**: Cost optimization suggestions — recommend cheaper models for equivalent quality
+
+### Developer Experience
+
+- **TERM-03**: Interactive CLI mode — chat-style terminal interaction with agents
+- **TERM-04**: Python/JS SDK for programmatic agent management and execution
 
 ## Out of Scope
 
@@ -148,15 +126,14 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Custom foundation model training | Requires massive GPU clusters and billions in compute — not a platform concern |
-| On-premises deployment | Cloud-native Azure only for v1; adds massive infrastructure complexity |
-| Mobile native apps | Platform users (developers, ML engineers) work in browsers and IDEs |
-| Custom hardware/chip provisioning | Azure manages infrastructure; platform abstracts compute selection |
-| No-code/low-code model building | AutoML territory — extremely complex, undermines developer focus |
-| Built-in notebook environment | Integrate with existing notebooks (VS Code, JupyterHub) via SDK instead |
-| Universal model format converter | Model conversion is lossy, fragile, and model-specific |
-| Real-time collaborative training | Distributed training coordination is already hard without real-time collab |
-| Multi-cloud deployment | Azure-only for v1; cross-cloud aggregation is v2+ scope |
+| Model training / fine-tuning | Platform is for orchestration, not model development |
+| IaC / deployment scripts | Focus on architecture docs + running PoC code |
+| Mobile app | Web-first platform |
+| Billing / payment system | Internal enterprise platform, no customer billing |
+| Multi-cloud deployment | Microsoft-first, single-cloud architecture |
+| Real-time collaboration (Google Docs style) | Unnecessary complexity for enterprise admin UI |
+| Natural language platform management | Over-engineered — UI is clearer for agent management |
+| Code deployment pipeline | Agents are configured, not coded — no CI/CD needed |
 
 ## Traceability
 
@@ -164,69 +141,55 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1: Infrastructure Foundation | Pending |
-| INFRA-02 | Phase 1: Infrastructure Foundation | Pending |
-| INFRA-03 | Phase 1: Infrastructure Foundation | Pending |
-| INFRA-04 | Phase 1: Infrastructure Foundation | Pending |
-| INFRA-05 | Phase 1: Infrastructure Foundation | Pending |
-| INFRA-06 | Phase 1: Infrastructure Foundation | Pending |
-| AUTH-01 | Phase 2: Identity & Authentication | Pending |
-| AUTH-02 | Phase 2: Identity & Authentication | Pending |
-| AUTH-03 | Phase 2: Identity & Authentication | Pending |
-| AUTH-04 | Phase 2: Identity & Authentication | Pending |
-| AUTH-05 | Phase 2: Identity & Authentication | Pending |
-| PROJ-01 | Phase 3: Projects & Multi-Tenancy | Pending |
-| PROJ-02 | Phase 3: Projects & Multi-Tenancy | Pending |
-| PROJ-03 | Phase 3: Projects & Multi-Tenancy | Pending |
-| PROJ-04 | Phase 3: Projects & Multi-Tenancy | Pending |
-| PROJ-05 | Phase 3: Projects & Multi-Tenancy | Pending |
-| CATL-01 | Phase 4: Model Catalog & Discovery | Pending |
-| CATL-02 | Phase 4: Model Catalog & Discovery | Pending |
-| CATL-03 | Phase 4: Model Catalog & Discovery | Pending |
-| CATL-04 | Phase 4: Model Catalog & Discovery | Pending |
-| CATL-05 | Phase 4: Model Catalog & Discovery | Pending |
-| CATL-06 | Phase 4: Model Catalog & Discovery | Pending |
-| DEPL-01 | Phase 5: Model Deployment & Serving | Pending |
-| DEPL-02 | Phase 5: Model Deployment & Serving | Pending |
-| DEPL-03 | Phase 5: Model Deployment & Serving | Pending |
-| DEPL-04 | Phase 5: Model Deployment & Serving | Pending |
-| DEPL-05 | Phase 5: Model Deployment & Serving | Pending |
-| DEPL-06 | Phase 5: Model Deployment & Serving | Pending |
-| API-01 | Phase 6: API Gateway & Unified Inference | Pending |
-| API-02 | Phase 6: API Gateway & Unified Inference | Pending |
-| API-03 | Phase 6: API Gateway & Unified Inference | Pending |
-| API-04 | Phase 6: API Gateway & Unified Inference | Pending |
-| API-05 | Phase 6: API Gateway & Unified Inference | Pending |
-| API-06 | Phase 6: API Gateway & Unified Inference | Pending |
-| SAFE-01 | Phase 7: Content Safety & Guardrails | Pending |
-| SAFE-02 | Phase 7: Content Safety & Guardrails | Pending |
-| SAFE-03 | Phase 7: Content Safety & Guardrails | Pending |
-| SAFE-04 | Phase 7: Content Safety & Guardrails | Pending |
-| SAFE-05 | Phase 7: Content Safety & Guardrails | Pending |
-| UMON-01 | Phase 8: Usage Monitoring & Observability | Pending |
-| UMON-02 | Phase 8: Usage Monitoring & Observability | Pending |
-| UMON-03 | Phase 8: Usage Monitoring & Observability | Pending |
-| UMON-04 | Phase 8: Usage Monitoring & Observability | Pending |
-| UMON-05 | Phase 8: Usage Monitoring & Observability | Pending |
-| COST-01 | Phase 9: Cost Tracking & Billing | Pending |
-| COST-02 | Phase 9: Cost Tracking & Billing | Pending |
-| COST-03 | Phase 9: Cost Tracking & Billing | Pending |
-| COST-04 | Phase 9: Cost Tracking & Billing | Pending |
-| PLAY-01 | Phase 10: Prompt Playground | Pending |
-| PLAY-02 | Phase 10: Prompt Playground | Pending |
-| PLAY-03 | Phase 10: Prompt Playground | Pending |
-| PLAY-04 | Phase 10: Prompt Playground | Pending |
-| PLAY-05 | Phase 10: Prompt Playground | Pending |
-| SDK-01 | Phase 11: SDK & CLI | Pending |
-| SDK-02 | Phase 11: SDK & CLI | Pending |
-| SDK-03 | Phase 11: SDK & CLI | Pending |
-| SDK-04 | Phase 11: SDK & CLI | Pending |
+| ARCH-01 | Phase 2 | Pending |
+| ARCH-02 | Phase 2 | Pending |
+| ARCH-03 | Phase 2 | Pending |
+| AGNT-01 | Phase 3 | Pending |
+| AGNT-02 | Phase 3 | Pending |
+| AGNT-03 | Phase 3 | Pending |
+| AGNT-04 | Phase 3 | Pending |
+| AGNT-05 | Phase 8 | Pending |
+| TOOL-01 | Phase 4 | Pending |
+| TOOL-02 | Phase 4 | Pending |
+| TOOL-03 | Phase 4 | Pending |
+| TOOL-04 | Phase 8 | Pending |
+| DATA-01 | Phase 4 | Pending |
+| DATA-02 | Phase 4 | Pending |
+| DATA-03 | Phase 4 | Pending |
+| MODL-01 | Phase 3 | Pending |
+| MODL-02 | Phase 3 | Pending |
+| MODL-03 | Phase 3 | Pending |
+| MODL-04 | Phase 3 | Pending |
+| MEMO-01 | Phase 5 | Pending |
+| MEMO-02 | Phase 5 | Pending |
+| MEMO-03 | Phase 5 | Pending |
+| THRD-01 | Phase 5 | Pending |
+| THRD-02 | Phase 5 | Pending |
+| THRD-03 | Phase 6 | Pending |
+| ORCH-01 | Phase 6 | Pending |
+| ORCH-02 | Phase 6 | Pending |
+| ORCH-03 | Phase 6 | Pending |
+| ORCH-04 | Phase 6 | Pending |
+| ORCH-05 | Phase 6 | Pending |
+| PLCY-01 | Phase 7 | Pending |
+| PLCY-02 | Phase 7 | Pending |
+| PLCY-03 | Phase 7 | Pending |
+| PLCY-04 | Phase 7 | Pending |
+| EVAL-01 | Phase 8 | Pending |
+| EVAL-02 | Phase 8 | Pending |
+| EVAL-03 | Phase 8 | Pending |
+| COST-01 | Phase 8 | Pending |
+| COST-02 | Phase 8 | Pending |
+| COST-03 | Phase 8 | Pending |
+| COST-04 | Phase 8 | Pending |
+| TERM-01 | Phase 8 | Pending |
+| TERM-02 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 57 total
-- Mapped to phases: 57
-- Unmapped: 0 ✓
+- v1 requirements: 42 total
+- Mapped to phases: 42
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after roadmap creation*
+*Last updated: 2026-03-23 after initialization*
