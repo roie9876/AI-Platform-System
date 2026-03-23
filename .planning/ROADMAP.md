@@ -47,7 +47,13 @@ Plans:
 ### Phase 3: Agent Core & Model Abstraction
 **Goal:** Build the agent CRUD UI, model endpoint registry, and model abstraction layer so users can create agents, register model endpoints, and execute basic agent conversations with streaming.
 **Requirements:** [AGNT-01, AGNT-02, AGNT-03, AGNT-04, MODL-01, MODL-02, MODL-03, MODL-04]
-**Plans:** [To be planned]
+**Plans:** 4 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Backend models, migrations, Agent + ModelEndpoint CRUD APIs
+- [ ] 03-02-PLAN.md — Model abstraction layer (LiteLLM), agent execution engine, SSE streaming
+- [ ] 03-03-PLAN.md — Frontend agent dashboard, model endpoint management UI
+- [ ] 03-04-PLAN.md — Frontend AI Foundry-style chat interface + human verification
 
 **Success Criteria:**
 1. User can create/edit/delete an agent through the UI
