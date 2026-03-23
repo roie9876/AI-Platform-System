@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A comprehensive AI platform system — similar to Azure AI Foundry, Google Vertex AI, and AWS Bedrock — that provides a unified interface for discovering, deploying, managing, and consuming AI models and services. Built on Azure Cloud, it serves as an enterprise-grade AI orchestration platform enabling developers and organizations to build, train, fine-tune, deploy, and monitor AI/ML models at scale.
+A comprehensive AI Agent Platform as a Service (PaaS) — similar to Azure AI Foundry, Google Vertex AI, and AWS Bedrock — that provides a unified interface for discovering, deploying, managing, and consuming AI models and AI agents. Built on Azure Cloud for STU-MSFT, it serves as an enterprise-grade AI orchestration platform enabling product teams to create AI agents, attach tools and data sources, orchestrate multi-agent workflows, and monitor cost and quality at scale.
 
 ## Core Value
 
-Provide a single, unified platform where users can discover AI models from multiple providers, deploy them with one click, and consume them through standardized APIs — eliminating the complexity of managing disparate AI services.
+Provide a single, unified platform where product teams can create and configure AI agents through a UI, connect them to tools and data sources, orchestrate workflows with sub-agents, and consume them through standardized APIs — with built-in evaluation, cost observability, and policy enforcement.
 
 ## Requirements
 
@@ -30,6 +30,19 @@ Provide a single, unified platform where users can discover AI models from multi
 - [ ] Responsible AI guardrails and content safety filters
 - [ ] SDK and CLI tooling for programmatic access
 - [ ] Billing and quota management per project/team
+- [ ] Agent control plane — create, configure, version, and manage AI agents via UI and API
+- [ ] Agent runtime plane — secure, isolated execution environments for agents
+- [ ] Tool management — attach, configure, and share tools per agent
+- [ ] Data source connection — connect and manage multiple data sources per agent
+- [ ] Sub-agent orchestration — parallel execution and agent composition
+- [ ] Workflow builder — sequential and autonomous agent execution flows
+- [ ] Agent marketplace — discover and share pre-built agents and templates
+- [ ] Memory management — long-term and short-term memory for agent context
+- [ ] Thread and state management — persistent conversation and execution state
+- [ ] Policy engine — governance rules for agent behavior and resource access
+- [ ] Evaluation engine — quality assessment and benchmarking per agent
+- [ ] Terminal & CLI execution — run and debug agents from CLI
+- [ ] Cost & token observability — per-agent, per-model cost tracking dashboard
 
 ### Out of Scope
 
@@ -41,10 +54,11 @@ Provide a single, unified platform where users can discover AI models from multi
 ## Context
 
 - **Target platform:** Azure Cloud (Azure-native services, ARM/Bicep IaC)
+- **Company:** STU-MSFT
 - **Competitive landscape:** Azure AI Foundry, Google Vertex AI, AWS Bedrock, Hugging Face
-- **Key differentiator opportunity:** Multi-provider model aggregation with unified consumption API, stronger developer experience
-- **User segments:** ML engineers, application developers, data scientists, platform administrators
-- **Scale target:** Enterprise-grade, multi-tenant SaaS platform
+- **Key differentiator opportunity:** Agent-first platform with multi-provider model routing, tool marketplace, sub-agent orchestration, and built-in evaluation — not just model serving
+- **User segments:** Product teams, ML engineers, application developers, data scientists, platform administrators
+- **Scale target:** Enterprise-grade, multi-tenant SaaS platform at large scale
 
 ## Constraints
 
@@ -61,6 +75,7 @@ Provide a single, unified platform where users can discover AI models from multi
 | Azure-native architecture | User requirement — build on Azure Cloud | — Pending |
 | Multi-provider model catalog | Differentiate from single-provider platforms (Azure AI Foundry = Azure models only) | — Pending |
 | Microservices on AKS | Scale independently, enterprise patterns, Azure-native container orchestration | — Pending |
+| Shared infra + logical isolation | Cost-efficient multi-tenancy via partition keys, RBAC, APIM subscriptions — see ADR-001 | Accepted |
 | Fine granularity phases | Complex platform with many subsystems — fine-grained control needed | — Pending |
 
 ## Evolution

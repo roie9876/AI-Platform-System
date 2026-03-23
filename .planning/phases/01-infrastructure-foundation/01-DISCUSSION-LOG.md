@@ -3,10 +3,10 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-03-23
+**Date:** 2026-03-23 (updated: 2026-03-23)
 **Phase:** 01-infrastructure-foundation
-**Areas discussed:** Azure Region Strategy, AKS Cluster Configuration, Networking Topology, CI/CD Pipeline, Bicep Module Organization, Monitoring Setup
-**Mode:** Auto (all recommended defaults selected)
+**Areas discussed:** Azure Region Strategy, AKS Cluster Configuration, Networking Topology, CI/CD Pipeline, Bicep Module Organization, Monitoring Setup, Multi-Tenant Isolation
+**Mode:** Initial pass: Auto | Update pass: Interactive
 
 ---
 
@@ -98,4 +98,34 @@
 
 ## Deferred Ideas
 
-None — discussion stayed within phase scope
+### Scope Expansion — Agent Platform (STU-MSFT)
+
+User provided expanded project brief redefining the platform as an AI Agent Platform as a Service. New capabilities identified:
+- Agent control plane & runtime plane
+- Tool management & marketplace
+- Data source connection management
+- Sub-agent orchestration & parallel execution
+- Workflow builder (sequential + autonomous)
+- Agent marketplace
+- Memory management (long & short term)
+- Thread & state management
+- Policy engine
+- Agent-specific evaluation engine
+- Terminal & CLI agent execution
+- Per-agent cost & token observability
+
+**Decision:** Add agent phases to current roadmap (not replace, not defer to v2)
+**Action:** Use `/gsd-add-phase` to add 7 new agent-focused phases after existing Phase 11
+
+---
+
+## Multi-Tenant Isolation (Update Pass)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Shared infrastructure + logical isolation | Single AKS, single Cosmos DB, single VNet — isolation via partition keys, RBAC, APIM subscriptions | ✓ |
+| Namespace-per-tenant | AKS namespace + separate DBs per tenant — stronger isolation, higher cost | |
+| Dedicated per-tenant resources | Full resource isolation per tenant — maximum isolation, maximum cost | |
+
+**User's choice:** Shared infrastructure (after reviewing full explanation of all layers)
+**Notes:** Created ADR-001 documenting per-layer isolation strategy. Updated PROJECT.md, ARCHITECTURE.md, and CONTEXT.md. Key mechanisms: Cosmos DB hierarchical partition keys, APIM per-project subscriptions, AKS per-service namespaces, projectId custom dimension in telemetry.

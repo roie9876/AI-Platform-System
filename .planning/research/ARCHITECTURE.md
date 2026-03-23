@@ -173,6 +173,25 @@ ai-platform/
 - **shared/libraries/:** Common concerns (auth, messaging, telemetry) extracted once to prevent duplication across services
 - **deploy/:** Separation of deployment manifests from application code enables GitOps workflows
 
+## Multi-Tenant Isolation Architecture
+
+**Full details:** `.planning/adrs/adr-001-multi-tenant-isolation.md`
+
+The platform uses **shared infrastructure with logical isolation** — all tenants share the same physical resources (AKS cluster, Cosmos DB, APIM, VNet) with isolation enforced at each layer through Azure-native mechanisms:
+
+| Layer | Isolation Mechanism |
+|-------|---------------------|
+| Network | Shared subnets, NSG per-service boundaries, private endpoints |
+| Compute (AKS) | Per-service namespaces (not per-tenant), tenant context in request headers |
+| API Gateway (APIM) | Per-project subscription keys, rate limiting policies |
+| Database (Cosmos DB) | Hierarchical partition keys: `/tenantId/projectId/entityType` |
+| Database (Azure SQL) | Row-level security filtered by `project_id` |
+| Identity (Entra ID) | Application-level RBAC scoped per project |
+| Secrets (Key Vault) | RBAC + managed identities, per-service access scoping |
+| Monitoring | `projectId` custom dimension, application-enforced dashboard filtering |
+
+This model was chosen over namespace-per-tenant, database-per-tenant, and VNet-per-tenant alternatives for cost efficiency, operational simplicity, and proven scalability at enterprise SaaS scale.
+
 ## Architectural Patterns
 
 ### Pattern 1: API Gateway with Multi-Backend Routing
