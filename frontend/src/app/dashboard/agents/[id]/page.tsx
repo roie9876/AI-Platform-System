@@ -10,7 +10,7 @@ import { AgentMonitorPanel } from "@/components/agent/agent-monitor-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
-import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock } from "lucide-react";
+import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -78,6 +78,31 @@ interface AgentMemoryItem {
   created_at: string;
 }
 
+interface AgentMCPTool {
+  id: string;
+  agent_id: string;
+  mcp_tool_id: string;
+  tool_name: string;
+  description: string | null;
+  server_id: string;
+  server_name: string;
+  is_available: boolean;
+  created_at: string;
+}
+
+interface MCPDiscoveredToolItem {
+  id: string;
+  server_id: string;
+  tool_name: string;
+  description: string | null;
+  is_available: boolean;
+}
+
+interface MCPDiscoveredToolListResponse {
+  tools: MCPDiscoveredToolItem[];
+  total: number;
+}
+
 interface AgentMemoryListResponse {
   memories: AgentMemoryItem[];
   total: number;
@@ -134,6 +159,10 @@ export default function AgentDetailPage() {
   const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
+  const [attachedMCPTools, setAttachedMCPTools] = useState<AgentMCPTool[]>([]);
+  const [showMCPPicker, setShowMCPPicker] = useState(false);
+  const [availableMCPTools, setAvailableMCPTools] = useState<MCPDiscoveredToolItem[]>([]);
+  const [mcpActionLoading, setMcpActionLoading] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -302,7 +331,59 @@ export default function AgentDetailPage() {
     loadAttachedTools();
     loadMemories();
     loadThreads();
+    loadAttachedMCPTools();
   }, [agentId]);
+
+  async function loadAttachedMCPTools() {
+    try {
+      const mcpTools = await apiFetch<AgentMCPTool[]>(
+        `/api/v1/agents/${agentId}/mcp-tools`
+      );
+      setAttachedMCPTools(mcpTools);
+    } catch {
+      // silently handle
+    }
+  }
+
+  async function handleOpenMCPPicker() {
+    setShowMCPPicker(true);
+    try {
+      const data = await apiFetch<MCPDiscoveredToolListResponse>("/api/v1/mcp/tools");
+      setAvailableMCPTools(data.tools);
+    } catch {
+      setAvailableMCPTools([]);
+    }
+  }
+
+  async function handleAttachMCPTool(mcpToolId: string) {
+    setMcpActionLoading(mcpToolId);
+    try {
+      await apiFetch(`/api/v1/agents/${agentId}/mcp-tools`, {
+        method: "POST",
+        body: JSON.stringify({ mcp_tool_id: mcpToolId }),
+      });
+      await loadAttachedMCPTools();
+      setShowMCPPicker(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to attach MCP tool");
+    } finally {
+      setMcpActionLoading(null);
+    }
+  }
+
+  async function handleDetachMCPTool(mcpToolId: string) {
+    setMcpActionLoading(mcpToolId);
+    try {
+      await apiFetch(`/api/v1/agents/${agentId}/mcp-tools/${mcpToolId}`, {
+        method: "DELETE",
+      });
+      setAttachedMCPTools((prev) => prev.filter((t) => t.mcp_tool_id !== mcpToolId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to detach MCP tool");
+    } finally {
+      setMcpActionLoading(null);
+    }
+  }
 
   async function loadAttachedTools() {
     try {
@@ -492,6 +573,89 @@ export default function AgentDetailPage() {
                 <div className="flex items-center gap-1">
                   <Info className="h-3.5 w-3.5 text-gray-400" />
                   <MoreVertical className="h-3.5 w-3.5 text-gray-400" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* MCP Tools */}
+      <CollapsibleSection
+        title="MCP Tools"
+        defaultOpen={true}
+        action={
+          <button
+            type="button"
+            onClick={handleOpenMCPPicker}
+            className="rounded-md bg-[#7C3AED] px-3 py-1 text-xs font-medium text-white hover:bg-[#6D28D9]"
+          >
+            Add
+          </button>
+        }
+      >
+        {showMCPPicker && (
+          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-700">Select an MCP tool</span>
+              <button type="button" onClick={() => setShowMCPPicker(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {availableMCPTools.length === 0 ? (
+              <p className="text-xs text-gray-400">No MCP tools available</p>
+            ) : (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {availableMCPTools
+                  .filter((t) => !attachedMCPTools.some((a) => a.mcp_tool_id === t.id))
+                  .map((tool) => (
+                    <div key={tool.id} className="flex items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{tool.tool_name}</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={mcpActionLoading === tool.id}
+                        onClick={() => handleAttachMCPTool(tool.id)}
+                        className="ml-2 rounded-md bg-[#7C3AED] px-2 py-1 text-xs font-medium text-white hover:bg-[#6D28D9] disabled:opacity-50"
+                      >
+                        {mcpActionLoading === tool.id ? "..." : "Attach"}
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+        {attachedMCPTools.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No MCP tools attached. Click Add to browse available tools.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {attachedMCPTools.map((tool) => (
+              <div
+                key={tool.id}
+                className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Puzzle className="h-3.5 w-3.5 shrink-0 text-[#7C3AED]" />
+                  <div className="min-w-0">
+                    <span className="text-sm text-gray-900 truncate block">{tool.tool_name}</span>
+                    <span className="text-xs text-gray-400">{tool.server_name}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`inline-block h-2 w-2 rounded-full ${tool.is_available ? "bg-green-400" : "bg-gray-300"}`} />
+                  <button
+                    type="button"
+                    onClick={() => handleDetachMCPTool(tool.mcp_tool_id)}
+                    disabled={mcpActionLoading === tool.mcp_tool_id}
+                    className="rounded p-1 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                    title="Remove MCP tool"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
             ))}
