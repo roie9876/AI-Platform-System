@@ -360,3 +360,143 @@ async def list_executions(
     )
     executions = list(result.scalars().all())
     return WorkflowExecutionListResponse(executions=executions, total=len(executions))
+
+
+@router.post("/{workflow_id}/execute", response_model=WorkflowExecutionResponse, status_code=202)
+async def execute_workflow(
+    workflow_id: UUID,
+    body: WorkflowExecuteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    # Validate workflow exists and belongs to tenant
+    result = await db.execute(
+        select(Workflow).where(Workflow.id == workflow_id, Workflow.tenant_id == tenant_id)
+    )
+    workflow = result.scalar_one_or_none()
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Validate workflow has nodes
+    nodes_result = await db.execute(
+        select(WorkflowNode).where(WorkflowNode.workflow_id == workflow_id)
+    )
+    if not list(nodes_result.scalars().all()):
+        raise HTTPException(status_code=400, detail="Workflow has no nodes")
+
+    from app.services.workflow_engine import WorkflowEngine
+    engine = WorkflowEngine()
+    input_data = {"message": body.message, **(body.input_data or {})}
+    execution = await engine.run(
+        workflow_id=workflow_id,
+        input_data=input_data,
+        user_id=current_user.id,
+        tenant_id=tenant_id,
+        db=db,
+    )
+    return execution
+
+
+@router.get("/{workflow_id}/executions/{execution_id}", response_model=WorkflowExecutionDetailResponse)
+async def get_execution_detail(
+    workflow_id: UUID,
+    execution_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    # Validate workflow belongs to tenant
+    wf_result = await db.execute(
+        select(Workflow).where(Workflow.id == workflow_id, Workflow.tenant_id == tenant_id)
+    )
+    if not wf_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    result = await db.execute(
+        select(WorkflowExecution).where(
+            WorkflowExecution.id == execution_id,
+            WorkflowExecution.workflow_id == workflow_id,
+            WorkflowExecution.tenant_id == tenant_id,
+        )
+    )
+    execution = result.scalar_one_or_none()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    node_execs_result = await db.execute(
+        select(WorkflowNodeExecution)
+        .where(WorkflowNodeExecution.workflow_execution_id == execution_id)
+        .order_by(WorkflowNodeExecution.started_at)
+    )
+    node_executions = list(node_execs_result.scalars().all())
+
+    return WorkflowExecutionDetailResponse(
+        id=execution.id,
+        workflow_id=execution.workflow_id,
+        status=execution.status,
+        started_at=execution.started_at,
+        completed_at=execution.completed_at,
+        input_data=execution.input_data,
+        output_data=execution.output_data,
+        error=execution.error,
+        tenant_id=execution.tenant_id,
+        triggered_by=execution.triggered_by,
+        thread_id=execution.thread_id,
+        created_at=execution.created_at,
+        updated_at=execution.updated_at,
+        node_executions=[WorkflowNodeExecutionResponse.model_validate(ne) for ne in node_executions],
+    )
+
+
+@router.post("/{workflow_id}/executions/{execution_id}/cancel", response_model=WorkflowExecutionResponse)
+async def cancel_execution(
+    workflow_id: UUID,
+    execution_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    from datetime import datetime, timezone
+
+    # Validate workflow belongs to tenant
+    wf_result = await db.execute(
+        select(Workflow).where(Workflow.id == workflow_id, Workflow.tenant_id == tenant_id)
+    )
+    if not wf_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    result = await db.execute(
+        select(WorkflowExecution).where(
+            WorkflowExecution.id == execution_id,
+            WorkflowExecution.workflow_id == workflow_id,
+            WorkflowExecution.tenant_id == tenant_id,
+        )
+    )
+    execution = result.scalar_one_or_none()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    if execution.status not in ("pending", "running"):
+        raise HTTPException(status_code=400, detail="Execution is not running")
+
+    execution.status = "cancelled"
+    execution.completed_at = datetime.now(timezone.utc)
+
+    # Cancel pending/running node executions
+    node_execs_result = await db.execute(
+        select(WorkflowNodeExecution).where(
+            WorkflowNodeExecution.workflow_execution_id == execution_id,
+            WorkflowNodeExecution.status.in_(["pending", "running"]),
+        )
+    )
+    for ne in node_execs_result.scalars().all():
+        ne.status = "cancelled"
+        ne.completed_at = datetime.now(timezone.utc)
+
+    await db.flush()
+    await db.refresh(execution)
+    return execution
