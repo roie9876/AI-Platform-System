@@ -19,6 +19,7 @@ import {
   PanelLeft,
   BarChart3,
   Store,
+  Puzzle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -42,6 +43,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/data", label: "Data", icon: Database, enabled: false },
   { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck, enabled: true },
   { href: "/dashboard/marketplace", label: "Marketplace", icon: Store, enabled: true },
+  { href: "/dashboard/mcp-tools", label: "MCP Tools", icon: Puzzle, enabled: true },
   { href: "/dashboard/guardrails", label: "Guardrails", icon: Shield, enabled: false },
 ];
 
