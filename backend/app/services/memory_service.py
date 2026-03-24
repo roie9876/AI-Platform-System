@@ -36,8 +36,8 @@ class MemoryService:
             if model_endpoint.endpoint_url:
                 kwargs["api_base"] = model_endpoint.endpoint_url
 
-            if model_endpoint.api_key:
-                decrypted = decrypt_api_key(model_endpoint.api_key)
+            if model_endpoint.api_key_encrypted:
+                decrypted = decrypt_api_key(model_endpoint.api_key_encrypted)
                 kwargs["api_key"] = decrypted
 
             response = await litellm.aembedding(**kwargs)

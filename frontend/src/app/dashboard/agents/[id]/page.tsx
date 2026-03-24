@@ -8,7 +8,7 @@ import { AgentConfigLayout } from "@/components/agent/agent-config-layout";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
-import { Info, MoreVertical, Send, Square, Loader2, Database, FileText } from "lucide-react";
+import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -67,6 +67,45 @@ interface ToolListResponse {
   total: number;
 }
 
+interface AgentMemoryItem {
+  id: string;
+  agent_id: string;
+  content: string;
+  memory_type: string;
+  source_thread_id: string | null;
+  created_at: string;
+}
+
+interface AgentMemoryListResponse {
+  memories: AgentMemoryItem[];
+  total: number;
+}
+
+interface ThreadItem {
+  id: string;
+  title: string | null;
+  agent_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  last_message_preview: string | null;
+}
+
+interface ThreadListResponse {
+  threads: ThreadItem[];
+  total: number;
+}
+
+interface ThreadMessageItem {
+  id: string;
+  role: string;
+  content: string;
+  message_metadata: Record<string, unknown> | null;
+  sequence_number: number;
+  created_at: string;
+}
+
 export default function AgentDetailPage() {
   const params = useParams();
   const agentId = params.id as string;
@@ -87,6 +126,11 @@ export default function AgentDetailPage() {
   const [pendingSources, setPendingSources] = useState<ChatSource[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [chatThreadId, setChatThreadId] = useState<string | null>(null);
+  const [memories, setMemories] = useState<AgentMemoryItem[]>([]);
+  const [memoriesTotal, setMemoriesTotal] = useState(0);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [threads, setThreads] = useState<ThreadItem[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -202,6 +246,9 @@ export default function AgentDetailPage() {
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
+      // Refresh memories and threads after chat completes
+      loadMemories();
+      loadThreads();
     }
   }, [agent, agentId, chatInput, chatMessages, chatThreadId, isStreaming]);
 
@@ -250,6 +297,8 @@ export default function AgentDetailPage() {
 
   useEffect(() => {
     loadAttachedTools();
+    loadMemories();
+    loadThreads();
   }, [agentId]);
 
   async function loadAttachedTools() {
@@ -263,6 +312,108 @@ export default function AgentDetailPage() {
     } catch {
       // silently handle
     }
+  }
+
+  async function loadMemories() {
+    setMemoriesLoading(true);
+    try {
+      const data = await apiFetch<AgentMemoryListResponse>(
+        `/api/v1/agents/${agentId}/memories`
+      );
+      setMemories(data.memories);
+      setMemoriesTotal(data.total);
+    } catch {
+      // silently handle
+    } finally {
+      setMemoriesLoading(false);
+    }
+  }
+
+  async function deleteMemory(memoryId: string) {
+    try {
+      await apiFetch(`/api/v1/agents/${agentId}/memories/${memoryId}`, {
+        method: "DELETE",
+      });
+      setMemories((prev) => prev.filter((m) => m.id !== memoryId));
+      setMemoriesTotal((prev) => prev - 1);
+    } catch {
+      // silently handle
+    }
+  }
+
+  async function clearAllMemories() {
+    try {
+      await apiFetch(`/api/v1/agents/${agentId}/memories`, {
+        method: "DELETE",
+      });
+      setMemories([]);
+      setMemoriesTotal(0);
+    } catch {
+      // silently handle
+    }
+  }
+
+  async function deleteThread(threadId: string) {
+    try {
+      await apiFetch(`/api/v1/threads/${threadId}`, { method: "DELETE" });
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      if (chatThreadId === threadId) {
+        startNewThread();
+      }
+    } catch {
+      // silently handle
+    }
+  }
+
+  async function clearAllThreads() {
+    try {
+      await apiFetch(`/api/v1/threads?agent_id=${agentId}`, { method: "DELETE" });
+      setThreads([]);
+      startNewThread();
+    } catch {
+      // silently handle
+    }
+  }
+
+  async function loadThreads() {
+    setThreadsLoading(true);
+    try {
+      const data = await apiFetch<ThreadListResponse>(
+        `/api/v1/threads?agent_id=${agentId}`
+      );
+      setThreads(data.threads);
+    } catch {
+      // silently handle
+    } finally {
+      setThreadsLoading(false);
+    }
+  }
+
+  async function switchToThread(threadId: string) {
+    setChatThreadId(threadId);
+    setChatMessages([]);
+    setChatError(null);
+    try {
+      const data = await apiFetch<{ messages: ThreadMessageItem[]; total: number }>(
+        `/api/v1/threads/${threadId}/messages`
+      );
+      if (data.messages && data.messages.length > 0) {
+        const msgs: ChatMessage[] = data.messages.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          sources: m.message_metadata?.sources as ChatSource[] | undefined,
+        }));
+        setChatMessages(msgs);
+      }
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Failed to load thread messages");
+    }
+  }
+
+  function startNewThread() {
+    setChatThreadId(null);
+    setChatMessages([]);
+    setChatError(null);
   }
 
   if (loading) {
@@ -352,8 +503,103 @@ export default function AgentDetailPage() {
       <CollapsibleSection
         title="Memory"
         defaultOpen={false}
+        action={
+          memories.length > 0 ? (
+            <button
+              type="button"
+              onClick={clearAllMemories}
+              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+            >
+              Clear all
+            </button>
+          ) : undefined
+        }
       >
-        <p className="text-sm text-gray-400">Coming in a future release</p>
+        {memoriesLoading ? (
+          <div className="flex items-center gap-2 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            <span className="text-sm text-gray-400">Loading...</span>
+          </div>
+        ) : memoriesTotal === 0 ? (
+          <div className="flex items-center gap-2 py-2">
+            <Brain className="h-4 w-4 text-gray-300" />
+            <p className="text-sm text-gray-400">No memories stored yet</p>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 py-2">
+            <Brain className="h-4 w-4 text-[#7C3AED]" />
+            <span className="text-sm text-gray-700">{memoriesTotal} memories stored</span>
+            <span className="rounded-full bg-[#7C3AED] px-2 py-0.5 text-[10px] font-medium text-white">
+              Active
+            </span>
+          </div>
+        )}
+        <p className="text-xs text-gray-400 mt-1">
+          Agent recalls relevant memories automatically during conversations
+        </p>
+      </CollapsibleSection>
+
+      {/* Threads / Conversation History */}
+      <CollapsibleSection
+        title="Conversations"
+        defaultOpen={true}
+        action={
+          threads.length > 0 ? (
+            <button
+              type="button"
+              onClick={clearAllThreads}
+              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+            >
+              Clear all
+            </button>
+          ) : undefined
+        }
+      >
+        <button
+          type="button"
+          onClick={startNewThread}
+          className="flex w-full items-center gap-2 rounded-md bg-[#7C3AED] px-3 py-2 text-xs font-medium text-white hover:bg-[#6D28D9] mb-2"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New chat
+        </button>
+        {threadsLoading ? (
+          <div className="flex items-center justify-center py-3">
+            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+          </div>
+        ) : threads.length === 0 ? (
+          <p className="text-sm text-gray-400 py-2">No conversations yet</p>
+        ) : (
+          <div className="space-y-1">
+            {threads.map((thread) => (
+              <div
+                key={thread.id}
+                className={`group flex items-center gap-2 rounded-md px-2 py-2 cursor-pointer hover:bg-gray-100 ${
+                  chatThreadId === thread.id ? "bg-gray-100 ring-1 ring-[#7C3AED]/30" : ""
+                }`}
+                onClick={() => switchToThread(thread.id)}
+              >
+                <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-gray-700 truncate">
+                    {thread.title || "Untitled"}
+                  </p>
+                  <p className="text-[10px] text-gray-400">
+                    {new Date(thread.updated_at).toLocaleDateString()} &middot; {thread.message_count} msgs
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); deleteThread(thread.id); }}
+                  className="opacity-0 group-hover:opacity-100 rounded p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </CollapsibleSection>
 
       {/* Guardrails */}
@@ -392,9 +638,11 @@ export default function AgentDetailPage() {
         ))}
       </div>
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 flex">
         {rightTab === "chat" && (
-          <div className="flex h-full flex-col">
+          <>
+            {/* Chat area */}
+            <div className="flex-1 flex flex-col p-6">
             {chatMessages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center">
                 <p className="text-lg font-semibold text-gray-900">{agent.name}</p>
@@ -483,6 +731,7 @@ export default function AgentDetailPage() {
               </p>
             </div>
           </div>
+          </>
         )}
 
         {rightTab === "yaml" && (

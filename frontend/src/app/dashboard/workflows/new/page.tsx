@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { WorkflowCanvas, type WorkflowCanvasRef } from "@/components/workflow/workflow-canvas";
+import { WorkflowTypeSelect } from "@/components/workflow/workflow-type-help";
 
 interface AgentOption {
   id: string;
@@ -56,21 +57,52 @@ export default function NewWorkflowPage() {
         position_x: node.position.x,
         position_y: node.position.y,
         execution_order: index,
+        _temp_id: node.id, // for edge mapping
       }));
 
-      const body = {
+      // First create workflow with nodes only to get real node IDs
+      const createBody = {
         name: name.trim(),
         description: description.trim() || undefined,
         workflow_type: workflowType,
-        nodes,
+        nodes: nodes.map(({ _temp_id, ...n }) => n),
       };
 
-      const result = await apiFetch<{ id: string }>("/api/v1/workflows", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const created = await apiFetch<{ id: string; nodes: { id: string; agent_id: string; execution_order: number }[] }>(
+        "/api/v1/workflows",
+        { method: "POST", body: JSON.stringify(createBody) }
+      );
 
-      router.push(`/dashboard/workflows/${result.id}`);
+      // Map temp IDs to real node IDs by execution_order
+      if (flow.edges.length > 0 && created.nodes.length > 0) {
+        const tempToReal = new Map<string, string>();
+        nodes.forEach((n, i) => {
+          const realNode = created.nodes.find((rn) => rn.execution_order === i);
+          if (realNode) tempToReal.set(n._temp_id, realNode.id);
+        });
+
+        const edges = flow.edges
+          .map((edge) => ({
+            source_node_id: tempToReal.get(edge.source),
+            target_node_id: tempToReal.get(edge.target),
+            edge_type: (edge.data as Record<string, unknown>)?.edgeType as string || "default",
+            output_mapping: (edge.data as Record<string, unknown>)?.outputMapping as Record<string, string> || null,
+            condition: (edge.data as Record<string, unknown>)?.condition as Record<string, string> || null,
+          }))
+          .filter((e) => e.source_node_id && e.target_node_id);
+
+        if (edges.length > 0) {
+          // Update workflow with edges by re-saving
+          for (const edge of edges) {
+            await apiFetch(`/api/v1/workflows/${created.id}/edges`, {
+              method: "POST",
+              body: JSON.stringify(edge),
+            });
+          }
+        }
+      }
+
+      router.push(`/dashboard/workflows/${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save workflow");
     } finally {
@@ -136,20 +168,10 @@ export default function NewWorkflowPage() {
             />
           </div>
           <div className="w-48">
-            <label htmlFor="wf-type" className="block text-sm font-medium text-gray-700 mb-1">
-              Type
-            </label>
-            <select
-              id="wf-type"
+            <WorkflowTypeSelect
               value={workflowType}
-              onChange={(e) => setWorkflowType(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="sequential">Sequential</option>
-              <option value="parallel">Parallel</option>
-              <option value="autonomous">Autonomous</option>
-              <option value="custom">Custom</option>
-            </select>
+              onChange={setWorkflowType}
+            />
           </div>
         </div>
       </div>

@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Play, Trash2 } from "lucide-react";
+import { Play, Trash2, HelpCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { WorkflowCanvas, type WorkflowCanvasRef } from "@/components/workflow/workflow-canvas";
+import { WorkflowTypeBadge, WorkflowTypeHelpPanel } from "@/components/workflow/workflow-type-help";
 import type { Node, Edge } from "@xyflow/react";
 
 interface WorkflowNodeResponse {
@@ -26,6 +27,8 @@ interface WorkflowEdgeResponse {
   source_node_id: string;
   target_node_id: string;
   edge_type: string;
+  condition: Record<string, string> | null;
+  output_mapping: Record<string, string> | null;
 }
 
 interface WorkflowDetailResponse {
@@ -60,6 +63,7 @@ export default function WorkflowDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [showTypeHelp, setShowTypeHelp] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -122,6 +126,11 @@ export default function WorkflowDetailPage() {
     source: edge.source_node_id,
     target: edge.target_node_id,
     type: "default",
+    data: {
+      edgeType: edge.edge_type || "default",
+      outputMapping: null,
+      condition: null,
+    },
   }));
 
   return (
@@ -130,7 +139,18 @@ export default function WorkflowDetailPage() {
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{workflow.name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-gray-900">{workflow.name}</h1>
+              <WorkflowTypeBadge type={workflow.workflow_type} />
+              <button
+                type="button"
+                onClick={() => setShowTypeHelp(true)}
+                className="text-gray-400 hover:text-gray-600"
+                title="Learn about workflow types"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
+            </div>
             {workflow.description && (
               <p className="text-sm text-gray-500 mt-1">{workflow.description}</p>
             )}
@@ -165,6 +185,11 @@ export default function WorkflowDetailPage() {
           agents={agents}
         />
       </div>
+
+      {/* Workflow type help dialog */}
+      {showTypeHelp && (
+        <WorkflowTypeHelpPanel onClose={() => setShowTypeHelp(false)} />
+      )}
     </div>
   );
 }

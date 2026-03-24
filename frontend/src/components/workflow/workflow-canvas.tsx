@@ -3,6 +3,7 @@
 import {
   useCallback,
   useRef,
+  useState,
   forwardRef,
   useImperativeHandle,
   type DragEvent,
@@ -19,10 +20,13 @@ import {
   type Node,
   type Edge,
   type ReactFlowInstance,
+  MarkerType,
+  type EdgeMouseHandler,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Bot } from "lucide-react";
 import { AgentNode } from "./agent-node";
+import { EdgeConfigDialog } from "./edge-config-dialog";
 
 interface AgentOption {
   id: string;
@@ -42,11 +46,38 @@ export interface WorkflowCanvasRef {
 
 const nodeTypes = { agentNode: AgentNode };
 
+const edgeTypeStyles: Record<string, { stroke: string; strokeDasharray?: string }> = {
+  default: { stroke: "#6366f1" },
+  conditional: { stroke: "#f59e0b", strokeDasharray: "5 5" },
+  error: { stroke: "#ef4444", strokeDasharray: "8 4" },
+};
+
+function makeEdgeStyle(edgeType: string = "default"): Partial<Edge> {
+  const style = edgeTypeStyles[edgeType] || edgeTypeStyles.default;
+  return {
+    animated: true,
+    style: { strokeWidth: 2, ...style },
+    markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 16, height: 16 },
+    label: edgeType === "conditional" ? "conditional" : edgeType === "error" ? "on error" : "output → input",
+    labelStyle: { fontSize: 10, fontWeight: 500, fill: style.stroke },
+    labelBgStyle: { fill: "white", fillOpacity: 0.9 },
+    labelBgPadding: [4, 2] as [number, number],
+  };
+}
+
 export const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(
   function WorkflowCanvas({ initialNodes = [], initialEdges = [], agents }, ref) {
+    const styledInitialEdges = initialEdges.map((e) => ({
+      ...e,
+      ...makeEdgeStyle((e.data as Record<string, unknown>)?.edgeType as string),
+    }));
+
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(styledInitialEdges);
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+
+    // Edge config dialog state
+    const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
 
     useImperativeHandle(ref, () => ({
       getFlow: () => ({ nodes, edges }),
@@ -54,10 +85,59 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>
 
     const onConnect = useCallback(
       (params: Connection) => {
-        setEdges((eds) => addEdge(params, eds));
+        const newEdge: Edge = {
+          ...params,
+          id: `edge-${Date.now()}`,
+          data: { edgeType: "default", outputMapping: null, condition: null },
+          ...makeEdgeStyle("default"),
+        } as Edge;
+        setEdges((eds) => addEdge(newEdge, eds));
       },
       [setEdges]
     );
+
+    const onEdgeClick: EdgeMouseHandler = useCallback((_event, edge) => {
+      setSelectedEdge(edge);
+    }, []);
+
+    const handleEdgeSave = useCallback(
+      (data: {
+        edgeType: string;
+        outputMapping: Record<string, string> | null;
+        condition: Record<string, string> | null;
+      }) => {
+        if (!selectedEdge) return;
+        setEdges((eds) =>
+          eds.map((e) =>
+            e.id === selectedEdge.id
+              ? {
+                  ...e,
+                  data: {
+                    ...(e.data || {}),
+                    edgeType: data.edgeType,
+                    outputMapping: data.outputMapping,
+                    condition: data.condition,
+                  },
+                  ...makeEdgeStyle(data.edgeType),
+                }
+              : e
+          )
+        );
+        setSelectedEdge(null);
+      },
+      [selectedEdge, setEdges]
+    );
+
+    const handleEdgeDelete = useCallback(() => {
+      if (!selectedEdge) return;
+      setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id));
+      setSelectedEdge(null);
+    }, [selectedEdge, setEdges]);
+
+    const getNodeLabel = (nodeId: string): string => {
+      const node = nodes.find((n) => n.id === nodeId);
+      return (node?.data as Record<string, unknown>)?.label as string || nodeId;
+    };
 
     const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -141,6 +221,7 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onEdgeClick={onEdgeClick}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onInit={(instance) => {
@@ -158,6 +239,28 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>
             />
           </ReactFlow>
         </div>
+
+        {/* Edge config dialog */}
+        {selectedEdge && (
+          <EdgeConfigDialog
+            open={!!selectedEdge}
+            sourceLabel={getNodeLabel(selectedEdge.source)}
+            targetLabel={getNodeLabel(selectedEdge.target)}
+            edgeType={
+              (selectedEdge.data as Record<string, unknown>)?.edgeType as string ||
+              "default"
+            }
+            outputMapping={
+              (selectedEdge.data as Record<string, unknown>)?.outputMapping as Record<string, string> | null
+            }
+            condition={
+              (selectedEdge.data as Record<string, unknown>)?.condition as Record<string, string> | null
+            }
+            onSave={handleEdgeSave}
+            onDelete={handleEdgeDelete}
+            onClose={() => setSelectedEdge(null)}
+          />
+        )}
       </div>
     );
   }

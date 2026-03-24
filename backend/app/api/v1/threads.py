@@ -275,3 +275,23 @@ async def delete_thread(
 
     await db.delete(thread)
     await db.commit()
+
+
+@router.delete("", status_code=204)
+async def delete_all_threads(
+    agent_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Thread).where(
+            Thread.agent_id == agent_id,
+            Thread.user_id == current_user.id,
+            Thread.tenant_id == tenant_id,
+        )
+    )
+    threads = result.scalars().all()
+    for thread in threads:
+        await db.delete(thread)
+    await db.commit()

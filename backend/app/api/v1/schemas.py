@@ -831,3 +831,60 @@ class EvaluationResultResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Marketplace Schemas ──
+
+
+class AgentTemplateResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    icon_name: Optional[str] = None
+    author_name: Optional[str] = None
+    install_count: int = 0
+    version: str = "1.0"
+    is_featured: bool = False
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AgentTemplateDetailResponse(AgentTemplateResponse):
+    system_prompt: Optional[str] = None
+    config: Optional[dict] = None
+    tools_config: Optional[dict] = None
+    updated_at: datetime
+
+
+class PublishAgentTemplateRequest(BaseModel):
+    agent_id: UUID
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class ToolTemplateResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    tool_type: str
+    install_count: int = 0
+    version: str = "1.0"
+    is_featured: bool = False
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PublishToolTemplateRequest(BaseModel):
+    tool_id: UUID
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None

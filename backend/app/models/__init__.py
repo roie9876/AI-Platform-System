@@ -19,6 +19,7 @@ from app.models.workflow import Workflow, WorkflowNode, WorkflowEdge
 from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution
 from app.models.cost_config import ModelPricing, CostAlert
 from app.models.evaluation import TestSuite, TestCase, EvaluationRun, EvaluationResult
+from app.models.marketplace import AgentTemplate, ToolTemplate
 
 __all__ = [
     "Base", "Tenant", "User", "RefreshToken", "ModelEndpoint",
@@ -32,4 +33,5 @@ __all__ = [
     "WorkflowExecution", "WorkflowNodeExecution",
     "ModelPricing", "CostAlert",
     "TestSuite", "TestCase", "EvaluationRun", "EvaluationResult",
+    "AgentTemplate", "ToolTemplate",
 ]
