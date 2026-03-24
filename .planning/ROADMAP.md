@@ -66,10 +66,10 @@ Plans:
 **Goal:** Wire MCP tools/call into the existing agent tool-calling loop alongside platform adapters and sandbox tools, making MCP a third execution path.
 **Requirements:** [MCP-10, MCP-11, MCP-12]
 **Depends on:** Phase 11, Phase 13
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 14 to break down)
+- [x] 14-01-PLAN.md — AgentMCPTool model, MCP execution path in agent loop, tests
 
 ### Phase 15: MCP Tool Catalog UI
 

@@ -13,8 +13,13 @@ from app.models.model_endpoint import ModelEndpoint
 from app.models.thread import Thread
 from app.models.thread_message import ThreadMessage
 from app.models.tool import Tool, AgentTool
+from app.models.agent_mcp_tool import AgentMCPTool
+from app.models.mcp_discovered_tool import MCPDiscoveredTool
+from app.models.mcp_server import MCPServer
 from app.services.model_abstraction import ModelAbstractionService, ModelError
 from app.services.tool_executor import ToolExecutor, ToolExecutionError
+from app.services.mcp_client import MCPClient, MCPClientError
+from app.services.mcp_discovery import _build_auth_headers
 from app.services.rag_service import RAGService
 from app.services.memory_service import MemoryService
 from app.services.platform_tools import get_adapter_by_name as get_platform_adapter
@@ -110,6 +115,20 @@ class AgentExecutionService:
         )
         return list(result.scalars().all())
 
+    async def _load_agent_mcp_tools(
+        self, agent_id, db: AsyncSession
+    ) -> List[MCPDiscoveredTool]:
+        """Load all MCP tools attached to this agent."""
+        result = await db.execute(
+            select(MCPDiscoveredTool)
+            .join(AgentMCPTool, AgentMCPTool.mcp_tool_id == MCPDiscoveredTool.id)
+            .where(
+                AgentMCPTool.agent_id == agent_id,
+                MCPDiscoveredTool.is_available == True,
+            )
+        )
+        return list(result.scalars().all())
+
     def _build_tool_schemas(self, tools: List[Tool]) -> List[Dict[str, Any]]:
         """Convert Tool models to OpenAI-format tool schemas for LiteLLM."""
         return [
@@ -123,6 +142,56 @@ class AgentExecutionService:
             }
             for tool in tools
         ]
+
+    def _build_mcp_tool_schemas(
+        self, mcp_tools: List[MCPDiscoveredTool]
+    ) -> List[Dict[str, Any]]:
+        """Convert MCP discovered tools to OpenAI-format tool schemas."""
+        schemas = []
+        for mt in mcp_tools:
+            params = mt.input_schema or {"type": "object", "properties": {}}
+            schemas.append({
+                "type": "function",
+                "function": {
+                    "name": f"mcp__{mt.tool_name}",
+                    "description": mt.description or "",
+                    "parameters": params,
+                },
+            })
+        return schemas
+
+    async def _execute_mcp_tool(
+        self,
+        mcp_tool: MCPDiscoveredTool,
+        arguments: Dict[str, Any],
+        db: AsyncSession,
+    ) -> Dict[str, Any]:
+        """Execute an MCP tool via tools/call on the appropriate server."""
+        result = await db.execute(
+            select(MCPServer).where(MCPServer.id == mcp_tool.server_id)
+        )
+        server = result.scalar_one_or_none()
+        if not server:
+            return {"error": f"MCP server not found for tool {mcp_tool.tool_name}"}
+
+        headers = _build_auth_headers(server)
+        client = MCPClient(server.url, timeout=30.0, headers=headers)
+        try:
+            await client.connect()
+            call_result = await client.call_tool(mcp_tool.tool_name, arguments)
+            # Extract text content from result
+            text_parts = [
+                block.text for block in call_result.content
+                if block.type == "text" and block.text
+            ]
+            return {
+                "result": "\n".join(text_parts) if text_parts else "(no text output)",
+                "is_error": call_result.isError or False,
+            }
+        except MCPClientError as e:
+            return {"error": f"MCP tool execution failed: {e}"}
+        finally:
+            await client.disconnect()
 
     async def execute(
         self,
@@ -252,10 +321,15 @@ class AgentExecutionService:
         agent.status = "active"
         await db.commit()
 
-        # Load tools attached to this agent
+        # Load tools attached to this agent (platform + sandbox + MCP)
         tools_list = await self._load_agent_tools(agent.id, db)
-        tool_schemas = self._build_tool_schemas(tools_list) if tools_list else None
+        mcp_tools_list = await self._load_agent_mcp_tools(agent.id, db)
+        tool_schemas = self._build_tool_schemas(tools_list) if tools_list else []
+        mcp_schemas = self._build_mcp_tool_schemas(mcp_tools_list) if mcp_tools_list else []
+        all_schemas = tool_schemas + mcp_schemas
+        tool_schemas = all_schemas if all_schemas else None
         tool_map = {t.name: t for t in tools_list}
+        mcp_tool_map = {f"mcp__{mt.tool_name}": mt for mt in mcp_tools_list}
 
         try:
             # Emit sources event so the frontend knows what knowledge was used
@@ -298,7 +372,8 @@ class AgentExecutionService:
 
                         for tc in response["tool_calls"]:
                             tool = tool_map.get(tc.function.name)
-                            if not tool:
+                            mcp_tool = mcp_tool_map.get(tc.function.name)
+                            if not tool and not mcp_tool:
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tc.id,
@@ -307,7 +382,12 @@ class AgentExecutionService:
                                 continue
                             try:
                                 args = json.loads(tc.function.arguments)
-                                if tool.is_platform_tool:
+                                if mcp_tool:
+                                    # Execute via MCP server (third path)
+                                    result = await self._execute_mcp_tool(
+                                        mcp_tool, args, db
+                                    )
+                                elif tool.is_platform_tool:
                                     # Execute via platform adapter (direct call)
                                     adapter = get_platform_adapter(tool.name)
                                     if adapter:
@@ -328,7 +408,7 @@ class AgentExecutionService:
                                     "tool_call_id": tc.id,
                                     "content": json.dumps(result),
                                 })
-                            except ToolExecutionError as e:
+                            except (ToolExecutionError, MCPClientError) as e:
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tc.id,
