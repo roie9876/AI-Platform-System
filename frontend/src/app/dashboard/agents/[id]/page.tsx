@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { AgentConfigTopBar } from "@/components/agent/agent-config-top-bar";
 import { AgentConfigLayout } from "@/components/agent/agent-config-layout";
 import { AgentTracesPanel } from "@/components/agent/agent-traces-panel";
+import { AgentMonitorPanel } from "@/components/agent/agent-monitor-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
@@ -794,7 +795,7 @@ export default function AgentDetailPage() {
         )}
         {activeTab === "monitor" && (
           <div className="h-full overflow-auto p-6">
-            <div className="text-gray-500 text-center py-12">Monitor tab — coming in Plan 10-02</div>
+            <AgentMonitorPanel agentId={agentId} />
           </div>
         )}
         {activeTab === "evaluation" && (
