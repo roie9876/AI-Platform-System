@@ -299,6 +299,43 @@ class PlatformToolToggleRequest(BaseModel):
     enabled: bool
 
 
+# --- Azure Subscription Schemas ---
+
+class AzureSubscriptionCreate(BaseModel):
+    subscription_id: str
+    display_name: str
+    tenant_azure_id: str
+    access_token: str
+    refresh_token: Optional[str] = None
+
+
+class AzureSubscriptionResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    subscription_id: str
+    display_name: str
+    tenant_azure_id: str
+    state: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class DiscoveredResource(BaseModel):
+    resource_id: str
+    name: str
+    resource_type: str
+    region: str
+    resource_group: Optional[str] = None
+
+
+class ResourceDiscoveryResponse(BaseModel):
+    subscription_id: str
+    resource_type: str
+    resources: List[DiscoveredResource]
+    count: int
+
+
 class AgentDataSourceResponse(BaseModel):
     id: UUID
     agent_id: UUID

@@ -7,6 +7,7 @@ from app.api.v1.chat import router as chat_router
 from app.api.v1.tools import router as tools_router, agent_tools_router
 from app.api.v1.data_sources import router as data_sources_router, agent_data_sources_router
 from app.api.v1.ai_services import router as ai_services_router
+from app.api.v1.azure_subscriptions import router as azure_subscriptions_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -18,3 +19,4 @@ api_router.include_router(agent_tools_router, prefix="/agents", tags=["agent-too
 api_router.include_router(data_sources_router, prefix="/data-sources", tags=["data-sources"])
 api_router.include_router(agent_data_sources_router, prefix="/agents", tags=["agent-data-sources"])
 api_router.include_router(ai_services_router, prefix="/ai-services", tags=["ai-services"])
+api_router.include_router(azure_subscriptions_router, prefix="/azure", tags=["azure"])
