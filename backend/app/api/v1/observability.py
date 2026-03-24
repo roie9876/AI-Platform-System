@@ -88,12 +88,13 @@ async def get_execution_logs(
     agent_id: Optional[UUID] = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    time_range: Optional[str] = Query(default=None, pattern=r"^(1h|24h|7d|30d)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     return await ObservabilityService.get_execution_logs(
-        db, UUID(tenant_id), agent_id, limit, offset
+        db, UUID(tenant_id), agent_id, limit, offset, time_range
     )
 
 

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { AgentConfigTopBar } from "@/components/agent/agent-config-top-bar";
 import { AgentConfigLayout } from "@/components/agent/agent-config-layout";
+import { AgentTracesPanel } from "@/components/agent/agent-traces-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
@@ -117,6 +118,7 @@ export default function AgentDetailPage() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [selectedEndpointId, setSelectedEndpointId] = useState("");
   const [showCatalog, setShowCatalog] = useState(false);
+  const [activeTab, setActiveTab] = useState<"playground" | "traces" | "monitor" | "evaluation">("playground");
   const [attachedTools, setAttachedTools] = useState<Tool[]>([]);
   const [rightTab, setRightTab] = useState<"chat" | "yaml" | "code">("chat");
   const [chatInput, setChatInput] = useState("");
@@ -770,17 +772,36 @@ export default function AgentDetailPage() {
         agentName={agent.name}
         agentId={agentId}
         version={agent.current_config_version}
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab as "playground" | "traces" | "monitor" | "evaluation")}
         onSave={handleSave}
         isSaving={isSaving}
       />
 
       <div className="flex-1 overflow-hidden">
-        <AgentConfigLayout
-          agentId={agentId}
-          agentName={agent.name}
-          leftPanel={leftPanel}
-          rightPanel={rightPanel}
-        />
+        {activeTab === "playground" && (
+          <AgentConfigLayout
+            agentId={agentId}
+            agentName={agent.name}
+            leftPanel={leftPanel}
+            rightPanel={rightPanel}
+          />
+        )}
+        {activeTab === "traces" && (
+          <div className="h-full overflow-auto p-6">
+            <AgentTracesPanel agentId={agentId} />
+          </div>
+        )}
+        {activeTab === "monitor" && (
+          <div className="h-full overflow-auto p-6">
+            <div className="text-gray-500 text-center py-12">Monitor tab — coming in Plan 10-02</div>
+          </div>
+        )}
+        {activeTab === "evaluation" && (
+          <div className="h-full overflow-auto p-6">
+            <div className="text-gray-500 text-center py-12">Evaluation tab — coming soon</div>
+          </div>
+        )}
       </div>
 
       <ToolCatalogModal

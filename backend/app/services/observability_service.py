@@ -329,12 +329,18 @@ class ObservabilityService:
         agent_id: Optional[UUID] = None,
         limit: int = 50,
         offset: int = 0,
+        time_range: Optional[str] = None,
     ) -> Dict[str, Any]:
         sql_conditions = "WHERE t.tenant_id = :tenant_id"
         params: Dict[str, Any] = {"tenant_id": str(tenant_id), "limit": limit, "offset": offset}
         if agent_id:
             sql_conditions += " AND t.agent_id = :agent_id"
             params["agent_id"] = str(agent_id)
+        if time_range:
+            delta = TIME_RANGE_MAP.get(time_range, timedelta(days=7))
+            since = datetime.now(timezone.utc) - delta
+            sql_conditions += " AND el.created_at >= :since"
+            params["since"] = since
 
         count_sql = text(f"""
             SELECT COUNT(el.id)
@@ -346,12 +352,22 @@ class ObservabilityService:
 
         sql = text(f"""
             SELECT
-                el.id, el.event_type, el.duration_ms, el.token_count,
+                el.id, el.thread_id, el.event_type, el.duration_ms, el.token_count,
                 el.state_snapshot, el.created_at,
-                a.name AS agent_name
+                el.state_snapshot->>'model_name' AS model_name,
+                el.state_snapshot->'tool_calls' AS tool_calls,
+                a.name AS agent_name,
+                COALESCE(
+                    (CAST(el.token_count->>'input_tokens' AS FLOAT) / 1000.0 * mp.input_price_per_1k) +
+                    (CAST(el.token_count->>'output_tokens' AS FLOAT) / 1000.0 * mp.output_price_per_1k),
+                    0
+                ) AS estimated_cost
             FROM execution_logs el
             JOIN threads t ON t.id = el.thread_id
             LEFT JOIN agents a ON a.id = t.agent_id
+            LEFT JOIN model_pricing mp ON mp.model_name = el.state_snapshot->>'model_name'
+                AND mp.is_active = true
+                AND (mp.tenant_id IS NULL OR mp.tenant_id = :tenant_id)
             {sql_conditions}
             ORDER BY el.created_at DESC
             LIMIT :limit OFFSET :offset
@@ -363,10 +379,14 @@ class ObservabilityService:
             "logs": [
                 {
                     "id": str(row.id),
+                    "thread_id": str(row.thread_id),
                     "event_type": row.event_type,
                     "duration_ms": row.duration_ms,
                     "token_count": row.token_count,
-                    "model_name": (row.state_snapshot or {}).get("model_name"),
+                    "model_name": row.model_name,
+                    "tool_calls": row.tool_calls or [],
+                    "estimated_cost": round(float(row.estimated_cost or 0), 6),
+                    "state_snapshot": row.state_snapshot,
                     "agent_name": row.agent_name,
                     "created_at": row.created_at.isoformat() if row.created_at else None,
                 }
