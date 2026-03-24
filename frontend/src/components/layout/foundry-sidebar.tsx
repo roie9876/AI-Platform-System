@@ -17,6 +17,8 @@ import {
   Cloud,
   PanelLeftClose,
   PanelLeft,
+  BarChart3,
+  Store,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -35,9 +37,11 @@ const navItems: NavItem[] = [
   { href: "/dashboard/data-sources", label: "Data Sources", icon: FolderOpen, enabled: true },
   { href: "/dashboard/azure", label: "Azure", icon: Cloud, enabled: true },
   { href: "/dashboard/workflows", label: "Workflows", icon: GitBranch, enabled: true },
+  { href: "/dashboard/observability", label: "Observability", icon: BarChart3, enabled: true },
   { href: "/dashboard/fine-tune", label: "Fine-tune", icon: Sparkles, enabled: false },
   { href: "/dashboard/data", label: "Data", icon: Database, enabled: false },
-  { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck, enabled: false },
+  { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck, enabled: true },
+  { href: "/dashboard/marketplace", label: "Marketplace", icon: Store, enabled: true },
   { href: "/dashboard/guardrails", label: "Guardrails", icon: Shield, enabled: false },
 ];
 
