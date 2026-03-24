@@ -99,9 +99,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Backend models (Thread, ThreadMessage, AgentMemory, ExecutionLog), migration, Thread CRUD API
-- [ ] 05-02-PLAN.md — MemoryService (pgvector embeddings), thread persistence + memory injection in agent execution
-- [ ] 05-03-PLAN.md — Frontend thread sidebar, thread-aware chat persistence
+- [x] 05-01-PLAN.md — Backend models (Thread, ThreadMessage, AgentMemory, ExecutionLog), migration, Thread CRUD API
+- [x] 05-02-PLAN.md — MemoryService (pgvector embeddings), thread persistence + memory injection in agent execution
+- [x] 05-03-PLAN.md — Frontend thread sidebar, thread-aware chat persistence
 
 **Success Criteria:**
 1. User can create, view, resume, and delete conversation threads
@@ -117,7 +117,12 @@ Plans:
 ### Phase 6: Orchestration & Workflow Engine
 **Goal:** Build the workflow engine supporting sequential, parallel, and autonomous agent execution with sub-agent delegation and a visual workflow builder UI.
 **Requirements:** [ORCH-01, ORCH-02, ORCH-03, ORCH-04, ORCH-05, THRD-03]
-**Plans:** [To be planned]
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Backend models, migration, Workflow CRUD API
+- [ ] 06-02-PLAN.md — Workflow execution engine (sequential, parallel, sub-agent, autonomous, cross-agent threading)
+- [ ] 06-03-PLAN.md — Frontend visual workflow builder + execution monitoring UI
 
 **Success Criteria:**
 1. User can chain agents sequentially with output-to-input mapping
