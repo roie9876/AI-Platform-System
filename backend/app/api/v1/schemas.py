@@ -336,6 +336,107 @@ class ResourceDiscoveryResponse(BaseModel):
     count: int
 
 
+# --- Azure Connection Schemas ---
+
+class AzureConnectionCreate(BaseModel):
+    agent_id: UUID
+    azure_subscription_id: UUID
+    resource_type: str
+    resource_name: str
+    resource_id: str
+    endpoint: Optional[str] = None
+    region: Optional[str] = None
+    auth_type: str = "api_key"
+    credentials: Optional[str] = None
+
+
+class AzureConnectionUpdate(BaseModel):
+    auth_type: Optional[str] = None
+    credentials: Optional[str] = None
+    config: Optional[dict] = None
+
+
+class AzureConnectionResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    agent_id: UUID
+    azure_subscription_id: UUID
+    resource_type: str
+    resource_name: str
+    resource_id: str
+    endpoint: Optional[str] = None
+    region: Optional[str] = None
+    auth_type: str
+    health_status: str
+    last_health_check: Optional[datetime] = None
+    config: Optional[dict] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- Catalog Schemas ---
+
+class CatalogEntryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    connector_type: str
+    category: str
+    provider: str = "Custom"
+    icon_name: Optional[str] = None
+    badges: Optional[List[str]] = None
+    config_schema: Optional[dict] = None
+    auth_types: Optional[List[str]] = None
+
+
+class CatalogEntryResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    connector_type: str
+    category: str
+    provider: str
+    icon_name: Optional[str] = None
+    badges: Optional[List[str]] = None
+    config_schema: Optional[dict] = None
+    auth_types: Optional[List[str]] = None
+    is_builtin: bool
+    arm_resource_type: Optional[str] = None
+    created_at: datetime
+
+
+# --- Knowledge / AI Search Schemas ---
+
+class SearchIndex(BaseModel):
+    name: str
+    document_count: Optional[int] = None
+
+
+class SearchIndexListResponse(BaseModel):
+    connection_id: UUID
+    resource_name: str
+    indexes: List[SearchIndex]
+    count: int
+
+
+class SelectIndexesRequest(BaseModel):
+    index_names: List[str]
+
+
+class AgentKnowledgeIndexInfo(BaseModel):
+    connection_id: UUID
+    resource_name: str
+    index_names: List[str]
+
+
+class AgentKnowledgeResponse(BaseModel):
+    agent_id: UUID
+    connections: List[AgentKnowledgeIndexInfo]
+    total_indexes: int
+
+
 class AgentDataSourceResponse(BaseModel):
     id: UUID
     agent_id: UUID
