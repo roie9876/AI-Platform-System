@@ -22,7 +22,7 @@ function fmtCost(n: number): string {
 }
 
 interface CostBreakdown {
-  items: { name: string; total_cost: number; total_tokens: number }[];
+  data: { name: string; total_cost: number; total_tokens: number }[];
 }
 
 interface CostAlert {
@@ -44,27 +44,26 @@ export default function CostsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, m, al] = await Promise.all([
-        apiFetch<CostBreakdown>(`/api/v1/observability/costs?time_range=${timeRange}&group_by=agent`),
-        apiFetch<CostBreakdown>(`/api/v1/observability/costs?time_range=${timeRange}&group_by=model`),
-        apiFetch<CostAlert[]>(`/api/v1/observability/cost-alerts`),
-      ]);
+      const a = await apiFetch<CostBreakdown>(`/api/v1/observability/costs?time_range=${timeRange}&group_by=agent`);
       setByAgent(a);
+    } catch { /* ignore */ }
+    try {
+      const m = await apiFetch<CostBreakdown>(`/api/v1/observability/costs?time_range=${timeRange}&group_by=model`);
       setByModel(m);
+    } catch { /* ignore */ }
+    try {
+      const al = await apiFetch<CostAlert[]>(`/api/v1/observability/cost-alerts`);
       setAlerts(al);
-    } catch {
-      // silently handle
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ }
+    setLoading(false);
   }, [timeRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const totalCost = byAgent?.items?.reduce((s, i) => s + i.total_cost, 0) ?? 0;
-  const topAgent = byAgent?.items?.[0];
+  const totalCost = byAgent?.data?.reduce((s, i) => s + i.total_cost, 0) ?? 0;
+  const topAgent = byAgent?.data?.[0];
 
   return (
     <div className="space-y-6">
@@ -88,7 +87,7 @@ export default function CostsPage() {
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <div className="text-sm text-gray-500">Avg Cost/Request</div>
           <div className="text-2xl font-bold text-gray-900 mt-1">
-            {byAgent?.items?.length ? fmtCost(totalCost / byAgent.items.length) : "—"}
+            {byAgent?.data?.length ? fmtCost(totalCost / byAgent.data.length) : "—"}
           </div>
         </div>
         <div className="rounded-lg border bg-white p-5 shadow-sm">
@@ -101,7 +100,7 @@ export default function CostsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Cost by Agent" loading={loading}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={byAgent?.items ?? []} layout="vertical">
+            <BarChart data={byAgent?.data ?? []} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
@@ -113,7 +112,7 @@ export default function CostsPage() {
 
         <ChartCard title="Cost by Model" loading={loading}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={byModel?.items ?? []} layout="vertical">
+            <BarChart data={byModel?.data ?? []} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />

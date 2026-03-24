@@ -195,6 +195,8 @@ Phase 1 (Foundation)
               └──► Phase 7 (Policy & Governance) — can start after Phase 3
               │
               └──► Phase 8 (Observability & Eval & Marketplace) — needs Phase 3+4+5
+                        │
+                        └──► Phase 10 (Agent-Level Traces & Monitor Tabs) — needs Phase 8
 ```
 
 ## Coverage Check
@@ -224,6 +226,31 @@ Plans:
 - [x] 09-03-PLAN.md — Frontend UI primitives + Foundry sidebar overhaul
 - [x] 09-04-PLAN.md — Frontend subscription, resource discovery, knowledge pages
 - [x] 09-05-PLAN.md — Frontend tool catalog modal + agent config split-pane + verification
+
+### Phase 10: Agent-Level Traces & Monitor Tabs
+
+**Goal:** Implement the Traces and Monitor sub-tabs on the agent detail page, providing per-agent execution tracing (input/output, tool calls, latency, model used, RAG sources) and per-agent monitoring dashboard (request volume, token usage, cost, error rate, latency — all scoped to the specific agent).
+**Requirements**: [TRACE-01, TRACE-02, MONITOR-01, MONITOR-02]
+**Depends on:** Phase 8
+**Plans:** [To be planned]
+
+**Requirements:**
+- TRACE-01: Agent Traces tab shows a timeline of every LLM call, tool invocation, and memory lookup for that agent
+- TRACE-02: Each trace row expands to show input/output tokens, latency, model used, tool calls made, RAG sources retrieved
+- MONITOR-01: Agent Monitor tab shows real-time KPI metrics (requests, tokens, cost, latency, error rate) filtered to that specific agent
+- MONITOR-02: Monitor includes time-series charts for token usage and cost trends scoped to the agent
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+**Success Criteria:**
+1. Clicking "Traces" tab on agent page shows paginated execution traces for that agent
+2. Each trace row expands to reveal full execution detail (tokens, tools, sources, latency)
+3. Clicking "Monitor" tab shows agent-scoped KPI tiles with request count, token usage, cost, latency
+4. Monitor includes time-series charts filtered to the specific agent
+5. Both tabs integrate with existing execution_logs and observability backend APIs
+
+**UI hint**: yes
 
 ---
 *Roadmap created: 2026-03-23*

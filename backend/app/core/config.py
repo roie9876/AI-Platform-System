@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     ENVIRONMENT: str = "development"
     ENCRYPTION_KEY: str = "change-me-in-production-use-fernet-key"
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

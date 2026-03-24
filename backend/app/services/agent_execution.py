@@ -367,9 +367,13 @@ class AgentExecutionService:
                 collected_response += token
                 yield self._sse_data(token, done=False)
 
+            # Extract usage captured during streaming
+            usage = self._model_service.get_last_usage()
             await self._save_assistant_response(
                 db, thread_id, user_id, agent, collected_response,
                 rag_sources, start_time, primary_endpoint,
+                input_tokens=usage.get("prompt_tokens"),
+                output_tokens=usage.get("completion_tokens"),
             )
             yield self._sse_data("", done=True)
 

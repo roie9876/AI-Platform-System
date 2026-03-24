@@ -79,8 +79,8 @@ def upgrade() -> None:
         sa.column("is_featured", sa.Boolean),
         sa.column("install_count", sa.Integer),
         sa.column("version", sa.String),
-        sa.column("created_at", sa.DateTime),
-        sa.column("updated_at", sa.DateTime),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
 
     tool_table = sa.table(
@@ -99,8 +99,8 @@ def upgrade() -> None:
         sa.column("is_featured", sa.Boolean),
         sa.column("install_count", sa.Integer),
         sa.column("version", sa.String),
-        sa.column("created_at", sa.DateTime),
-        sa.column("updated_at", sa.DateTime),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
 
     from datetime import datetime, timezone

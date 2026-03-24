@@ -59,8 +59,8 @@ def upgrade() -> None:
         sa.column("currency", sa.String),
         sa.column("is_active", sa.Boolean),
         sa.column("tenant_id", UUID(as_uuid=True)),
-        sa.column("created_at", sa.DateTime),
-        sa.column("updated_at", sa.DateTime),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)

@@ -120,6 +120,15 @@ def _build_litellm_params(
 class ModelAbstractionService:
     """LiteLLM-based model abstraction with circuit breaker and fallback."""
 
+    def __init__(self) -> None:
+        self._last_usage: Dict[str, int] = {}
+
+    def get_last_usage(self) -> Dict[str, int]:
+        """Return usage from the last completion call and reset."""
+        usage = self._last_usage
+        self._last_usage = {}
+        return usage
+
     async def complete(
         self,
         messages: List[Dict[str, str]],
@@ -137,18 +146,35 @@ class ModelAbstractionService:
         params = _build_litellm_params(
             endpoint, messages, temperature, max_tokens, timeout, stream
         )
+        if stream:
+            params["stream_options"] = {"include_usage": True}
 
         try:
             response = await litellm.acompletion(**params)
 
             if stream:
                 async for chunk in response:
-                    delta = chunk.choices[0].delta
-                    content = getattr(delta, "content", None)
+                    # Capture usage from the final chunk
+                    chunk_usage = getattr(chunk, "usage", None)
+                    if chunk_usage:
+                        self._last_usage = {
+                            "prompt_tokens": getattr(chunk_usage, "prompt_tokens", 0) or 0,
+                            "completion_tokens": getattr(chunk_usage, "completion_tokens", 0) or 0,
+                            "total_tokens": getattr(chunk_usage, "total_tokens", 0) or 0,
+                        }
+                    delta = chunk.choices[0].delta if chunk.choices else None
+                    content = getattr(delta, "content", None) if delta else None
                     if content:
                         yield content
             else:
                 content = response.choices[0].message.content or ""
+                usage = getattr(response, "usage", None)
+                if usage:
+                    self._last_usage = {
+                        "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                        "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+                        "total_tokens": getattr(usage, "total_tokens", 0) or 0,
+                    }
                 yield content
 
             _circuit_breaker.record_success(endpoint_id)
@@ -231,10 +257,19 @@ class ModelAbstractionService:
                 response = await litellm.acompletion(**params)
                 _circuit_breaker.record_success(endpoint_id)
                 message = response.choices[0].message
+                usage = getattr(response, "usage", None)
+                usage_dict = {}
+                if usage:
+                    usage_dict = {
+                        "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                        "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+                        "total_tokens": getattr(usage, "total_tokens", 0) or 0,
+                    }
                 return {
                     "content": message.content,
                     "tool_calls": getattr(message, "tool_calls", None),
                     "finish_reason": response.choices[0].finish_reason,
+                    "usage": usage_dict,
                 }
             except Exception as exc:
                 _circuit_breaker.record_failure(endpoint_id)

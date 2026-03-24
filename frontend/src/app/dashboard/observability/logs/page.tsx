@@ -11,15 +11,13 @@ interface LogEntry {
   event_type: string;
   model_name: string;
   duration_ms: number;
-  input_tokens: number;
-  output_tokens: number;
-  status: string;
+  token_count: { input_tokens?: number; output_tokens?: number } | null;
   created_at: string;
-  state_snapshot: Record<string, unknown>;
+  state_snapshot?: Record<string, unknown>;
 }
 
 interface LogsResponse {
-  items: LogEntry[];
+  logs: LogEntry[];
   total: number;
 }
 
@@ -44,7 +42,7 @@ export default function LogsPage() {
       const data = await apiFetch<LogsResponse>(
         `/api/v1/observability/logs?time_range=${timeRange}&limit=${limit}&offset=${offset}`
       );
-      setLogs(data.items);
+      setLogs(data.logs);
       setTotal(data.total);
     } catch {
       // silently handle
@@ -100,13 +98,13 @@ export default function LogsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{log.model_name}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{log.duration_ms}ms</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{(log.input_tokens ?? 0) + (log.output_tokens ?? 0)}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{log.duration_ms ?? 0}ms</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{(log.token_count?.input_tokens ?? 0) + (log.token_count?.output_tokens ?? 0)}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                      log.status === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      log.event_type !== "error" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                     }`}>
-                      {log.status}
+                      {log.event_type !== "error" ? "success" : "error"}
                     </span>
                   </td>
                 </tr>
@@ -115,17 +113,12 @@ export default function LogsPage() {
                     <td colSpan={7} className="px-6 py-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="font-medium text-gray-700">Input Tokens:</span> {log.input_tokens}
+                          <span className="font-medium text-gray-700">Input Tokens:</span> {log.token_count?.input_tokens ?? 0}
                         </div>
                         <div>
-                          <span className="font-medium text-gray-700">Output Tokens:</span> {log.output_tokens}
+                          <span className="font-medium text-gray-700">Output Tokens:</span> {log.token_count?.output_tokens ?? 0}
                         </div>
                       </div>
-                      {log.state_snapshot && (
-                        <pre className="mt-3 rounded bg-gray-100 p-3 text-xs text-gray-700 overflow-auto max-h-40">
-                          {JSON.stringify(log.state_snapshot, null, 2)}
-                        </pre>
-                      )}
                     </td>
                   </tr>
                 )}

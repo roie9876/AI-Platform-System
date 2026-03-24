@@ -5,7 +5,7 @@ milestone_name: — AI Agent Platform PoC
 status: Phase 08 Complete
 last_updated: "2026-03-24T14:00:00.000Z"
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 8
   total_plans: 31
   completed_plans: 31
@@ -37,6 +37,8 @@ Plan: 6 of 6 (all complete)
 | 6 | Orchestration & Workflow Engine | ✅ Complete |
 | 7 | Policy Engine & Governance | ○ Pending |
 | 8 | Observability, Evaluation, Marketplace & CLI | ✅ Complete |
+| 9 | Azure Subscription Integration & Foundry-Style AI Services | ○ Pending |
+| 10 | Agent-Level Traces & Monitor Tabs | ○ Pending |
 
 ## Decisions
 
@@ -59,6 +61,7 @@ Plan: 6 of 6 (all complete)
 ### Roadmap Evolution
 
 - Phase 9 added: Azure Subscription Integration & Foundry-Style AI Services (connect platform to Azure subscriptions for resource discovery, connection management, tool catalog, and Knowledge integration — Foundry-like experience)
+- Phase 10 added: Agent-Level Traces & Monitor Tabs (per-agent execution tracing and monitoring dashboard with KPI metrics, time-series charts, scoped to individual agents)
 
 ## Blockers
 

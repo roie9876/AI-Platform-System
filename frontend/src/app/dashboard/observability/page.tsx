@@ -38,20 +38,14 @@ interface DashboardData {
   avg_latency_ms: number;
   p95_latency_ms: number;
   requests_per_minute: number;
-  tokens_per_minute: number;
-  cost_per_request: number;
-  trend_requests_pct: number;
-  trend_tokens_pct: number;
-  trend_cost_pct: number;
-  trend_latency_pct: number;
 }
 
 interface TokenTimeSeries {
-  items: { timestamp: string; input_tokens: number; output_tokens: number }[];
+  data: { time: string; input_tokens: number; output_tokens: number }[];
 }
 
 interface CostBreakdown {
-  items: { name: string; total_cost: number; total_tokens: number }[];
+  data: { name: string; total_cost: number; total_tokens: number }[];
 }
 
 export default function ObservabilityPage() {
@@ -64,28 +58,25 @@ export default function ObservabilityPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    const gran = granularity === "auto" || granularity === "5m" ? "1h" : granularity;
     try {
-      const [d, t, c] = await Promise.all([
-        apiFetch<DashboardData>(`/api/v1/observability/dashboard?time_range=${timeRange}`),
-        apiFetch<TokenTimeSeries>(`/api/v1/observability/tokens?time_range=${timeRange}&granularity=${granularity}`),
-        apiFetch<CostBreakdown>(`/api/v1/observability/costs?time_range=${timeRange}&group_by=agent`),
-      ]);
+      const d = await apiFetch<DashboardData>(`/api/v1/observability/dashboard?time_range=${timeRange}`);
       setDashboard(d);
+    } catch { /* ignore */ }
+    try {
+      const t = await apiFetch<TokenTimeSeries>(`/api/v1/observability/tokens?time_range=${timeRange}&granularity=${gran}`);
       setTokenData(t);
+    } catch { /* ignore */ }
+    try {
+      const c = await apiFetch<CostBreakdown>(`/api/v1/observability/costs?time_range=${timeRange}&group_by=agent`);
       setCostData(c);
-    } catch {
-      // silently handle
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ }
+    setLoading(false);
   }, [timeRange, granularity]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const trendDir = (pct: number) =>
-    pct > 0 ? "up" as const : pct < 0 ? "down" as const : "flat" as const;
 
   return (
     <div className="space-y-6">
@@ -107,24 +98,18 @@ export default function ObservabilityPage() {
           subtitle={dashboard ? `${dashboard.requests_per_minute.toFixed(1)} rpm` : undefined}
           icon={<Activity className="h-5 w-5" />}
           colorClass="text-blue-500"
-          trend={dashboard ? { direction: trendDir(dashboard.trend_requests_pct), pct: Math.abs(dashboard.trend_requests_pct) } : undefined}
         />
         <KpiTile
           title="Tokens"
           value={dashboard ? fmtNum(dashboard.total_tokens) : "—"}
-          subtitle={dashboard ? `${fmtNum(dashboard.tokens_per_minute)} tpm` : undefined}
           icon={<Coins className="h-5 w-5" />}
           colorClass="text-purple-500"
-          trend={dashboard ? { direction: trendDir(dashboard.trend_tokens_pct), pct: Math.abs(dashboard.trend_tokens_pct) } : undefined}
         />
         <KpiTile
           title="Cost"
           value={dashboard ? fmtCost(dashboard.total_cost) : "—"}
-          subtitle={dashboard ? `avg ${fmtCost(dashboard.cost_per_request)}/req` : undefined}
           icon={<DollarSign className="h-5 w-5" />}
           colorClass="text-green-500"
-          trendGood="down"
-          trend={dashboard ? { direction: trendDir(dashboard.trend_cost_pct), pct: Math.abs(dashboard.trend_cost_pct) } : undefined}
         />
         <KpiTile
           title="Latency"
@@ -132,17 +117,15 @@ export default function ObservabilityPage() {
           subtitle={dashboard ? `p95: ${fmtLatency(dashboard.p95_latency_ms)}` : undefined}
           icon={<Gauge className="h-5 w-5" />}
           colorClass="text-amber-500"
-          trendGood="down"
-          trend={dashboard ? { direction: trendDir(dashboard.trend_latency_pct), pct: Math.abs(dashboard.trend_latency_pct) } : undefined}
         />
       </KpiTileGrid>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Token Usage Over Time" loading={loading}>
           <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={tokenData?.items ?? []}>
+            <AreaChart data={tokenData?.data ?? []}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="time" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Area type="monotone" dataKey="input_tokens" stackId="1" fill="#818CF8" stroke="#6366F1" name="Input" />
@@ -153,7 +136,7 @@ export default function ObservabilityPage() {
 
         <ChartCard title="Cost by Agent" loading={loading}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={costData?.items ?? []} layout="vertical">
+            <BarChart data={costData?.data ?? []} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />

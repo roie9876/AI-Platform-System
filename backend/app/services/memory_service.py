@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_memory import AgentMemory
+from app.core.config import settings
 from app.models.model_endpoint import ModelEndpoint
 from app.models.thread_message import ThreadMessage
 from app.services.secret_store import decrypt_api_key
@@ -18,15 +19,20 @@ class MemoryService:
     """Manages long-term agent memory with pgvector embeddings."""
 
     async def embed(self, text: str, model_endpoint: ModelEndpoint) -> List[float]:
-        """Generate embedding vector using LiteLLM."""
+        """Generate embedding vector using LiteLLM.
+
+        Uses the configured EMBEDDING_MODEL (default: text-embedding-3-small)
+        with credentials from the provided model_endpoint.
+        """
         try:
+            embedding_model = settings.EMBEDDING_MODEL
             provider = model_endpoint.provider_type
             if provider == "azure_openai":
-                model_str = f"azure/{model_endpoint.model_name}"
+                model_str = f"azure/{embedding_model}"
             elif provider == "openai":
-                model_str = model_endpoint.model_name
+                model_str = embedding_model
             else:
-                model_str = f"{provider}/{model_endpoint.model_name}"
+                model_str = f"{provider}/{embedding_model}"
 
             kwargs: dict = {
                 "model": model_str,
