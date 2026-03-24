@@ -1,15 +1,18 @@
 import logging
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 
 import httpx
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.azure_connection import AzureConnection
+from app.models.azure_subscription import AzureSubscription
 from app.models.data_source import AgentDataSource
 from app.models.document import Document, DocumentChunk
 from app.services.document_parser import DocumentParser, TextChunker
+from app.services.secret_store import decrypt_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +203,87 @@ class RAGService:
             }
             for row in rows
         ]
+
+    async def retrieve_from_azure_search(
+        self,
+        query: str,
+        agent_id: UUID,
+        tenant_id: UUID,
+        db: AsyncSession,
+        top_k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve documents from Azure AI Search indexes connected to the agent."""
+        conn_result = await db.execute(
+            select(AzureConnection).where(
+                AzureConnection.agent_id == agent_id,
+                AzureConnection.tenant_id == tenant_id,
+                AzureConnection.resource_type == "Microsoft.Search/searchServices",
+            )
+        )
+        connections = list(conn_result.scalars().all())
+        if not connections:
+            return []
+
+        results: List[Dict[str, Any]] = []
+
+        for conn in connections:
+            selected_indexes = (conn.config or {}).get("selected_indexes", [])
+            if not selected_indexes:
+                continue
+
+            # Get access token from subscription
+            sub_result = await db.execute(
+                select(AzureSubscription).where(
+                    AzureSubscription.id == conn.azure_subscription_id
+                )
+            )
+            subscription = sub_result.scalar_one_or_none()
+            if not subscription or not subscription.access_token_encrypted:
+                continue
+
+            access_token = decrypt_api_key(subscription.access_token_encrypted)
+            endpoint = conn.endpoint
+            if not endpoint:
+                continue
+
+            for index_name in selected_indexes:
+                search_url = f"{endpoint}/indexes/{index_name}/docs/search"
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        resp = await client.post(
+                            search_url,
+                            params={"api-version": "2024-07-01"},
+                            headers={"Authorization": f"Bearer {access_token}"},
+                            json={"search": query, "$top": top_k},
+                        )
+                        if resp.status_code in (403, 404):
+                            continue
+                        resp.raise_for_status()
+                        data = resp.json()
+
+                        for doc in data.get("value", []):
+                            results.append({
+                                "source": "azure_search",
+                                "index": index_name,
+                                "connection_id": str(conn.id),
+                                "content": doc.get("content", ""),
+                                "metadata": {
+                                    k: v for k, v in doc.items()
+                                    if k not in ("content", "@search.score")
+                                },
+                                "score": doc.get("@search.score"),
+                            })
+                except httpx.HTTPError:
+                    logger.warning(
+                        "Azure Search query failed for index %s: %s",
+                        index_name,
+                        endpoint,
+                    )
+                    continue
+
+        # Sort by score descending, take top_k
+        results.sort(key=lambda r: r.get("score") or 0, reverse=True)
+        return results[:top_k]
 
     def _extract_text_from_html(self, html: str) -> str:
         """Basic HTML to text extraction — strip tags, decode entities."""
