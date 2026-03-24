@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { AnalyticsToolbar } from "@/components/observability/analytics-toolbar";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -116,12 +116,11 @@ export function AgentTracesPanel({ agentId }: { agentId: string }) {
                 const isExpanded = expandedId === log.id;
                 const toolNames =
                   log.tool_calls && log.tool_calls.length > 0
-                    ? log.tool_calls.map((tc) => tc.name).join(", ")
+                    ? log.tool_calls.map((tc) => String(tc.name)).join(", ")
                     : "—";
                 return (
-                  <> 
+                  <React.Fragment key={log.id}>
                     <tr
-                      key={log.id}
                       className="border-b hover:bg-gray-50 cursor-pointer"
                       onClick={() => setExpandedId(isExpanded ? null : log.id)}
                     >
@@ -194,31 +193,31 @@ export function AgentTracesPanel({ agentId }: { agentId: string }) {
                                   <ul className="space-y-1">
                                     {log.tool_calls.map((tc, i) => (
                                       <li key={i} className="rounded bg-white px-3 py-1.5 border text-xs font-mono">
-                                        {tc.name}
-                                        {tc.arguments && (
+                                        {String(tc.name)}
+                                        {tc.arguments ? (
                                           <span className="text-gray-400 ml-2">
                                             ({typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments)})
                                           </span>
-                                        )}
+                                        ) : null}
                                       </li>
                                     ))}
                                   </ul>
                                 </div>
                               )}
-                              {log.state_snapshot && (log.state_snapshot as Record<string, unknown>).rag_sources && (
+                              {log.state_snapshot && (log.state_snapshot as Record<string, unknown>).rag_sources ? (
                                 <div>
                                   <h4 className="font-medium text-gray-900 mb-2">RAG Sources</h4>
                                   <pre className="rounded bg-white border px-3 py-2 text-xs overflow-auto max-h-32">
                                     {JSON.stringify((log.state_snapshot as Record<string, unknown>).rag_sources, null, 2)}
                                   </pre>
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })
             )}
