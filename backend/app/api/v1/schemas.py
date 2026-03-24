@@ -151,6 +151,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     conversation_history: Optional[List[ChatMessage]] = None
+    thread_id: Optional[UUID] = None
 
 
 # --- Tool Schemas ---

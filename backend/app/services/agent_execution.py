@@ -1,16 +1,22 @@
 import json
 import logging
+import time
 from typing import Optional, List, Dict, Any, AsyncGenerator
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
+from app.models.execution_log import ExecutionLog
 from app.models.model_endpoint import ModelEndpoint
+from app.models.thread import Thread
+from app.models.thread_message import ThreadMessage
 from app.models.tool import Tool, AgentTool
 from app.services.model_abstraction import ModelAbstractionService, ModelError
 from app.services.tool_executor import ToolExecutor, ToolExecutionError
 from app.services.rag_service import RAGService
+from app.services.memory_service import MemoryService
 from app.services.platform_tools import get_adapter_by_name as get_platform_adapter
 
 logger = logging.getLogger(__name__)
@@ -25,6 +31,7 @@ class AgentExecutionService:
         self._model_service = ModelAbstractionService()
         self._tool_executor = ToolExecutor()
         self._rag_service = RAGService()
+        self._memory_service = MemoryService()
 
     async def _inject_rag_context(
         self,
@@ -123,7 +130,11 @@ class AgentExecutionService:
         user_message: str,
         db: AsyncSession,
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        thread_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> AsyncGenerator[str, None]:
+        start_time = time.monotonic()
+
         # Load primary endpoint
         if not agent.model_endpoint_id:
             yield self._sse_error("Agent has no model endpoint assigned")
@@ -164,6 +175,63 @@ class AgentExecutionService:
         # Inject RAG context from attached data sources
         rag_sources = await self._inject_rag_context(messages, agent, user_message, db)
 
+        # Inject long-term memory context if using a thread
+        if thread_id:
+            try:
+                memories = await self._memory_service.retrieve_relevant(
+                    query=user_message,
+                    agent_id=agent.id,
+                    user_id=user_id,
+                    tenant_id=agent.tenant_id,
+                    db=db,
+                    model_endpoint=primary_endpoint,
+                    top_k=5,
+                )
+                if memories:
+                    memory_text = "\n\n".join(m.content for m in memories)
+                    memory_msg = (
+                        "Relevant memories from past interactions:\n\n"
+                        f"{memory_text}"
+                    )
+                    # Insert after RAG context, before conversation
+                    insert_idx = 1 if messages and messages[0]["role"] == "system" else 0
+                    # Skip past any existing system messages (original + RAG)
+                    while insert_idx < len(messages) and messages[insert_idx]["role"] == "system":
+                        insert_idx += 1
+                    messages.insert(insert_idx, {"role": "system", "content": memory_msg})
+            except Exception:
+                logger.warning("Memory retrieval failed for thread %s", thread_id, exc_info=True)
+
+        # Save user message to thread if thread_id provided
+        if thread_id and user_id:
+            try:
+                seq_result = await db.execute(
+                    select(func.coalesce(func.max(ThreadMessage.sequence_number), 0))
+                    .where(ThreadMessage.thread_id == thread_id)
+                )
+                next_seq = (seq_result.scalar() or 0) + 1
+                user_msg = ThreadMessage(
+                    thread_id=thread_id,
+                    role="user",
+                    content=user_message,
+                    sequence_number=next_seq,
+                )
+                db.add(user_msg)
+                await db.commit()
+
+                # Log execution event
+                log_entry = ExecutionLog(
+                    thread_id=thread_id,
+                    message_id=user_msg.id,
+                    event_type="message_sent",
+                    state_snapshot={"messages_count": len(messages)},
+                    duration_ms=0,
+                )
+                db.add(log_entry)
+                await db.commit()
+            except Exception:
+                logger.warning("Failed to save user message to thread %s", thread_id, exc_info=True)
+
         # Update agent status to active
         agent.status = "active"
         await db.commit()
@@ -177,6 +245,8 @@ class AgentExecutionService:
             # Emit sources event so the frontend knows what knowledge was used
             if rag_sources:
                 yield self._sse_sources(rag_sources)
+
+            collected_response = ""
 
             if tool_schemas:
                 # Tool-calling loop
@@ -250,8 +320,13 @@ class AgentExecutionService:
                                 })
                     else:
                         # No tool calls — model returned final content
-                        if response["content"]:
-                            yield self._sse_data(response["content"], done=False)
+                        collected_response = response["content"] or ""
+                        if collected_response:
+                            yield self._sse_data(collected_response, done=False)
+                        await self._save_assistant_response(
+                            db, thread_id, user_id, agent, collected_response,
+                            rag_sources, start_time, primary_endpoint,
+                        )
                         yield self._sse_data("", done=True)
                         return
 
@@ -268,8 +343,13 @@ class AgentExecutionService:
                 timeout=agent.timeout_seconds,
                 stream=True,
             ):
+                collected_response += token
                 yield self._sse_data(token, done=False)
 
+            await self._save_assistant_response(
+                db, thread_id, user_id, agent, collected_response,
+                rag_sources, start_time, primary_endpoint,
+            )
             yield self._sse_data("", done=True)
 
         except ModelError as exc:
@@ -277,6 +357,84 @@ class AgentExecutionService:
             await db.commit()
             logger.error("Agent execution failed: %s", str(exc))
             yield self._sse_error(str(exc))
+
+    async def _save_assistant_response(
+        self,
+        db: AsyncSession,
+        thread_id: Optional[UUID],
+        user_id: Optional[UUID],
+        agent: Agent,
+        content: str,
+        rag_sources: List[Dict[str, str]],
+        start_time: float,
+        primary_endpoint: ModelEndpoint,
+    ) -> None:
+        """Save assistant response to thread and log execution."""
+        if not thread_id or not user_id:
+            return
+        try:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+
+            # Get next sequence number
+            seq_result = await db.execute(
+                select(func.coalesce(func.max(ThreadMessage.sequence_number), 0))
+                .where(ThreadMessage.thread_id == thread_id)
+            )
+            next_seq = (seq_result.scalar() or 0) + 1
+
+            # Save assistant message
+            metadata = {}
+            if rag_sources:
+                metadata["sources"] = rag_sources
+            assistant_msg = ThreadMessage(
+                thread_id=thread_id,
+                role="assistant",
+                content=content,
+                message_metadata=metadata if metadata else None,
+                sequence_number=next_seq,
+            )
+            db.add(assistant_msg)
+            await db.commit()
+
+            # Auto-title: if thread has only 2 messages (1 user + 1 assistant), set title
+            msg_count_result = await db.execute(
+                select(func.count(ThreadMessage.id))
+                .where(ThreadMessage.thread_id == thread_id)
+            )
+            msg_count = msg_count_result.scalar() or 0
+            if msg_count <= 2:
+                thread_result = await db.execute(
+                    select(Thread).where(Thread.id == thread_id)
+                )
+                thread = thread_result.scalar_one_or_none()
+                if thread and not thread.title:
+                    # Get first user message for title
+                    first_msg_result = await db.execute(
+                        select(ThreadMessage.content)
+                        .where(
+                            ThreadMessage.thread_id == thread_id,
+                            ThreadMessage.role == "user",
+                        )
+                        .order_by(ThreadMessage.sequence_number)
+                        .limit(1)
+                    )
+                    first_msg = first_msg_result.scalar_one_or_none()
+                    if first_msg:
+                        thread.title = first_msg[:80]
+                        await db.commit()
+
+            # Execution log
+            log_entry = ExecutionLog(
+                thread_id=thread_id,
+                message_id=assistant_msg.id,
+                event_type="model_response",
+                state_snapshot={"response_length": len(content)},
+                duration_ms=duration_ms,
+            )
+            db.add(log_entry)
+            await db.commit()
+        except Exception:
+            logger.warning("Failed to save assistant response to thread %s", thread_id, exc_info=True)
 
     @staticmethod
     def _sse_data(content: str, done: bool) -> str:

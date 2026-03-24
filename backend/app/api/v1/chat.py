@@ -10,6 +10,8 @@ from app.middleware.tenant import get_tenant_id
 from app.api.v1.auth import get_current_user
 from app.models.user import User
 from app.models.agent import Agent
+from app.models.thread import Thread
+from app.models.thread_message import ThreadMessage
 from app.api.v1.schemas import ChatRequest
 from app.services.agent_execution import AgentExecutionService
 
@@ -39,9 +41,32 @@ async def chat_with_agent(
             detail="Agent has no model endpoint assigned. Assign a model endpoint before chatting.",
         )
 
-    # Build conversation history from ChatMessage objects
+    # If thread_id provided, load history from DB instead of client-sent history
     conversation_history = None
-    if body.conversation_history:
+    if body.thread_id:
+        # Validate thread ownership
+        thread_result = await db.execute(
+            select(Thread).where(
+                Thread.id == body.thread_id,
+                Thread.user_id == current_user.id,
+                Thread.tenant_id == tenant_id,
+            )
+        )
+        thread = thread_result.scalar_one_or_none()
+        if not thread:
+            raise HTTPException(status_code=404, detail="Thread not found")
+
+        # Load messages from thread as conversation history
+        msg_result = await db.execute(
+            select(ThreadMessage)
+            .where(ThreadMessage.thread_id == body.thread_id)
+            .order_by(ThreadMessage.sequence_number)
+        )
+        messages = msg_result.scalars().all()
+        conversation_history = [
+            {"role": m.role, "content": m.content} for m in messages
+        ]
+    elif body.conversation_history:
         conversation_history = [
             {"role": m.role, "content": m.content}
             for m in body.conversation_history
@@ -55,6 +80,8 @@ async def chat_with_agent(
             user_message=body.message,
             db=db,
             conversation_history=conversation_history,
+            thread_id=body.thread_id,
+            user_id=current_user.id,
         ):
             yield event
 
