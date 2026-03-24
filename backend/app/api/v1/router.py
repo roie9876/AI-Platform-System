@@ -16,6 +16,7 @@ from app.api.v1.threads import router as threads_router
 from app.api.v1.workflows import router as workflows_router
 from app.api.v1.memories import router as memories_router
 from app.api.v1.observability import router as observability_router
+from app.api.v1.evaluations import router as evaluations_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -36,3 +37,4 @@ api_router.include_router(threads_router, prefix="/threads", tags=["threads"])
 api_router.include_router(workflows_router, prefix="/workflows", tags=["workflows"])
 api_router.include_router(memories_router, prefix="/agents", tags=["agent-memories"])
 api_router.include_router(observability_router, prefix="/observability", tags=["observability"])
+api_router.include_router(evaluations_router, prefix="/evaluations", tags=["evaluations"])

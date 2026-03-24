@@ -758,3 +758,76 @@ class CostAlertResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- Evaluation Schemas ---
+
+class TestSuiteCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    agent_id: UUID
+
+
+class TestSuiteResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    agent_id: UUID
+    tenant_id: UUID
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TestCaseCreate(BaseModel):
+    input_message: str = Field(..., min_length=1)
+    expected_output: Optional[str] = None
+    expected_keywords: Optional[List[str]] = None
+    metadata_: Optional[dict] = None
+    order_index: int = 0
+
+
+class TestCaseResponse(BaseModel):
+    id: UUID
+    test_suite_id: UUID
+    input_message: str
+    expected_output: Optional[str] = None
+    expected_keywords: Optional[List[str]] = None
+    order_index: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EvaluationRunResponse(BaseModel):
+    id: UUID
+    test_suite_id: UUID
+    agent_id: UUID
+    config_version_id: Optional[UUID] = None
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    summary: Optional[dict] = None
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EvaluationResultResponse(BaseModel):
+    id: UUID
+    run_id: UUID
+    test_case_id: UUID
+    actual_output: Optional[str] = None
+    score: Optional[float] = None
+    metrics: Optional[dict] = None
+    status: str
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
