@@ -495,3 +495,146 @@ class ThreadMessageResponse(BaseModel):
 class ThreadMessagesResponse(BaseModel):
     messages: List[ThreadMessageResponse]
     total: int
+
+
+# --- Workflow Schemas ---
+
+class WorkflowNodeConfig(BaseModel):
+    input_mapping: Optional[dict] = None
+    system_prompt_override: Optional[str] = None
+    timeout_override: Optional[int] = None
+
+
+class WorkflowNodeCreateRequest(BaseModel):
+    agent_id: UUID
+    name: str = Field(..., min_length=1, max_length=255)
+    node_type: str = Field(default="agent", pattern=r"^(agent|sub_agent|aggregator|router)$")
+    position_x: float = 0
+    position_y: float = 0
+    config: Optional[WorkflowNodeConfig] = None
+    execution_order: int = 0
+
+
+class WorkflowNodeResponse(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    agent_id: UUID
+    name: str
+    node_type: str
+    position_x: float
+    position_y: float
+    config: Optional[dict] = None
+    execution_order: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowEdgeCreateRequest(BaseModel):
+    source_node_id: UUID
+    target_node_id: UUID
+    edge_type: str = Field(default="default", pattern=r"^(default|conditional|error)$")
+    condition: Optional[dict] = None
+    output_mapping: Optional[dict] = None
+
+
+class WorkflowEdgeResponse(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    source_node_id: UUID
+    target_node_id: UUID
+    edge_type: str
+    condition: Optional[dict] = None
+    output_mapping: Optional[dict] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    workflow_type: str = Field(default="sequential", pattern=r"^(sequential|parallel|autonomous|custom)$")
+    nodes: Optional[List[WorkflowNodeCreateRequest]] = None
+    edges: Optional[List[WorkflowEdgeCreateRequest]] = None
+
+
+class WorkflowUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    workflow_type: Optional[str] = Field(default=None, pattern=r"^(sequential|parallel|autonomous|custom)$")
+
+
+class WorkflowResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    workflow_type: str
+    is_active: bool
+    tenant_id: UUID
+    created_by: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowDetailResponse(WorkflowResponse):
+    nodes: List[WorkflowNodeResponse] = []
+    edges: List[WorkflowEdgeResponse] = []
+
+
+class WorkflowListResponse(BaseModel):
+    workflows: List[WorkflowResponse]
+    total: int
+
+
+class WorkflowExecuteRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    input_data: Optional[dict] = None
+
+
+class WorkflowExecutionResponse(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    input_data: Optional[dict] = None
+    output_data: Optional[dict] = None
+    error: Optional[str] = None
+    tenant_id: UUID
+    triggered_by: UUID
+    thread_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowNodeExecutionResponse(BaseModel):
+    id: UUID
+    node_id: UUID
+    agent_id: UUID
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    input_data: Optional[dict] = None
+    output_data: Optional[dict] = None
+    error: Optional[str] = None
+    thread_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowExecutionDetailResponse(WorkflowExecutionResponse):
+    node_executions: List[WorkflowNodeExecutionResponse] = []
+
+
+class WorkflowExecutionListResponse(BaseModel):
+    executions: List[WorkflowExecutionResponse]
+    total: int
