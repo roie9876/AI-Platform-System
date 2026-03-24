@@ -497,6 +497,24 @@ class ThreadMessagesResponse(BaseModel):
     total: int
 
 
+# --- Memory Schemas ---
+
+class AgentMemoryResponse(BaseModel):
+    id: UUID
+    agent_id: UUID
+    content: str
+    memory_type: str
+    source_thread_id: Optional[UUID] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AgentMemoryListResponse(BaseModel):
+    memories: List[AgentMemoryResponse]
+    total: int
+
+
 # --- Workflow Schemas ---
 
 class WorkflowNodeConfig(BaseModel):
@@ -638,3 +656,105 @@ class WorkflowExecutionDetailResponse(WorkflowExecutionResponse):
 class WorkflowExecutionListResponse(BaseModel):
     executions: List[WorkflowExecutionResponse]
     total: int
+
+
+# --- Observability Schemas ---
+
+class DashboardSummaryResponse(BaseModel):
+    total_requests: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_tokens: int = 0
+    total_cost: float = 0.0
+    avg_latency_ms: float = 0.0
+    p50_latency_ms: float = 0.0
+    p95_latency_ms: float = 0.0
+    success_count: int = 0
+    error_count: int = 0
+    requests_per_minute: float = 0.0
+
+
+class TokenTimeSeriesItem(BaseModel):
+    time: datetime
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+class TokenTimeSeriesResponse(BaseModel):
+    data: List[TokenTimeSeriesItem]
+
+
+class CostBreakdownItem(BaseModel):
+    name: str
+    total_tokens: int
+    total_cost: float
+    request_count: int
+
+
+class CostBreakdownResponse(BaseModel):
+    data: List[CostBreakdownItem]
+
+
+class ExecutionLogItem(BaseModel):
+    id: UUID
+    event_type: str
+    duration_ms: Optional[int] = None
+    token_count: Optional[dict] = None
+    model_name: Optional[str] = None
+    agent_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class ExecutionLogListResponse(BaseModel):
+    logs: List[ExecutionLogItem]
+    total: int
+
+
+class ModelPricingCreate(BaseModel):
+    model_name: str = Field(..., min_length=1, max_length=255)
+    provider_type: str = Field(..., min_length=1, max_length=50)
+    input_price_per_1k: float = Field(..., ge=0)
+    output_price_per_1k: float = Field(..., ge=0)
+    currency: str = Field(default="USD", max_length=10)
+
+
+class ModelPricingResponse(BaseModel):
+    id: UUID
+    model_name: str
+    provider_type: str
+    input_price_per_1k: float
+    output_price_per_1k: float
+    currency: str
+    is_active: bool
+    tenant_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CostAlertCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    alert_type: str = Field(..., pattern=r"^(budget_threshold|spike_detection)$")
+    threshold_amount: float = Field(..., gt=0)
+    period: str = Field(..., pattern=r"^(daily|weekly|monthly)$")
+    scope_type: str = Field(..., pattern=r"^(agent|tenant|model)$")
+    scope_id: Optional[UUID] = None
+
+
+class CostAlertResponse(BaseModel):
+    id: UUID
+    name: str
+    alert_type: str
+    threshold_amount: float
+    period: str
+    scope_type: str
+    scope_id: Optional[UUID] = None
+    is_active: bool
+    last_triggered_at: Optional[datetime] = None
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

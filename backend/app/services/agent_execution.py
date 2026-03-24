@@ -229,6 +229,22 @@ class AgentExecutionService:
                 )
                 db.add(log_entry)
                 await db.commit()
+
+                # Store user message as memory for cross-thread recall
+                if len(user_message) > 10:
+                    try:
+                        await self._memory_service.store_memory(
+                            agent_id=agent.id,
+                            user_id=user_id,
+                            tenant_id=agent.tenant_id,
+                            content=f"User said: {user_message}",
+                            db=db,
+                            model_endpoint=None,
+                            memory_type="user_input",
+                            source_thread_id=thread_id,
+                        )
+                    except Exception:
+                        logger.warning("Failed to store user memory for thread %s", thread_id, exc_info=True)
             except Exception:
                 logger.warning("Failed to save user message to thread %s", thread_id, exc_info=True)
 
@@ -323,9 +339,14 @@ class AgentExecutionService:
                         collected_response = response["content"] or ""
                         if collected_response:
                             yield self._sse_data(collected_response, done=False)
+                        # Extract token usage from response
+                        usage = response.get("usage") or {}
+                        input_tokens = usage.get("prompt_tokens")
+                        output_tokens = usage.get("completion_tokens")
                         await self._save_assistant_response(
                             db, thread_id, user_id, agent, collected_response,
                             rag_sources, start_time, primary_endpoint,
+                            input_tokens=input_tokens, output_tokens=output_tokens,
                         )
                         yield self._sse_data("", done=True)
                         return
@@ -368,6 +389,8 @@ class AgentExecutionService:
         rag_sources: List[Dict[str, str]],
         start_time: float,
         primary_endpoint: ModelEndpoint,
+        input_tokens: Optional[int] = None,
+        output_tokens: Optional[int] = None,
     ) -> None:
         """Save assistant response to thread and log execution."""
         if not thread_id or not user_id:
@@ -428,11 +451,32 @@ class AgentExecutionService:
                 thread_id=thread_id,
                 message_id=assistant_msg.id,
                 event_type="model_response",
-                state_snapshot={"response_length": len(content)},
+                state_snapshot={
+                    "response_length": len(content),
+                    "model_name": primary_endpoint.model_name if primary_endpoint else None,
+                    "model_endpoint_id": str(primary_endpoint.id) if primary_endpoint else None,
+                },
                 duration_ms=duration_ms,
+                token_count={"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0},
             )
             db.add(log_entry)
             await db.commit()
+
+            # Store assistant response as long-term memory
+            if len(content) > 10:
+                try:
+                    await self._memory_service.store_memory(
+                        agent_id=agent.id,
+                        user_id=user_id,
+                        tenant_id=agent.tenant_id,
+                        content=content,
+                        db=db,
+                        model_endpoint=None,
+                        memory_type="knowledge",
+                        source_thread_id=thread_id,
+                    )
+                except Exception:
+                    logger.warning("Failed to store memory for thread %s", thread_id, exc_info=True)
         except Exception:
             logger.warning("Failed to save assistant response to thread %s", thread_id, exc_info=True)
 

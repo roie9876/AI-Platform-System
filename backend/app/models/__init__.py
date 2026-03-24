@@ -17,6 +17,7 @@ from app.models.agent_memory import AgentMemory
 from app.models.execution_log import ExecutionLog
 from app.models.workflow import Workflow, WorkflowNode, WorkflowEdge
 from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution
+from app.models.cost_config import ModelPricing, CostAlert
 
 __all__ = [
     "Base", "Tenant", "User", "RefreshToken", "ModelEndpoint",
@@ -28,4 +29,5 @@ __all__ = [
     "Thread", "ThreadMessage", "AgentMemory", "ExecutionLog",
     "Workflow", "WorkflowNode", "WorkflowEdge",
     "WorkflowExecution", "WorkflowNodeExecution",
+    "ModelPricing", "CostAlert",
 ]
