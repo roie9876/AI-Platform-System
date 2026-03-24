@@ -70,7 +70,7 @@ Font stack: `'Inter', system-ui, -apple-system, sans-serif`
 - Primary action buttons ("Connect subscription", "Add tool", "Connect", "Create agent")
 - Active sidebar nav item indicator (left 3px border or background highlight)
 - Selected tab underline (Configured / Catalog / Custom tabs)
-- "Preview" badge background (at 10% opacity: `#7C3AED1A` with `#7C3AED` text)
+- "Preview" badge — dark variant (#1F2937 bg, white text) used inline with section headings
 - Toggle switches in "on" state
 - Page header breadcrumb active segment
 
@@ -87,8 +87,8 @@ Accent is NOT used for: links (use `#2563EB` blue), hover states on non-primary 
 | surface-hover | #F3F4F6 | Table row hover, sidebar item hover (gray-100) |
 | success | #059669 | Connected status badge, health check passed (emerald-600) |
 | warning | #D97706 | Degraded status badge (amber-600) |
-| region-badge-bg | #DBEAFE | Region badge background (blue-100) |
-| region-badge-text | #1E40AF | Region badge text (blue-800) |
+| region-badge-bg | #F3F4F6 | Region badge background (gray-100) — matches Foundry's slate/gray badges |
+| region-badge-text | #374151 | Region badge text (gray-700) |
 
 ---
 
@@ -100,6 +100,19 @@ Accent is NOT used for: links (use `#2563EB` blue), hover states on non-primary 
 |---------|------|
 | Sidebar nav: disabled items | Label + "Preview" badge to the right |
 | Breadcrumbs | Dashboard > {Section} > {Page} |
+
+### Agents List Page (updated to match Foundry)
+
+| Element | Copy |
+|---------|------|
+| Page heading | "Agents ({count})" |
+| Primary CTA | "Create agent" (purple button, top-right) |
+| Search bar | "Search agents" placeholder |
+| Table columns | Name / Version / Type / Created on / Description |
+| Version column | Version number in rounded badge (gray border) |
+| Type column | "prompt" (text) |
+| Description default | "--" when empty |
+| Pagination | "{start}-{end} of {total}" + Prev/Next links |
 
 ### Subscription Connection Page
 
@@ -129,32 +142,62 @@ Accent is NOT used for: links (use `#2563EB` blue), hover states on non-primary 
 |---------|------|
 | Modal title | "Select a tool" |
 | Tab labels | "Configured" / "Catalog" / "Custom" |
+| Configured tab description | "Configured tools are ready to use with your configured authentication, configuration or set up. Learn more ↗" |
 | Configured tab empty state | "No tools configured yet. Browse the Catalog to add tools." |
-| Catalog filter labels | "Type" / "Provider" / "Category" |
-| Catalog card | "{Tool Name}" + description (1 line) + badges (e.g., "Preview") |
+| Catalog tab description | "Available from the public or organizational Foundry Tool Catalog, including remote and local MCP servers and Azure Logic App connectors, which may require setup before use. Learn more ↗" |
+| Catalog filter labels | "Type" / "Provider" / "Category" / "Registry" / "Supported auth" |
+| Catalog sort dropdown | "Featured" (top-right, default) |
+| Catalog card | "{Tool Name}" + description (1 line, truncated with ellipsis) + badges row |
+| Badge types in catalog | "Local MCP" (gray pill) / "Remote MCP" (gray pill) / "Preview" (purple pill) |
+| Configured tab CTA | "Add tool" (purple button, bottom-right, disabled until card selected) + "Cancel" |
+| Catalog tab CTA | "Create" (purple button, bottom-right, disabled until card selected) + "Cancel" |
 | Custom tab CTA | "Create custom tool" |
 
-### Knowledge Section
+### Knowledge Page (standalone page via sidebar)
 
 | Element | Copy |
 |---------|------|
-| Section heading | "Knowledge" |
-| Resource picker label | "AI Search resource" |
-| Resource picker placeholder | "Select an AI Search resource..." |
-| Auth type label | "Authentication type" |
+| Page heading | "Knowledge" with "Preview" badge |
+| Sub-tabs | "Knowledge bases" / "Indexes" |
+| Hero heading | "Ground your agent in enterprise knowledge" |
+| Hero body | "Connect your agent to combine multiple data sources behind an agentic retrieval engine." |
+| Instruction text | "Connect to an AI Search resource to get started" |
+| Resource picker label | "Azure AI Search resource *" (required field) |
+| Resource picker placeholder | "Select a resource" |
+| Resource picker dropdown items | "{resource name}" + region badge ("SWEDENCENTRAL") + managed identity ID + resource group name |
+| Auth type label | "Auth Type *" (required, appears AFTER resource selected) |
 | Auth type options | "API Key" / "Managed Identity" |
-| Connect CTA | "Connect" |
+| Connect CTA | "Connect" (purple button) |
+| Help link | "Not sure? Create new resource ↗" |
+| Saved connections section | "Saved info" header with dismiss (×), connection name below |
+
+### Knowledge Section (in agent config left panel)
+
+| Element | Copy |
+|---------|------|
+| Section heading | "Knowledge" with "Preview" badge + collapse chevron |
 | Index list heading | "Connected indexes" |
 | Index empty state | "Connect an AI Search resource to browse and select indexes for RAG retrieval." |
-| Create resource link | "Create new AI Search resource in Azure Portal" |
 
 ### Agent Config Page (Split-Pane)
 
 | Element | Copy |
 |---------|------|
-| Left panel sections | "Instructions" / "Tools" / "Knowledge" / "Memory" (disabled) / "Guardrails" (disabled) |
-| Right panel tabs | "Chat" / "YAML" (disabled) / "Code" (disabled) |
-| Collapsed section hint | Chevron (▸ collapsed / ▾ expanded) |
+| Top bar — left | ← back arrow + agent name (heading) |
+| Top bar — center | Version info: "v{N} saved {date}" with dropdown chevron |
+| Top bar — right | "Save" (text button) / "Preview" (outlined button with chevron) / "Publish" (outlined button with chevron) / ⋮ more menu |
+| Sub-nav tabs | "Playground" (active, underlined) / "Traces" / "Monitor" / "Evaluation" |
+| Left panel — top | Model selector: "Model: {model-name}" dropdown + settings icon |
+| Left panel — toggle | "Voice mode" with "Preview" badge + toggle switch |
+| Left panel sections | "Instructions" (collapsible, textarea inside) / "Tools" (collapsible, "Add" dropdown button + tool list) / "Upload files" button / "Knowledge" with "Preview" badge (collapsible) / "Memory" with "Preview" badge (collapsible) / "Guardrails" with "Preview" badge (collapsible) |
+| Tools section — Add dropdown | Clicking "Add" opens the tool catalog modal |
+| Tools section — configured tool | Tool name + ⓘ info icon + ⋮ more menu (per row) |
+| Right panel tabs | "Chat" / "YAML" / "Code" |
+| Right panel — chat empty state | Agent name (bold, centered) + "Use agent configuration to update the description and starter prompts" |
+| Right panel — input | "Message the agent..." placeholder + attachment icon + send icon |
+| Right panel — disclaimer | "AI-generated content may be incorrect" (small, below input) |
+| Right panel — top-right | "Metrics" dropdown + ⚙ settings icon + ⊕ new chat icon |
+| Collapsed section hint | Chevron (∧ expanded / ∨ collapsed) — Foundry uses up/down chevrons |
 | Disabled section tooltip | "Coming in a future release" |
 
 ### Sidebar Navigation
@@ -182,18 +225,21 @@ Components this phase creates or modifies (executor reference):
 
 | Component | Location | Spec |
 |-----------|----------|------|
-| `FoundrySidebar` | `src/components/layout/foundry-sidebar.tsx` | Vertical nav with lucide icons, active indicator (3px left border in accent), disabled items with "Preview" pill badge, user section at bottom |
+| `FoundrySidebar` | `src/components/layout/foundry-sidebar.tsx` | White background vertical nav with lucide outline icons (20px), active item: purple left 3px border + purple icon + #F5F3FF bg, inactive: gray-500 icon + gray-700 text, disabled items: gray-400 text + dark "Preview" badge. Collapse/expand toggle at sidebar bottom (⊞ icon). No user section — matches Foundry removing user from sidebar |
 | `SubscriptionCard` | `src/components/azure/subscription-card.tsx` | White card with subtle border (#E5E7EB), subscription name as subheading, subscription ID as label, resource count, "Disconnect" text button (destructive) |
 | `ResourceCard` | `src/components/azure/resource-card.tsx` | White card with border, resource name, region badge (blue-100 bg / blue-800 text / 12px / rounded-full / uppercase), resource type label |
-| `ToolCatalogModal` | `src/components/tools/tool-catalog-modal.tsx` | Full modal overlay, 3 tabs at top, filter bar below tabs (Catalog tab only), card grid below filters, 2-column on md+, 1-column on mobile |
-| `CatalogToolCard` | `src/components/tools/catalog-tool-card.tsx` | Card with icon placeholder (32x32), tool name, 1-line description, badges list |
-| `KnowledgeSection` | `src/components/knowledge/knowledge-section.tsx` | Collapsible section with resource picker dropdown, auth type dropdown, "Connect" button, connected indexes list |
-| `ResourcePicker` | `src/components/azure/resource-picker.tsx` | Dropdown showing discovered AI Search resources with region badge inline, managed identity info as label text |
+| `ToolCatalogModal` | `src/components/tools/tool-catalog-modal.tsx` | Full modal overlay, 3 tabs at top, description text below tabs (per-tab), search bar, filter bar below search (Catalog tab only) + "Featured" sort dropdown, card grid below filters, 3-column on lg+ / 2-column on md / 1-column on mobile, bottom action bar with CTA + Cancel |
+| `CatalogToolCard` | `src/components/tools/catalog-tool-card.tsx` | Horizontal layout: icon (40x40, left) + content (right). Tool name (subheading weight), 1-line description (truncated), badges row below ("Local MCP", "Remote MCP", "Preview" pills). Selectable with highlight border on click |
+| `KnowledgePage` | `src/app/dashboard/knowledge/page.tsx` | Standalone page: "Knowledge" heading + Preview badge, "Knowledge bases" / "Indexes" sub-tabs, hero section with heading/body/instruction, resource picker + auth type + Connect button flow, saved connections section |
+| `KnowledgeSection` | `src/components/knowledge/knowledge-section.tsx` | Collapsible section in agent config: connected indexes list, link to Knowledge page for setup |
+| `ResourcePicker` | `src/components/azure/resource-picker.tsx` | Dropdown showing discovered AI Search resources. Each item: resource name + region badge ("SWEDENCENTRAL") on same line, managed identity ID on second line (12px, gray-500), resource group on third line (12px, gray-500). Selected state shows resource name in input. Separate "Saved info" popover below with dismiss × |
 | `CollapsibleSection` | `src/components/ui/collapsible-section.tsx` | Chevron toggle (▸/▾), heading text, animated expand/collapse, default state configurable |
-| `RegionBadge` | `src/components/ui/region-badge.tsx` | Pill badge: uppercase text, 12px, blue-100 bg, blue-800 text, rounded-full, px-2.5 py-0.5 |
+| `RegionBadge` | `src/components/ui/region-badge.tsx` | Pill badge: uppercase text, 12px, gray-100 bg (#F3F4F6), gray-700 text (#374151), rounded-md, px-2 py-0.5, font-medium |
 | `StatusBadge` | `src/components/ui/status-badge.tsx` | Dot + text: green dot for "Connected", yellow for "Degraded", red for "Error", gray for "Disconnected" |
-| `PreviewBadge` | `src/components/ui/preview-badge.tsx` | Pill: "Preview", 11px, #7C3AED1A bg, #7C3AED text, rounded-full |
-| `AgentConfigLayout` | `src/components/agent/agent-config-layout.tsx` | Split-pane: left panel (collapsible sections, 380px width) + right panel (tabbed content area, flex-1) |
+| `PreviewBadge` | `src/components/ui/preview-badge.tsx` | Pill: "Preview", 11px, dark bg (#1F2937 / gray-800) with white text, rounded-sm, px-1.5 py-0.5 — matches Foundry's dark "Preview" badges |
+| `McpBadge` | `src/components/ui/mcp-badge.tsx` | Pill: "Local MCP" or "Remote MCP", 11px, gray-100 bg, gray-700 text, rounded-sm, px-1.5 py-0.5, border 1px gray-200 |
+| `AgentConfigTopBar` | `src/components/agent/agent-config-top-bar.tsx` | Top bar: back arrow, agent name, version dropdown, Save/Preview/Publish buttons, sub-nav tabs (Playground/Traces/Monitor/Evaluation) |
+| `AgentConfigLayout` | `src/components/agent/agent-config-layout.tsx` | Split-pane: top bar + left panel (collapsible sections, ~580px width, scrollable) + right panel (tabbed content area, flex-1) |
 | `FilterBar` | `src/components/ui/filter-bar.tsx` | Horizontal row of dropdown filters + search input, used in catalog tab |
 
 ### Modified Components
@@ -209,32 +255,51 @@ Components this phase creates or modifies (executor reference):
 
 ### Sidebar (Foundry-Style)
 
-- Width: 240px (down from current 256px)
+- Width: 220px (matches Foundry — narrower than current 256px)
 - Background: #FFFFFF (white — not dark)
 - Right border: 1px solid #E5E7EB
 - Nav item height: 40px
-- Nav item padding: 12px horizontal
-- Icon size: 20px (lucide default)
+- Nav item padding: 12px horizontal, 8px vertical
+- Icon size: 20px (lucide outline style)
 - Icon color: #6B7280 (gray-500) default, #7C3AED (accent) when active
+- Text color: #374151 (gray-700) default, #7C3AED (accent) when active
 - Active item: 3px left border in #7C3AED + #F5F3FF background (violet-50)
-- Section dividers: 1px solid #E5E7EB with 16px vertical margin
-- User section: bottom of sidebar, 1px top border
+- Disabled items: #9CA3AF (gray-400) text + dark "Preview" badge inline
+- No section dividers between nav items (Foundry lists them continuously)
+- Bottom: collapse/expand toggle icon (⊞), no user section in sidebar
+- User info moved to top header bar (future consideration)
+
+### Agent Config Top Bar
+
+- Full-width, white background, bottom border 1px #E5E7EB
+- Left: ← back arrow (link) + agent name (heading, 20px semibold)
+- Center: version dropdown ("v1 saved 3/23/2026, 7:00 PM" + chevron)
+- Right: Save (text), Preview (outlined + chevron), Publish (outlined + chevron), ⋮ more
+- Sub-nav below: Playground | Traces | Monitor | Evaluation — active tab has 2px bottom accent border
 
 ### Agent Config Split-Pane
 
-- Left panel width: 380px, not resizable
+- Left panel width: ~580px (Foundry is generous), scrollable independently
 - Left panel background: #FFFFFF
 - Right panel: flex-1, #F9FAFB background
 - Divider: 1px solid #E5E7EB
-- Collapsible section header: 48px height, chevron on left, heading text, content below when expanded
+- Collapsible section header: 48px height, section label on left, chevron on right (∧/∨), "Preview" badge inline if applicable
+- Tools section header: "Tools" label + "Add ∨" dropdown button (right-aligned)
+- Instructions section: contains full-height textarea ("Write your prompt here to give your agent instructions.")
 
 ### Tool Catalog Modal
 
-- Width: 720px max, centered
+- Width: 880px max, centered (wide enough for 3-column grid)
 - Overlay: rgba(0,0,0,0.4)
 - Border radius: 12px
-- Card grid: 2 columns on md+, gap 16px
+- Padding: 24px
+- Card grid: 3 columns on lg+, 2 on md, 1 on mobile, gap 16px
 - Tab bar: bottom border, selected tab has 2px bottom border in accent
+- Search bar: full-width below tabs, 40px height, magnifying glass icon
+- Filter bar: horizontal dropdowns below search (Catalog tab only), each with chevron
+- Sort dropdown: right-aligned, "Featured" default
+- Bottom action bar: right-aligned, primary CTA (purple, disabled until selection) + "Cancel" (outlined)
+- Close button: × in top-right corner
 
 ### Cards (General Pattern)
 
