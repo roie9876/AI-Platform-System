@@ -30,7 +30,26 @@ async def connect_subscription(
     current_user: User = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Connect an Azure subscription to the platform."""
+    """Connect an Azure subscription to the platform (upserts if already connected)."""
+    # Check if subscription already exists for this tenant
+    result = await db.execute(
+        select(AzureSubscription).where(
+            AzureSubscription.subscription_id == body.subscription_id,
+            AzureSubscription.tenant_id == tenant_id,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        # Update the token on the existing subscription
+        existing.access_token_encrypted = encrypt_api_key(body.access_token)
+        if body.refresh_token:
+            existing.refresh_token_encrypted = encrypt_api_key(body.refresh_token)
+        existing.display_name = body.display_name
+        await db.flush()
+        await db.refresh(existing)
+        return existing
+
     subscription = AzureSubscription(
         subscription_id=body.subscription_id,
         display_name=body.display_name,

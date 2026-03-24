@@ -213,17 +213,22 @@ class RAGService:
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve documents from Azure AI Search indexes connected to the agent."""
+        from app.services.azure_arm import AzureARMService
+
+        # Find connections for this agent OR shared platform-level connections (agent_id IS NULL)
         conn_result = await db.execute(
             select(AzureConnection).where(
-                AzureConnection.agent_id == agent_id,
                 AzureConnection.tenant_id == tenant_id,
                 AzureConnection.resource_type == "Microsoft.Search/searchServices",
+            ).where(
+                (AzureConnection.agent_id == agent_id) | (AzureConnection.agent_id.is_(None))
             )
         )
         connections = list(conn_result.scalars().all())
         if not connections:
             return []
 
+        arm_service = AzureARMService()
         results: List[Dict[str, Any]] = []
 
         for conn in connections:
@@ -231,30 +236,44 @@ class RAGService:
             if not selected_indexes:
                 continue
 
-            # Get access token from subscription
-            sub_result = await db.execute(
-                select(AzureSubscription).where(
-                    AzureSubscription.id == conn.azure_subscription_id
-                )
-            )
-            subscription = sub_result.scalar_one_or_none()
-            if not subscription or not subscription.access_token_encrypted:
-                continue
+            # Try cached admin key first (survives token expiry)
+            cached_key_enc = (conn.config or {}).get("cached_admin_key")
+            admin_key = None
+            if cached_key_enc:
+                try:
+                    admin_key = decrypt_api_key(cached_key_enc)
+                except Exception:
+                    pass
 
-            access_token = decrypt_api_key(subscription.access_token_encrypted)
-            endpoint = conn.endpoint
-            if not endpoint:
-                continue
+            # Fall back to ARM API if no cached key
+            if not admin_key:
+                sub_result = await db.execute(
+                    select(AzureSubscription).where(
+                        AzureSubscription.id == conn.azure_subscription_id
+                    )
+                )
+                subscription = sub_result.scalar_one_or_none()
+                if not subscription or not subscription.access_token_encrypted:
+                    continue
+
+                access_token = decrypt_api_key(subscription.access_token_encrypted)
+                admin_key = await arm_service._get_search_admin_key(access_token, conn.resource_id)
+                if not admin_key:
+                    logger.warning("Could not get admin key for %s", conn.resource_name)
+                    continue
+
+            # Derive data plane endpoint from resource name
+            search_endpoint = f"https://{conn.resource_name}.search.windows.net"
 
             for index_name in selected_indexes:
-                search_url = f"{endpoint}/indexes/{index_name}/docs/search"
+                search_url = f"{search_endpoint}/indexes/{index_name}/docs/search"
                 try:
                     async with httpx.AsyncClient(timeout=30.0) as client:
                         resp = await client.post(
                             search_url,
                             params={"api-version": "2024-07-01"},
-                            headers={"Authorization": f"Bearer {access_token}"},
-                            json={"search": query, "$top": top_k},
+                            headers={"api-key": admin_key},
+                            json={"search": query, "top": top_k},
                         )
                         if resp.status_code in (403, 404):
                             continue
@@ -262,22 +281,40 @@ class RAGService:
                         data = resp.json()
 
                         for doc in data.get("value", []):
+                            content = doc.get("content") or doc.get("chunk") or doc.get("text") or ""
+                            if not content:
+                                # Try to build content from all string fields
+                                content = " ".join(
+                                    str(v) for k, v in doc.items()
+                                    if isinstance(v, str) and not k.startswith("@")
+                                )
                             results.append({
                                 "source": "azure_search",
                                 "index": index_name,
                                 "connection_id": str(conn.id),
-                                "content": doc.get("content", ""),
+                                "content": content,
                                 "metadata": {
                                     k: v for k, v in doc.items()
-                                    if k not in ("content", "@search.score")
+                                    if k not in ("content", "chunk", "text", "@search.score")
+                                    and not k.startswith("@")
                                 },
                                 "score": doc.get("@search.score"),
                             })
-                except httpx.HTTPError:
+                except httpx.HTTPStatusError as e:
                     logger.warning(
-                        "Azure Search query failed for index %s: %s",
+                        "Azure Search query failed for index %s: %s — HTTP %d: %s",
                         index_name,
-                        endpoint,
+                        search_endpoint,
+                        e.response.status_code,
+                        e.response.text[:500],
+                    )
+                    continue
+                except httpx.HTTPError as e:
+                    logger.warning(
+                        "Azure Search query failed for index %s: %s — %s",
+                        index_name,
+                        search_endpoint,
+                        str(e),
                     )
                     continue
 

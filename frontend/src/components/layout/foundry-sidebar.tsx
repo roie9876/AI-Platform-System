@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { PreviewBadge } from "@/components/ui/preview-badge";
 import {
   Bot,
   Zap,
@@ -15,6 +14,7 @@ import {
   Database,
   ClipboardCheck,
   Shield,
+  Cloud,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/tools", label: "Tools", icon: Wrench, enabled: true },
   { href: "/dashboard/knowledge", label: "Knowledge", icon: BookOpen, enabled: true },
   { href: "/dashboard/data-sources", label: "Data Sources", icon: FolderOpen, enabled: true },
+  { href: "/dashboard/azure", label: "Azure", icon: Cloud, enabled: true },
   { href: "/dashboard/workflows", label: "Workflows", icon: GitBranch, enabled: false },
   { href: "/dashboard/fine-tune", label: "Fine-tune", icon: Sparkles, enabled: false },
   { href: "/dashboard/data", label: "Data", icon: Database, enabled: false },
@@ -68,14 +69,11 @@ export function FoundrySidebar() {
               <div
                 key={item.href}
                 className="flex h-10 cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-gray-400"
-                title={collapsed ? `${item.label} (Preview)` : undefined}
+                title={collapsed ? item.label : undefined}
               >
                 <Icon className="h-5 w-5 shrink-0" />
                 {!collapsed && (
-                  <>
-                    <span className="text-sm font-medium">{item.label}</span>
-                    <PreviewBadge />
-                  </>
+                  <span className="text-sm font-medium">{item.label}</span>
                 )}
               </div>
             );

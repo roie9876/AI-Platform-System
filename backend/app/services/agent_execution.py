@@ -32,8 +32,12 @@ class AgentExecutionService:
         agent: Agent,
         user_message: str,
         db: AsyncSession,
-    ) -> None:
-        """Retrieve relevant document chunks and inject as system context."""
+    ) -> List[Dict[str, str]]:
+        """Retrieve relevant document chunks and inject as system context.
+        Returns list of source descriptors for the frontend."""
+        all_chunks: List[Dict[str, Any]] = []
+
+        # 1. Local document chunks (data sources attached to agent)
         chunks = await self._rag_service.retrieve(
             query=user_message,
             agent_id=agent.id,
@@ -41,19 +45,54 @@ class AgentExecutionService:
             db=db,
             top_k=5,
         )
-        if not chunks:
-            return
+        all_chunks.extend(chunks)
 
-        context_text = "\n\n---\n\n".join(c["content"] for c in chunks)
+        # 2. Azure AI Search indexes (knowledge connections)
+        try:
+            azure_chunks = await self._rag_service.retrieve_from_azure_search(
+                query=user_message,
+                agent_id=agent.id,
+                tenant_id=agent.tenant_id,
+                db=db,
+                top_k=5,
+            )
+            all_chunks.extend(azure_chunks)
+        except Exception:
+            logger.warning("Azure Search retrieval failed for agent %s", agent.id)
+
+        if not all_chunks:
+            return []
+
+        context_text = "\n\n---\n\n".join(c["content"] for c in all_chunks if c.get("content"))
+        if not context_text:
+            return []
+
         rag_system_msg = (
-            "The following context from attached documents may be relevant "
-            "to the user's question. Use it if helpful:\n\n"
+            "The following context from attached documents and knowledge bases "
+            "may be relevant to the user's question. Use it if helpful:\n\n"
             f"{context_text}"
         )
 
         # Insert RAG context after system prompt, before conversation
         insert_idx = 1 if messages and messages[0]["role"] == "system" else 0
         messages.insert(insert_idx, {"role": "system", "content": rag_system_msg})
+
+        # Build source descriptors for the frontend
+        sources: List[Dict[str, str]] = []
+        seen = set()
+        for chunk in all_chunks:
+            if chunk.get("source") == "azure_search":
+                key = f"azure_search:{chunk.get('index', '')}"
+                if key not in seen:
+                    seen.add(key)
+                    sources.append({"type": "azure_search", "index": chunk.get("index", "")})
+            elif chunk.get("document_id"):
+                key = f"document:{chunk['document_id']}"
+                if key not in seen:
+                    seen.add(key)
+                    meta = chunk.get("metadata") or {}
+                    sources.append({"type": "document", "name": meta.get("filename") or meta.get("url") or "local document"})
+        return sources
 
     async def _load_agent_tools(self, agent_id, db: AsyncSession) -> List[Tool]:
         """Load all tools attached to this agent."""
@@ -123,7 +162,7 @@ class AgentExecutionService:
         messages.append({"role": "user", "content": user_message})
 
         # Inject RAG context from attached data sources
-        await self._inject_rag_context(messages, agent, user_message, db)
+        rag_sources = await self._inject_rag_context(messages, agent, user_message, db)
 
         # Update agent status to active
         agent.status = "active"
@@ -135,6 +174,10 @@ class AgentExecutionService:
         tool_map = {t.name: t for t in tools_list}
 
         try:
+            # Emit sources event so the frontend knows what knowledge was used
+            if rag_sources:
+                yield self._sse_sources(rag_sources)
+
             if tool_schemas:
                 # Tool-calling loop
                 iteration = 0
@@ -238,6 +281,10 @@ class AgentExecutionService:
     @staticmethod
     def _sse_data(content: str, done: bool) -> str:
         return f"data: {json.dumps({'content': content, 'done': done})}\n\n"
+
+    @staticmethod
+    def _sse_sources(sources: List[Dict[str, str]]) -> str:
+        return f"data: {json.dumps({'sources': sources})}\n\n"
 
     @staticmethod
     def _sse_error(message: str) -> str:

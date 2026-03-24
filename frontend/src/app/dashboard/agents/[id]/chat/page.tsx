@@ -25,6 +25,7 @@ interface Agent {
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
+  sources?: Array<{ type: string; index?: string; name?: string }>;
 }
 
 export default function ChatPage() {
@@ -116,6 +117,20 @@ export default function ChatPage() {
               if (data.error) {
                 setError(data.error);
                 break;
+              }
+
+              if (data.sources) {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      sources: data.sources,
+                    };
+                  }
+                  return updated;
+                });
               }
 
               if (data.content) {

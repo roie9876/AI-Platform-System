@@ -49,6 +49,7 @@ async def create_agent(
         timeout_seconds=body.timeout_seconds,
         tenant_id=tenant_id,
         current_config_version=1,
+        status="active" if body.model_endpoint_id else "inactive",
     )
     db.add(agent)
     await db.flush()
@@ -119,6 +120,9 @@ async def update_agent(
 
     for field, value in update_data.items():
         setattr(agent, field, value)
+
+    if "model_endpoint_id" in update_data:
+        agent.status = "active" if update_data["model_endpoint_id"] else "inactive"
 
     agent.current_config_version += 1
     await db.flush()

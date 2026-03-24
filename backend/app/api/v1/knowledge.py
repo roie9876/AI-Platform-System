@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.azure_connection import AzureConnection
 from app.models.azure_subscription import AzureSubscription
 from app.services.azure_arm import AzureARMService
-from app.services.secret_store import decrypt_api_key
+from app.services.secret_store import decrypt_api_key, encrypt_api_key
 from app.api.v1.schemas import (
     AzureConnectionResponse,
     SearchIndex,
@@ -66,6 +66,14 @@ async def list_search_indexes(
     access_token = decrypt_api_key(subscription.access_token_encrypted)
     indexes = await arm_service.list_search_indexes(access_token, connection.resource_id)
 
+    # Cache the admin key so RAG retrieval works even after token expires
+    admin_key = await arm_service._get_search_admin_key(access_token, connection.resource_id)
+    if admin_key:
+        config = connection.config or {}
+        config["cached_admin_key"] = encrypt_api_key(admin_key)
+        connection.config = config
+        await db.flush()
+
     return SearchIndexListResponse(
         connection_id=connection.id,
         resource_name=connection.resource_name,
@@ -99,6 +107,8 @@ async def select_indexes(
 
     config = connection.config or {}
     config["selected_indexes"] = body.index_names
+    if body.knowledge_name:
+        config["knowledge_name"] = body.knowledge_name
     connection.config = config
 
     await db.flush()
@@ -117,12 +127,13 @@ async def list_agent_knowledge(
     current_user: User = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """List all selected AI Search indexes for an agent."""
+    """List all selected AI Search indexes available to an agent (agent-specific + platform-level)."""
     result = await db.execute(
         select(AzureConnection).where(
-            AzureConnection.agent_id == agent_id,
             AzureConnection.tenant_id == tenant_id,
             AzureConnection.resource_type == "Microsoft.Search/searchServices",
+        ).where(
+            (AzureConnection.agent_id == agent_id) | (AzureConnection.agent_id.is_(None))
         )
     )
     connections = list(result.scalars().all())
@@ -136,6 +147,7 @@ async def list_agent_knowledge(
                 AgentKnowledgeIndexInfo(
                     connection_id=conn.id,
                     resource_name=conn.resource_name,
+                    knowledge_name=(conn.config or {}).get("knowledge_name"),
                     index_names=selected,
                 )
             )

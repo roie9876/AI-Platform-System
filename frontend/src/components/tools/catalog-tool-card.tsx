@@ -1,4 +1,3 @@
-import { PreviewBadge } from "@/components/ui/preview-badge";
 import { McpBadge } from "@/components/ui/mcp-badge";
 import { Wrench } from "lucide-react";
 
@@ -12,7 +11,7 @@ interface CatalogToolCardProps {
 }
 
 function Badge({ label }: { label: string }) {
-  if (label === "Preview") return <PreviewBadge />;
+  if (label === "Preview") return null;
   if (label === "Local MCP") return <McpBadge type="local" />;
   if (label === "Remote MCP") return <McpBadge type="remote" />;
   return (

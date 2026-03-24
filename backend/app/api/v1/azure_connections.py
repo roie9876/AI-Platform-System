@@ -21,6 +21,22 @@ from app.api.v1.schemas import (
 router = APIRouter()
 
 
+@router.get("/connections", response_model=list[AzureConnectionResponse])
+async def list_connections(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """List all Azure connections for the tenant."""
+    result = await db.execute(
+        select(AzureConnection)
+        .where(AzureConnection.tenant_id == tenant_id)
+        .order_by(AzureConnection.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 @router.post("/connections", response_model=AzureConnectionResponse, status_code=201)
 async def create_connection(
     body: AzureConnectionCreate,
@@ -30,12 +46,13 @@ async def create_connection(
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Create a connection between an agent and an Azure resource."""
-    # Verify agent belongs to tenant
-    result = await db.execute(
-        select(Agent).where(Agent.id == body.agent_id, Agent.tenant_id == tenant_id)
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Agent not found")
+    # Verify agent belongs to tenant (if agent_id provided)
+    if body.agent_id:
+        result = await db.execute(
+            select(Agent).where(Agent.id == body.agent_id, Agent.tenant_id == tenant_id)
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Agent not found")
 
     connection = AzureConnection(
         agent_id=body.agent_id,

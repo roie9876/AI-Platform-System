@@ -339,7 +339,7 @@ class ResourceDiscoveryResponse(BaseModel):
 # --- Azure Connection Schemas ---
 
 class AzureConnectionCreate(BaseModel):
-    agent_id: UUID
+    agent_id: Optional[UUID] = None
     azure_subscription_id: UUID
     resource_type: str
     resource_name: str
@@ -360,7 +360,7 @@ class AzureConnectionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: UUID
-    agent_id: UUID
+    agent_id: Optional[UUID] = None
     azure_subscription_id: UUID
     resource_type: str
     resource_name: str
@@ -423,11 +423,13 @@ class SearchIndexListResponse(BaseModel):
 
 class SelectIndexesRequest(BaseModel):
     index_names: List[str]
+    knowledge_name: Optional[str] = None
 
 
 class AgentKnowledgeIndexInfo(BaseModel):
     connection_id: UUID
     resource_name: str
+    knowledge_name: Optional[str] = None
     index_names: List[str]
 
 

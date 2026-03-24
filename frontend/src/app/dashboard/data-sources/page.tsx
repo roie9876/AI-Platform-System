@@ -27,6 +27,10 @@ export default function DataSourcesPage() {
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<DataSourceListResponse>("/api/v1/data-sources")
@@ -34,6 +38,45 @@ export default function DataSourcesPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleEdit = (ds: DataSource) => {
+    setEditing(ds.id);
+    setEditName(ds.name);
+    setEditDescription(ds.description || "");
+  };
+
+  const handleSave = async (ds: DataSource) => {
+    try {
+      const updated = await apiFetch<{ data_source: DataSource }>(
+        `/api/v1/data-sources/${ds.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            name: editName,
+            description: editDescription || null,
+            source_type: ds.source_type,
+            connection_config: {},
+          }),
+        }
+      );
+      setDataSources((prev) =>
+        prev.map((d) => (d.id === ds.id ? updated.data_source : d))
+      );
+      setEditing(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await apiFetch(`/api/v1/data-sources/${id}`, { method: "DELETE" });
+      setDataSources((prev) => prev.filter((d) => d.id !== id));
+      setDeleting(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+    }
+  };
 
   if (loading) {
     return (
@@ -79,24 +122,94 @@ export default function DataSourcesPage() {
               className="block rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
             >
               <div className="flex items-start justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900 truncate">
-                  {ds.name}
-                </h3>
+                {editing === ds.id ? (
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="text-lg font-semibold text-gray-900 border border-gray-300 rounded px-2 py-1 w-full mr-2"
+                  />
+                ) : (
+                  <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    {ds.name}
+                  </h3>
+                )}
                 <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0 ${
                     typeColors[ds.source_type] || "bg-gray-100 text-gray-800"
                   }`}
                 >
                   {ds.source_type}
                 </span>
               </div>
-              {ds.description && (
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                  {ds.description}
-                </p>
+
+              {editing === ds.id ? (
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  rows={2}
+                  className="w-full text-sm text-gray-600 border border-gray-300 rounded px-2 py-1 mb-3"
+                />
+              ) : (
+                ds.description && (
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                    {ds.description}
+                  </p>
+                )
               )}
-              <div className="text-xs text-gray-400">
+
+              <div className="text-xs text-gray-400 mb-3">
                 Status: {ds.status}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                {editing === ds.id ? (
+                  <>
+                    <button
+                      onClick={() => handleSave(ds)}
+                      className="text-xs font-medium text-green-600 hover:text-green-700"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditing(null)}
+                      className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : deleting === ds.id ? (
+                  <>
+                    <span className="text-xs text-red-600">Delete?</span>
+                    <button
+                      onClick={() => handleDelete(ds.id)}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setDeleting(null)}
+                      className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                    >
+                      No
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleEdit(ds)}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleting(ds.id)}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

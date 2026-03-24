@@ -11,7 +11,7 @@ class AzureConnection(Base, UUIDMixin, TimestampMixin):
     )
 
     agent_id = Column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=True, index=True
     )
     azure_subscription_id = Column(
         UUID(as_uuid=True), ForeignKey("azure_subscriptions.id", ondelete="CASCADE"), nullable=False

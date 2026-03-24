@@ -10,6 +10,8 @@ interface AgentConfigTopBarProps {
   lastSaved?: string;
   activeTab?: "playground" | "traces" | "monitor" | "evaluation";
   onTabChange?: (tab: string) => void;
+  onSave?: () => void;
+  isSaving?: boolean;
 }
 
 const subNavTabs = [
@@ -26,6 +28,8 @@ export function AgentConfigTopBar({
   lastSaved,
   activeTab = "playground",
   onTabChange,
+  onSave,
+  isSaving,
 }: AgentConfigTopBarProps) {
   return (
     <div className="w-full bg-white">
@@ -56,16 +60,11 @@ export function AgentConfigTopBar({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="text-sm text-gray-700 hover:text-gray-900"
+            onClick={onSave}
+            disabled={isSaving}
+            className="text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50"
           >
-            Save
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700"
-          >
-            Preview
-            <ChevronDown className="h-3 w-3" />
+            {isSaving ? "Saving..." : "Save"}
           </button>
           <button type="button" className="text-gray-400 hover:text-gray-600">
             <MoreHorizontal className="h-5 w-5" />

@@ -17,7 +17,13 @@ export async function apiFetch<T>(
     const error = await response
       .json()
       .catch(() => ({ detail: "Request failed", code: "UNKNOWN" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    const detail = Array.isArray(error.detail)
+      ? error.detail.map((e: { msg?: string }) => e.msg || JSON.stringify(e)).join(', ')
+      : error.detail;
+    throw new Error(detail || `HTTP ${response.status}`);
+  }
+  if (response.status === 204) {
+    return undefined as T;
   }
   return response.json();
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Database, FileText } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
+  sources?: Array<{ type: string; index?: string; name?: string }>;
 }
 
 interface ChatMessagesProps {
@@ -45,8 +47,8 @@ export function ChatMessages({
         .map((message, i) => (
           <div
             key={i}
-            className={`flex ${
-              message.role === "user" ? "justify-end" : "justify-start"
+            className={`flex flex-col ${
+              message.role === "user" ? "items-end" : "items-start"
             }`}
           >
             <div
@@ -68,6 +70,22 @@ export function ChatMessages({
                   <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
                 )}
             </div>
+            {message.role === "assistant" && message.sources && message.sources.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {message.sources.map((src, si) => (
+                  <span
+                    key={si}
+                    className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700"
+                  >
+                    {src.type === "azure_search" ? (
+                      <><Database className="h-2.5 w-2.5" />{src.index}</>
+                    ) : (
+                      <><FileText className="h-2.5 w-2.5" />{src.name}</>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
