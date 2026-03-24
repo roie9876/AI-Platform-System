@@ -120,9 +120,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Backend models, migration, Workflow CRUD API
-- [ ] 06-02-PLAN.md — Workflow execution engine (sequential, parallel, sub-agent, autonomous, cross-agent threading)
-- [ ] 06-03-PLAN.md — Frontend visual workflow builder + execution monitoring UI
+- [x] 06-01-PLAN.md — Backend models, migration, Workflow CRUD API
+- [x] 06-02-PLAN.md — Workflow execution engine (sequential, parallel, sub-agent, autonomous, cross-agent threading)
+- [x] 06-03-PLAN.md — Frontend visual workflow builder + execution monitoring UI
 
 **Success Criteria:**
 1. User can chain agents sequentially with output-to-input mapping
