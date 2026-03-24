@@ -186,6 +186,23 @@ Phase 1 (Foundation)
 - Unmapped: 0
 - All requirements covered ✓
 
+### Phase 9: Azure Subscription Integration & Foundry-Style AI Services
+
+**Goal:** Connect the platform to Azure subscriptions to discover, configure, and manage AI services like Azure AI Foundry — including resource discovery, connection management, tool catalog, and Knowledge/Foundry IQ-style AI Search integration.
+**Requirements**: [AZURE-01, AZURE-02, AZURE-03, AZURE-04, AZURE-05]
+**Depends on:** Phase 4
+**Plans:** 0 plans
+
+**Requirements:**
+- AZURE-01: Azure subscription connection — tenant registers service principal or OAuth credentials, backend calls ARM APIs to discover resources
+- AZURE-02: Resource discovery APIs — list AI Search, Cognitive Services, model deployments per subscription with region/status
+- AZURE-03: Connection management — per-agent connections to Azure resources (endpoint + auth type + validation), stored securely, with real health status
+- AZURE-04: Tool catalog — pre-built connectors (AI Search, Cosmos DB, PostgreSQL, etc.) with Configured/Catalog/Custom tabs like Foundry
+- AZURE-05: Knowledge integration — connect AI Search resources, auto-discover indexes, use connected indexes for RAG retrieval with resource picker dropdown
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 9 to break down)
+
 ---
 *Roadmap created: 2026-03-23*
 *Last updated: 2026-03-23 after initialization*
