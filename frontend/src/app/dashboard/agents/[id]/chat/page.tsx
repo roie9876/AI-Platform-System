@@ -22,6 +22,27 @@ interface Agent {
   current_config_version: number;
 }
 
+interface ThreadMessage {
+  id: string;
+  thread_id: string;
+  role: string;
+  content: string;
+  message_metadata: Record<string, unknown> | null;
+  sequence_number: number;
+  created_at: string;
+}
+
+interface ThreadMessagesResponse {
+  messages: ThreadMessage[];
+  total: number;
+}
+
+interface ThreadResponse {
+  id: string;
+  title: string | null;
+  agent_id: string;
+}
+
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
@@ -37,6 +58,8 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const lastUserMessageRef = useRef<string>("");
 
@@ -54,6 +77,21 @@ export default function ChatPage() {
       setError(null);
       lastUserMessageRef.current = userMessage;
 
+      // Auto-create thread if none exists
+      let threadId = activeThreadId;
+      if (!threadId) {
+        try {
+          const thread = await apiFetch<ThreadResponse>("/api/v1/threads", {
+            method: "POST",
+            body: JSON.stringify({ agent_id: agentId }),
+          });
+          threadId = thread.id;
+          setActiveThreadId(thread.id);
+        } catch {
+          // Fall back to stateless mode
+        }
+      }
+
       const userMsg: Message = { role: "user", content: userMessage };
       setMessages((prev) => [...prev, userMsg]);
 
@@ -64,23 +102,28 @@ export default function ChatPage() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      // Build conversation history (exclude the new user message, it goes in body.message)
-      const history = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
       try {
+        const body: Record<string, unknown> = { message: userMessage };
+        if (threadId) {
+          body.thread_id = threadId;
+        } else {
+          // Stateless fallback — send client-side history
+          const history = messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
+          if (history.length > 0) {
+            body.conversation_history = history;
+          }
+        }
+
         const response = await fetch(
           `${API_BASE}/api/v1/agents/${agentId}/chat`,
           {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: userMessage,
-              conversation_history: history.length > 0 ? history : null,
-            }),
+            body: JSON.stringify(body),
             signal: controller.signal,
           }
         );
@@ -164,23 +207,80 @@ export default function ChatPage() {
       } finally {
         setIsStreaming(false);
         abortRef.current = null;
+        // Refresh sidebar to update thread title/preview
+        setSidebarRefreshKey((k) => k + 1);
       }
     },
-    [agent, agentId, messages]
+    [agent, agentId, messages, activeThreadId]
   );
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
-  const handleNewChat = useCallback(() => {
-    setMessages([]);
-    setError(null);
-  }, []);
+  const handleNewChat = useCallback(async () => {
+    try {
+      const thread = await apiFetch<ThreadResponse>("/api/v1/threads", {
+        method: "POST",
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+      setActiveThreadId(thread.id);
+      setMessages([]);
+      setError(null);
+      setSidebarRefreshKey((k) => k + 1);
+    } catch {
+      // Fallback to just clearing state
+      setActiveThreadId(null);
+      setMessages([]);
+      setError(null);
+    }
+  }, [agentId]);
+
+  const handleSelectThread = useCallback(
+    async (threadId: string) => {
+      setActiveThreadId(threadId);
+      setError(null);
+      try {
+        const data = await apiFetch<ThreadMessagesResponse>(
+          `/api/v1/threads/${threadId}/messages`
+        );
+        setMessages(
+          data.messages.map((m) => {
+            const msg: Message = { role: m.role as Message["role"], content: m.content };
+            if (m.message_metadata && typeof m.message_metadata === "object") {
+              const meta = m.message_metadata as Record<string, unknown>;
+              if (Array.isArray(meta.sources)) {
+                msg.sources = meta.sources as Message["sources"];
+              }
+            }
+            return msg;
+          })
+        );
+      } catch {
+        setMessages([]);
+      }
+    },
+    []
+  );
+
+  const handleDeleteThread = useCallback(
+    async (threadId: string) => {
+      try {
+        await apiFetch(`/api/v1/threads/${threadId}`, { method: "DELETE" });
+        if (threadId === activeThreadId) {
+          setActiveThreadId(null);
+          setMessages([]);
+        }
+        setSidebarRefreshKey((k) => k + 1);
+      } catch {
+        // silently handle
+      }
+    },
+    [activeThreadId]
+  );
 
   const handleRetry = useCallback(() => {
     if (lastUserMessageRef.current) {
-      // Remove the last assistant message (failed) and the user message
       setMessages((prev) => prev.slice(0, -2));
       setError(null);
       handleSend(lastUserMessageRef.current);
@@ -232,9 +332,14 @@ export default function ChatPage() {
   return (
     <div className="flex h-full">
       <ChatSidebar
+        agentId={agentId}
         agentName={agent.name}
         agentStatus={agent.status}
+        activeThreadId={activeThreadId}
         onNewChat={handleNewChat}
+        onSelectThread={handleSelectThread}
+        onDeleteThread={handleDeleteThread}
+        refreshKey={sidebarRefreshKey}
       />
 
       {/* Chat center */}

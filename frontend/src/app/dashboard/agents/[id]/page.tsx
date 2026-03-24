@@ -86,6 +86,7 @@ export default function AgentDetailPage() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [pendingSources, setPendingSources] = useState<ChatSource[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -108,19 +109,37 @@ export default function AgentDetailPage() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+    // Auto-create thread if none
+    let threadId = chatThreadId;
+    if (!threadId) {
+      try {
+        const thread = await apiFetch<{ id: string }>("/api/v1/threads", {
+          method: "POST",
+          body: JSON.stringify({ agent_id: agentId }),
+        });
+        threadId = thread.id;
+        setChatThreadId(thread.id);
+      } catch {
+        // Fall back to stateless
+      }
+    }
 
     try {
+      const body: Record<string, unknown> = { message };
+      if (threadId) {
+        body.thread_id = threadId;
+      } else {
+        const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+        if (history.length > 0) body.conversation_history = history;
+      }
+
       const response = await fetch(
         `${API_BASE}/api/v1/agents/${agentId}/chat`,
         {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message,
-            conversation_history: history.length > 0 ? history : null,
-          }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         }
       );
@@ -184,7 +203,7 @@ export default function AgentDetailPage() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [agent, agentId, chatInput, chatMessages, isStreaming]);
+  }, [agent, agentId, chatInput, chatMessages, chatThreadId, isStreaming]);
 
   const handleSave = useCallback(async () => {
     if (!agent || isSaving) return;
