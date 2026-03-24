@@ -253,6 +253,74 @@ Plans:
 
 **UI hint**: yes
 
+## Milestone 2: v2.0 — MCP Tool Integration
+
+**Goal:** Add Model Context Protocol (MCP) client support to unlock 1500+ Remote MCP tool servers, bringing Foundry-style tool catalog capabilities to the platform.
+
+### Phase 11: MCP Client Library
+
+**Goal:** Build a JSON-RPC client implementing initialize, tools/list, tools/call over HTTP (SSE/Streamable HTTP) to communicate with any MCP-compliant server.
+**Requirements**: TBD
+**Depends on:** Phase 4
+**Plans:** 1 plan
+
+Plans:
+- [ ] 11-01-PLAN.md — MCP types, MCPClient class (Streamable HTTP transport), unit tests
+
+### Phase 12: MCP Server Registry
+
+**Goal:** Build DB models and CRUD APIs for registering Remote MCP server connections (URL, auth, metadata) so users can manage their MCP server fleet.
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 12 to break down)
+
+### Phase 13: MCP Tool Discovery
+
+**Goal:** Implement automatic tool discovery from registered MCP servers via tools/list, with health checking and reconnection logic to keep the tool catalog current.
+**Requirements**: TBD
+**Depends on:** Phase 11, Phase 12
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 13 to break down)
+
+### Phase 14: Agent Execution Integration
+
+**Goal:** Wire MCP tools/call into the existing agent tool-calling loop alongside platform adapters and sandbox tools, making MCP a third execution path.
+**Requirements**: TBD
+**Depends on:** Phase 11, Phase 13
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 14 to break down)
+
+### Phase 15: MCP Tool Catalog UI
+
+**Goal:** Build a Foundry-style catalog UI to browse, search, and filter all available MCP tools across registered servers.
+**Requirements**: TBD
+**Depends on:** Phase 12, Phase 13
+**Plans:** 0 plans
+
+**UI hint**: yes
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 15 to break down)
+
+### Phase 16: Agent-Level MCP Management
+
+**Goal:** Enable attach/detach of MCP tools to agents with per-agent MCP server configuration, completing the agent-MCP integration.
+**Requirements**: TBD
+**Depends on:** Phase 14, Phase 15
+**Plans:** 0 plans
+
+**UI hint**: yes
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 16 to break down)
+
 ---
 *Roadmap created: 2026-03-23*
 *Last updated: 2026-03-23 after initialization*
