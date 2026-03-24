@@ -201,7 +201,7 @@ Phase 1 (Foundation)
 - AZURE-05: Knowledge integration — connect AI Search resources, auto-discover indexes, use connected indexes for RAG retrieval with resource picker dropdown
 
 Plans:
-- [ ] 09-01-PLAN.md — Backend models, migration, subscription & resource discovery APIs
+- [x] 09-01-PLAN.md — Backend models, migration, subscription & resource discovery APIs
 - [ ] 09-02-PLAN.md — Backend connections, catalog, knowledge integration APIs
 - [ ] 09-03-PLAN.md — Frontend UI primitives + Foundry sidebar overhaul
 - [ ] 09-04-PLAN.md — Frontend subscription, resource discovery, knowledge pages
