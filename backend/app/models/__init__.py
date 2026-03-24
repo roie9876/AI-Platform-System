@@ -8,6 +8,9 @@ from app.models.agent_config_version import AgentConfigVersion
 from app.models.tool import Tool, AgentTool
 from app.models.data_source import DataSource, AgentDataSource
 from app.models.document import Document, DocumentChunk
+from app.models.azure_subscription import AzureSubscription
+from app.models.azure_connection import AzureConnection
+from app.models.catalog_entry import CatalogEntry
 
 __all__ = [
     "Base", "Tenant", "User", "RefreshToken", "ModelEndpoint",
@@ -15,4 +18,5 @@ __all__ = [
     "Tool", "AgentTool",
     "DataSource", "AgentDataSource",
     "Document", "DocumentChunk",
+    "AzureSubscription", "AzureConnection", "CatalogEntry",
 ]
