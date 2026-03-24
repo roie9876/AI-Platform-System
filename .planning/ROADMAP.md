@@ -76,24 +76,25 @@ Plans:
 **Goal:** Build a Foundry-style catalog UI to browse, search, and filter all available MCP tools across registered servers.
 **Requirements:** [MCP-13, MCP-14, MCP-15]
 **Depends on:** Phase 12, Phase 13
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 **UI hint**: yes
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 15 to break down)
+- [ ] 15-01-PLAN.md — Sidebar nav, tool detail panel, Foundry-style catalog enhancements
 
 ### Phase 16: Agent-Level MCP Management
 
 **Goal:** Enable attach/detach of MCP tools to agents with per-agent MCP server configuration, completing the agent-MCP integration.
 **Requirements:** [MCP-16, MCP-17, MCP-18]
 **Depends on:** Phase 14, Phase 15
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 **UI hint**: yes
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 16 to break down)
+- [ ] 16-01-PLAN.md — Backend API for agent MCP tool attach/detach/list + tests
+- [ ] 16-02-PLAN.md — Agent detail page MCP Tools section with attach/detach UI
 
 ## Phase Dependencies
 
