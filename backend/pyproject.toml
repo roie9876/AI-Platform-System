@@ -5,3 +5,7 @@ requires-python = ">=3.12"
 
 [project.scripts]
 aiplatform = "cli.main:cli"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
