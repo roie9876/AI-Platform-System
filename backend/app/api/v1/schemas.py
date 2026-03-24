@@ -446,3 +446,51 @@ class AgentDataSourceResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- Thread Schemas ---
+
+class ThreadCreateRequest(BaseModel):
+    agent_id: UUID
+    title: Optional[str] = None
+
+
+class ThreadUpdateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+
+
+class ThreadResponse(BaseModel):
+    id: UUID
+    title: Optional[str]
+    agent_id: UUID
+    user_id: UUID
+    tenant_id: UUID
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+    last_message_preview: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ThreadListResponse(BaseModel):
+    threads: List[ThreadResponse]
+    total: int
+
+
+class ThreadMessageResponse(BaseModel):
+    id: UUID
+    thread_id: UUID
+    role: str
+    content: str
+    message_metadata: Optional[dict] = None
+    sequence_number: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ThreadMessagesResponse(BaseModel):
+    messages: List[ThreadMessageResponse]
+    total: int

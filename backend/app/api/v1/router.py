@@ -12,6 +12,7 @@ from app.api.v1.azure_connections import router as azure_connections_router
 from app.api.v1.azure_auth import router as azure_auth_router
 from app.api.v1.catalog import router as catalog_router
 from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.threads import router as threads_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -28,3 +29,4 @@ api_router.include_router(azure_connections_router, prefix="/azure", tags=["azur
 api_router.include_router(azure_auth_router, prefix="/azure", tags=["azure-auth"])
 api_router.include_router(catalog_router, prefix="/catalog", tags=["catalog"])
 api_router.include_router(knowledge_router, prefix="/knowledge", tags=["knowledge"])
+api_router.include_router(threads_router, prefix="/threads", tags=["threads"])
