@@ -191,7 +191,7 @@ Phase 1 (Foundation)
 **Goal:** Connect the platform to Azure subscriptions to discover, configure, and manage AI services like Azure AI Foundry — including resource discovery, connection management, tool catalog, and Knowledge/Foundry IQ-style AI Search integration.
 **Requirements**: [AZURE-01, AZURE-02, AZURE-03, AZURE-04, AZURE-05]
 **Depends on:** Phase 4
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 **Requirements:**
 - AZURE-01: Azure subscription connection — tenant registers service principal or OAuth credentials, backend calls ARM APIs to discover resources
@@ -201,7 +201,11 @@ Phase 1 (Foundation)
 - AZURE-05: Knowledge integration — connect AI Search resources, auto-discover indexes, use connected indexes for RAG retrieval with resource picker dropdown
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 9 to break down)
+- [ ] 09-01-PLAN.md — Backend models, migration, subscription & resource discovery APIs
+- [ ] 09-02-PLAN.md — Backend connections, catalog, knowledge integration APIs
+- [ ] 09-03-PLAN.md — Frontend UI primitives + Foundry sidebar overhaul
+- [ ] 09-04-PLAN.md — Frontend subscription, resource discovery, knowledge pages
+- [ ] 09-05-PLAN.md — Frontend tool catalog modal + agent config split-pane + verification
 
 ---
 *Roadmap created: 2026-03-23*
