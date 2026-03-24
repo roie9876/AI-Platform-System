@@ -957,3 +957,23 @@ class MCPDiscoveredToolListResponse(BaseModel):
 class MCPDiscoverySummaryResponse(BaseModel):
     servers_scanned: int
     tools_discovered: dict
+
+
+# --- Agent MCP Tool Schemas ---
+
+class AgentMCPToolAttachRequest(BaseModel):
+    mcp_tool_id: UUID
+
+
+class AgentMCPToolResponse(BaseModel):
+    id: UUID
+    agent_id: UUID
+    mcp_tool_id: UUID
+    tool_name: str
+    description: Optional[str] = None
+    server_id: UUID
+    server_name: str
+    is_available: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
