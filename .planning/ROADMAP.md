@@ -232,7 +232,7 @@ Plans:
 **Goal:** Implement the Traces and Monitor sub-tabs on the agent detail page, providing per-agent execution tracing (input/output, tool calls, latency, model used, RAG sources) and per-agent monitoring dashboard (request volume, token usage, cost, error rate, latency — all scoped to the specific agent).
 **Requirements**: [TRACE-01, TRACE-02, MONITOR-01, MONITOR-02]
 **Depends on:** Phase 8
-**Plans:** [To be planned]
+**Plans:** 2 plans
 
 **Requirements:**
 - TRACE-01: Agent Traces tab shows a timeline of every LLM call, tool invocation, and memory lookup for that agent
@@ -241,7 +241,8 @@ Plans:
 - MONITOR-02: Monitor includes time-series charts for token usage and cost trends scoped to the agent
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 10 to break down)
+- [ ] 10-01-PLAN.md — Backend API enhancement + tab wiring + Traces panel
+- [ ] 10-02-PLAN.md — Monitor panel with KPI tiles + time-series charts
 
 **Success Criteria:**
 1. Clicking "Traces" tab on agent page shows paginated execution traces for that agent
