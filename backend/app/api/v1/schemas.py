@@ -888,3 +888,46 @@ class PublishToolTemplateRequest(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = None
     tags: Optional[List[str]] = None
+
+
+# --- MCP Server Schemas ---
+
+class MCPServerCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    url: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    auth_type: str = Field(default="none", pattern="^(none|bearer|api_key|custom_header)$")
+    auth_header_name: Optional[str] = None
+    auth_credential_ref: Optional[str] = None
+
+
+class MCPServerUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    url: Optional[str] = Field(default=None, min_length=1)
+    description: Optional[str] = None
+    auth_type: Optional[str] = Field(default=None, pattern="^(none|bearer|api_key|custom_header)$")
+    auth_header_name: Optional[str] = None
+    auth_credential_ref: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class MCPServerResponse(BaseModel):
+    id: UUID
+    name: str
+    url: str
+    description: Optional[str] = None
+    auth_type: str
+    auth_header_name: Optional[str] = None
+    is_active: bool
+    status: str
+    status_message: Optional[str] = None
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MCPServerListResponse(BaseModel):
+    servers: List[MCPServerResponse]
+    total: int

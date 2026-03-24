@@ -18,6 +18,7 @@ from app.api.v1.memories import router as memories_router
 from app.api.v1.observability import router as observability_router
 from app.api.v1.evaluations import router as evaluations_router
 from app.api.v1.marketplace import router as marketplace_router
+from app.api.v1.mcp_servers import router as mcp_servers_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -40,3 +41,4 @@ api_router.include_router(memories_router, prefix="/agents", tags=["agent-memori
 api_router.include_router(observability_router, prefix="/observability", tags=["observability"])
 api_router.include_router(evaluations_router, prefix="/evaluations", tags=["evaluations"])
 api_router.include_router(marketplace_router, prefix="/marketplace", tags=["marketplace"])
+api_router.include_router(mcp_servers_router, prefix="/mcp-servers", tags=["mcp-servers"])
