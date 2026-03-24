@@ -11,6 +11,10 @@ from app.models.document import Document, DocumentChunk
 from app.models.azure_subscription import AzureSubscription
 from app.models.azure_connection import AzureConnection
 from app.models.catalog_entry import CatalogEntry
+from app.models.thread import Thread
+from app.models.thread_message import ThreadMessage
+from app.models.agent_memory import AgentMemory
+from app.models.execution_log import ExecutionLog
 
 __all__ = [
     "Base", "Tenant", "User", "RefreshToken", "ModelEndpoint",
@@ -19,4 +23,5 @@ __all__ = [
     "DataSource", "AgentDataSource",
     "Document", "DocumentChunk",
     "AzureSubscription", "AzureConnection", "CatalogEntry",
+    "Thread", "ThreadMessage", "AgentMemory", "ExecutionLog",
 ]
