@@ -6,7 +6,7 @@
 ## Milestones
 
 - ✅ **v1.0 AI Agent Platform PoC** — Phases 1-10 (shipped 2026-03-24) — [archive](milestones/v1.0-ROADMAP.md)
-- 🚧 **v2.0 MCP Tool Integration** — Phases 11-16 (in progress)
+- ✅ **v2.0 MCP Tool Integration** — Phases 11-16 (shipped)
 
 <details>
 <summary>✅ v1.0 AI Agent Platform PoC (Phases 1-10) — SHIPPED 2026-03-24</summary>
@@ -39,27 +39,27 @@
 **Plans:** 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md — MCP types, MCPClient class (Streamable HTTP transport), unit tests
+- [x] 11-01-PLAN.md — MCP types, MCPClient class (Streamable HTTP transport), unit tests
 
 ### Phase 12: MCP Server Registry
 
 **Goal:** Build DB models and CRUD APIs for registering Remote MCP server connections (URL, auth, metadata) so users can manage their MCP server fleet.
 **Requirements:** [MCP-04, MCP-05, MCP-06]
 **Depends on:** Phase 11
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 12 to break down)
+- [x] 12-01-PLAN.md — MCP server CRUD + Alembic migration + tests
 
 ### Phase 13: MCP Tool Discovery
 
 **Goal:** Implement automatic tool discovery from registered MCP servers via tools/list, with health checking and reconnection logic to keep the tool catalog current.
 **Requirements:** [MCP-07, MCP-08, MCP-09]
 **Depends on:** Phase 11, Phase 12
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 13 to break down)
+- [x] 13-01-PLAN.md — MCP tool discovery service + health checking
 
 ### Phase 14: Agent Execution Integration
 
@@ -81,7 +81,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 15-01-PLAN.md — Sidebar nav, tool detail panel, Foundry-style catalog enhancements
+- [x] 15-01-PLAN.md — Sidebar nav, tool detail panel, Foundry-style catalog enhancements
 
 ### Phase 16: Agent-Level MCP Management
 
@@ -93,8 +93,8 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 16-01-PLAN.md — Backend API for agent MCP tool attach/detach/list + tests
-- [ ] 16-02-PLAN.md — Agent detail page MCP Tools section with attach/detach UI
+- [x] 16-01-PLAN.md — Backend API for agent MCP tool attach/detach/list + tests
+- [x] 16-02-PLAN.md — Agent detail page MCP Tools section with attach/detach UI
 
 ## Phase Dependencies
 
