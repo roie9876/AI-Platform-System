@@ -931,3 +931,29 @@ class MCPServerResponse(BaseModel):
 class MCPServerListResponse(BaseModel):
     servers: List[MCPServerResponse]
     total: int
+
+
+# --- MCP Discovered Tool Schemas ---
+
+class MCPDiscoveredToolResponse(BaseModel):
+    id: UUID
+    server_id: UUID
+    tool_name: str
+    description: Optional[str] = None
+    input_schema: Optional[dict] = None
+    is_available: bool
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MCPDiscoveredToolListResponse(BaseModel):
+    tools: List[MCPDiscoveredToolResponse]
+    total: int
+
+
+class MCPDiscoverySummaryResponse(BaseModel):
+    servers_scanned: int
+    tools_discovered: dict
