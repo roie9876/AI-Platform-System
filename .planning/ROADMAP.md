@@ -156,12 +156,12 @@ Plans:
 **Plans:** 6 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Backend observability: token tracking, cost models, cost alerts, REST APIs
-- [ ] 08-02-PLAN.md — Backend evaluation engine: test suites, metrics, comparison
-- [ ] 08-03-PLAN.md — Backend marketplace: agent/tool templates, publish/import
-- [ ] 08-04-PLAN.md — Frontend observability dashboard: KPI tiles, Recharts, logs
-- [ ] 08-05-PLAN.md — Frontend evaluation dashboard + marketplace UI
-- [ ] 08-06-PLAN.md — CLI for agent execution from terminal
+- [x] 08-01-PLAN.md — Backend observability: token tracking, cost models, cost alerts, REST APIs
+- [x] 08-02-PLAN.md — Backend evaluation engine: test suites, metrics, comparison
+- [x] 08-03-PLAN.md — Backend marketplace: agent/tool templates, publish/import
+- [x] 08-04-PLAN.md — Frontend observability dashboard: KPI tiles, Recharts, logs
+- [x] 08-05-PLAN.md — Frontend evaluation dashboard + marketplace UI
+- [x] 08-06-PLAN.md — CLI for agent execution from terminal
 
 **Success Criteria:**
 1. Token counting tracks input/output tokens per request
