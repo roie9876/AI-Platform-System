@@ -20,6 +20,9 @@ from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecuti
 from app.models.cost_config import ModelPricing, CostAlert
 from app.models.evaluation import TestSuite, TestCase, EvaluationRun, EvaluationResult
 from app.models.marketplace import AgentTemplate, ToolTemplate
+from app.models.mcp_server import MCPServer
+from app.models.mcp_discovered_tool import MCPDiscoveredTool
+from app.models.agent_mcp_tool import AgentMCPTool
 
 __all__ = [
     "Base", "Tenant", "User", "RefreshToken", "ModelEndpoint",
@@ -34,4 +37,5 @@ __all__ = [
     "ModelPricing", "CostAlert",
     "TestSuite", "TestCase", "EvaluationRun", "EvaluationResult",
     "AgentTemplate", "ToolTemplate",
+    "MCPServer", "MCPDiscoveredTool", "AgentMCPTool",
 ]

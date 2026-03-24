@@ -157,6 +157,7 @@ class MCPClient:
         self, response: httpx.Response, method: str
     ) -> Any:
         last_data: Optional[str] = None
+        event_type: Optional[str] = None
         async for line in response.aiter_lines():
             line = line.strip()
             if line.startswith("event:"):

@@ -190,6 +190,9 @@ class AgentExecutionService:
             }
         except MCPClientError as e:
             return {"error": f"MCP tool execution failed: {e}"}
+        except Exception as e:
+            logger.warning("Unexpected error executing MCP tool %s: %s", mcp_tool.tool_name, e, exc_info=True)
+            return {"error": f"MCP tool execution failed: {e}"}
         finally:
             await client.disconnect()
 
@@ -337,6 +340,7 @@ class AgentExecutionService:
                 yield self._sse_sources(rag_sources)
 
             collected_response = ""
+            tools_called: List[Dict[str, Any]] = []
 
             if tool_schemas:
                 # Tool-calling loop
@@ -408,11 +412,19 @@ class AgentExecutionService:
                                     "tool_call_id": tc.id,
                                     "content": json.dumps(result),
                                 })
+                                tools_called.append({"name": tc.function.name, "status": "success"})
                             except (ToolExecutionError, MCPClientError) as e:
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tc.id,
                                     "content": json.dumps({"error": str(e)}),
+                                })
+                            except Exception as e:
+                                logger.warning("Unexpected error executing tool %s: %s", tc.function.name, e, exc_info=True)
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tc.id,
+                                    "content": json.dumps({"error": f"Tool execution failed: {e}"}),
                                 })
                     else:
                         # No tool calls — model returned final content
@@ -427,6 +439,7 @@ class AgentExecutionService:
                             db, thread_id, user_id, agent, collected_response,
                             rag_sources, start_time, primary_endpoint,
                             input_tokens=input_tokens, output_tokens=output_tokens,
+                            tools_called=tools_called,
                         )
                         yield self._sse_data("", done=True)
                         return
@@ -462,6 +475,11 @@ class AgentExecutionService:
             await db.commit()
             logger.error("Agent execution failed: %s", str(exc))
             yield self._sse_error(str(exc))
+        except Exception as exc:
+            agent.status = "error"
+            await db.commit()
+            logger.error("Unexpected agent execution error: %s", str(exc), exc_info=True)
+            yield self._sse_error("An unexpected error occurred during execution")
 
     async def _save_assistant_response(
         self,
@@ -475,6 +493,7 @@ class AgentExecutionService:
         primary_endpoint: ModelEndpoint,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
+        tools_called: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """Save assistant response to thread and log execution."""
         if not thread_id or not user_id:
@@ -531,15 +550,19 @@ class AgentExecutionService:
                         await db.commit()
 
             # Execution log
+            state = {
+                "response_length": len(content),
+                "model_name": primary_endpoint.model_name if primary_endpoint else None,
+                "model_endpoint_id": str(primary_endpoint.id) if primary_endpoint else None,
+            }
+            if tools_called:
+                state["tool_calls"] = tools_called
+
             log_entry = ExecutionLog(
                 thread_id=thread_id,
                 message_id=assistant_msg.id,
                 event_type="model_response",
-                state_snapshot={
-                    "response_length": len(content),
-                    "model_name": primary_endpoint.model_name if primary_endpoint else None,
-                    "model_endpoint_id": str(primary_endpoint.id) if primary_endpoint else None,
-                },
+                state_snapshot=state,
                 duration_ms=duration_ms,
                 token_count={"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0},
             )
