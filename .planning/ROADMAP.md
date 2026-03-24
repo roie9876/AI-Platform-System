@@ -96,7 +96,12 @@ Plans:
 ### Phase 5: Memory & Thread Management
 **Goal:** Build thread lifecycle management, short-term conversation memory, long-term persistent memory with vector search, and state management for agent executions.
 **Requirements:** [MEMO-01, MEMO-02, MEMO-03, THRD-01, THRD-02]
-**Plans:** [To be planned]
+**Plans:** 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Backend models (Thread, ThreadMessage, AgentMemory, ExecutionLog), migration, Thread CRUD API
+- [ ] 05-02-PLAN.md — MemoryService (pgvector embeddings), thread persistence + memory injection in agent execution
+- [ ] 05-03-PLAN.md — Frontend thread sidebar, thread-aware chat persistence
 
 **Success Criteria:**
 1. User can create, view, resume, and delete conversation threads
