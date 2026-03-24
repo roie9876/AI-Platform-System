@@ -1,44 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: — AI Agent Platform PoC
-status: Milestone complete
-last_updated: "2026-03-24T15:04:24.567Z"
+milestone: v2.0
+milestone_name: MCP Tool Integration
+status: Planning
+last_updated: "2026-03-24"
 progress:
-  total_phases: 10
-  completed_phases: 9
-  total_plans: 33
-  completed_plans: 33
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 1
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-23)
+See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
+**Current focus:** Milestone v2.0 — MCP Tool Integration (Phases 11-16)
 **Current focus:** Phase 10 — agent-level-traces-monitor-tabs
 
 ## Current Position
 
-Phase: 10
+Phase: 11
 Plan: Not started
 
 ## Phase Status
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Foundation & Project Scaffold | ✅ Complete |
-| 2 | HLD & Microsoft Architecture Documentation | ○ Pending |
-| 3 | Agent Core & Model Abstraction | ○ Pending |
-| 4 | Tools, Data Sources & RAG | ○ Pending |
-| 5 | Memory & Thread Management | ✅ Complete |
-| 6 | Orchestration & Workflow Engine | ✅ Complete |
-| 7 | Policy Engine & Governance | ○ Pending |
-| 8 | Observability, Evaluation, Marketplace & CLI | ✅ Complete |
-| 9 | Azure Subscription Integration & Foundry-Style AI Services | ○ Pending |
-| 10 | Agent-Level Traces & Monitor Tabs | ○ Pending |
+| 11 | MCP Client Library | ○ Pending |
+| 12 | MCP Server Registry | ○ Pending |
+| 13 | MCP Tool Discovery | ○ Pending |
+| 14 | Agent Execution Integration | ○ Pending |
+| 15 | MCP Tool Catalog UI | ○ Pending |
+| 16 | Agent-Level MCP Management | ○ Pending |
 
 ## Decisions
 
@@ -58,11 +55,19 @@ Plan: Not started
 
 ## Accumulated Context
 
+### Milestone History
+
+- v1.0 AI Agent Platform PoC shipped 2026-03-24 (9/10 phases, 33 plans — Phase 7 Policy Engine deferred)
+
 ### Roadmap Evolution
 
-- Phase 9 added: Azure Subscription Integration & Foundry-Style AI Services (connect platform to Azure subscriptions for resource discovery, connection management, tool catalog, and Knowledge integration — Foundry-like experience)
-- Phase 10 added: Agent-Level Traces & Monitor Tabs (per-agent execution tracing and monitoring dashboard with KPI metrics, time-series charts, scoped to individual agents)
-- Phase 10 context gathered: 10-CONTEXT.md and 10-DISCUSSION-LOG.md written — Foundry-inspired Traces table (+ Model/Tools columns), 6 KPI tiles, tab wiring via AgentConfigTopBar
+- Milestone v2.0 (MCP Tool Integration) phases 11-16 defined
+- Phase 11: MCP Client Library
+- Phase 12: MCP Server Registry
+- Phase 13: MCP Tool Discovery
+- Phase 14: Agent Execution Integration
+- Phase 15: MCP Tool Catalog UI
+- Phase 16: Agent-Level MCP Management
 
 ## Blockers
 

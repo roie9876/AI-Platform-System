@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A multi-tenant AI Agent Platform as a Service (PaaS) that enables product teams at STU-MSFT to create, configure, and orchestrate AI agents through a self-service UI. Teams can attach tools, connect data sources, build multi-agent workflows, and monitor agent performance — all within secure, isolated runtime environments. The platform is model-agnostic: customers bring their own model endpoints while Azure OpenAI serves as the default.
+A multi-tenant AI Agent Platform as a Service (PaaS) that enables product teams at STU-MSFT to create, configure, and orchestrate AI agents through a self-service UI. Teams can attach tools, connect data sources, build multi-agent workflows, and monitor agent performance — all within secure, isolated runtime environments. The platform is model-agnostic: customers bring their own model endpoints while Azure OpenAI serves as the default. v1.0 shipped with full agent lifecycle, tool execution, RAG, workflow orchestration, observability, evaluation, marketplace, CLI, and Azure integration. v2.0 adds MCP (Model Context Protocol) client support for 1500+ remote tool servers.
 
 ## Core Value
 
@@ -12,29 +12,35 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 
 ### Validated
 
-- [x] HLD documentation — vendor-agnostic architecture with Mermaid diagrams (Validated in Phase 2: HLD & Microsoft Architecture Documentation)
-- [x] Microsoft architecture design — maps HLD to concrete Azure/Microsoft services (Validated in Phase 2: HLD & Microsoft Architecture Documentation)
+- [x] HLD documentation — vendor-agnostic architecture with Mermaid diagrams (Validated in Phase 2)
+- [x] Microsoft architecture design — maps HLD to concrete Azure/Microsoft services (Validated in Phase 2)
+- [x] Agent control plane — UI for creating, configuring, and managing agents (Validated in Phase 3)
+- [x] Model abstraction & routing layer — model-agnostic endpoint routing (Validated in Phase 3)
+- [x] Multi-model routing — priority-based fallback chains with circuit breaker (Validated in Phase 3)
+- [x] Tool marketplace — register, attach, discover, import tools (Validated in Phases 4, 8)
+- [x] Data source management — connect and manage data sources per agent (Validated in Phase 4)
+- [x] RAG system integration — Azure AI Search hybrid retrieval pipeline (Validated in Phase 4)
+- [x] Platform AI Services — Azure AI capabilities as toggleable tools (Validated in Phase 4)
+- [x] Memory management — short-term + long-term memory with pgvector (Validated in Phase 5)
+- [x] Thread management — conversation thread lifecycle and persistence (Validated in Phase 5)
+- [x] Sub-agent orchestration — parallel execution and sub-agent coordination (Validated in Phase 6)
+- [x] Workflow builder — visual drag-and-drop flow editor (Validated in Phase 6)
+- [x] Cost & token observability — dashboard with per-agent cost breakdowns (Validated in Phase 8)
+- [x] Evaluation engine — test suites, metrics, version comparison (Validated in Phase 8)
+- [x] Agent marketplace — discover, share, import agent templates (Validated in Phase 8)
+- [x] Terminal & CLI execution — CLI with auth, agent listing, streamed execution (Validated in Phase 8)
+- [x] Azure subscription integration — ARM discovery, connections, tool catalog (Validated in Phase 9)
+- [x] Agent-level traces & monitoring — per-agent execution tracing and KPI dashboard (Validated in Phase 10)
 
 ### Active
 
-- [ ] Agent control plane — UI for creating, configuring, and managing agents
-- [ ] Agent runtime plane — secure, isolated execution environment for agents
-- [ ] Platform AI Services — Azure AI capabilities (search, speech, vision, document intelligence, content safety) exposed as toggleable platform-managed tools per agent
-- [ ] Model abstraction & routing layer — model-agnostic endpoint routing with customer-provided endpoints
-- [ ] Multi-model routing — intelligent routing across multiple model endpoints
-- [ ] Tool marketplace — attach, manage, and discover tools for agents
-- [ ] Data source management — connect and manage multiple data sources per agent
-- [ ] Sub-agent orchestration — parallel execution and sub-agent coordination
-- [ ] Workflow builder — sequential and autonomous execution flows connecting agents
-- [ ] Memory management — long-term and short-term memory for agents
-- [ ] Thread management — conversation thread lifecycle and persistence
-- [ ] State management — agent state tracking across executions
-- [ ] Policy engine — governance, guardrails, and access control for agents
-- [ ] Evaluation engine — quality assessment and scoring for agent outputs
-- [ ] Cost & token observability — dashboard for tracking usage, costs, and token consumption
-- [ ] Terminal & CLI execution — programmatic agent interaction via CLI
-- [ ] Agent marketplace — discover, share, and reuse agent configurations
-- [ ] RAG system integration — retrieval-augmented generation pipeline for agents
+- [ ] MCP client library — JSON-RPC client for MCP-compliant servers
+- [ ] MCP server registry — CRUD for MCP server connections
+- [ ] MCP tool discovery — automatic tool listing from servers
+- [ ] MCP agent integration — MCP tools/call in agent execution loop
+- [ ] MCP tool catalog UI — browse/search/filter MCP tools
+- [ ] Agent-level MCP management — attach/detach MCP tools per agent
+- [ ] Policy engine — governance, guardrails, and access control (deferred from v1.0)
 
 ### Out of Scope
 
@@ -51,6 +57,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - **Scale:** Designed for large-scale, multi-tenant enterprise deployment
 - **Model strategy:** Bring-your-own-endpoint — customers provide model API endpoints, platform routes to them. Azure OpenAI as the default provider
 - **Microsoft-first:** Product architecture maps to Microsoft services as extensively as possible
+- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 (MCP Tool Integration) in progress.
 
 ## Constraints
 
@@ -92,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 2 completion*
+*Last updated: 2026-03-24 after v1.0 milestone completion*
