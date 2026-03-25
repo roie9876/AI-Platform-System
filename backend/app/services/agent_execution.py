@@ -240,6 +240,13 @@ class AgentExecutionService:
         messages: List[Dict[str, Any]] = []
         if agent.system_prompt:
             messages.append({"role": "system", "content": agent.system_prompt})
+
+        # Inject current date/time so the model always knows today's date
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        date_info = f"Current date and time (UTC): {now_utc.strftime('%A, %B %d, %Y %H:%M UTC')}"
+        messages.append({"role": "system", "content": date_info})
+
         if conversation_history:
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})

@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ChevronDown, MoreHorizontal } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ArrowLeft, ChevronDown, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 interface AgentConfigTopBarProps {
@@ -12,6 +13,7 @@ interface AgentConfigTopBarProps {
   onTabChange?: (tab: string) => void;
   onSave?: () => void;
   isSaving?: boolean;
+  onDelete?: () => void;
 }
 
 const subNavTabs = [
@@ -30,7 +32,21 @@ export function AgentConfigTopBar({
   onTabChange,
   onSave,
   isSaving,
+  onDelete,
 }: AgentConfigTopBarProps) {
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <div className="w-full bg-white">
       {/* Row 1 */}
@@ -66,9 +82,30 @@ export function AgentConfigTopBar({
           >
             {isSaving ? "Saving..." : "Save"}
           </button>
-          <button type="button" className="text-gray-400 hover:text-gray-600">
-            <MoreHorizontal className="h-5 w-5" />
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setShowMenu((prev) => !prev)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-8 z-50 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    onDelete?.();
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Agent
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

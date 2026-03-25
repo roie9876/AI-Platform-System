@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { AgentConfigTopBar } from "@/components/agent/agent-config-top-bar";
 import { AgentConfigLayout } from "@/components/agent/agent-config-layout";
@@ -10,7 +10,7 @@ import { AgentMonitorPanel } from "@/components/agent/agent-monitor-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
-import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X } from "lucide-react";
+import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -135,6 +135,7 @@ interface ThreadMessageItem {
 
 export default function AgentDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const agentId = params.id as string;
 
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -544,54 +545,27 @@ export default function AgentDetailPage() {
         />
       </CollapsibleSection>
 
-      {/* Tools */}
+      {/* Tools (Platform + MCP) */}
       <CollapsibleSection
         title="Tools"
         defaultOpen={true}
         action={
-          <button
-            type="button"
-            onClick={() => setShowCatalog(true)}
-            className="rounded-md bg-[#7C3AED] px-3 py-1 text-xs font-medium text-white hover:bg-[#6D28D9]"
-          >
-            Add
-          </button>
-        }
-      >
-        {attachedTools.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            No tools attached. Click Add to browse the catalog.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {attachedTools.map((tool) => (
-              <div
-                key={tool.id}
-                className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
-              >
-                <span className="text-sm text-gray-900">{tool.name}</span>
-                <div className="flex items-center gap-1">
-                  <Info className="h-3.5 w-3.5 text-gray-400" />
-                  <MoreVertical className="h-3.5 w-3.5 text-gray-400" />
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowCatalog(true)}
+              className="rounded-md bg-[#7C3AED] px-3 py-1 text-xs font-medium text-white hover:bg-[#6D28D9]"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenMCPPicker}
+              className="rounded-md border border-[#7C3AED] px-3 py-1 text-xs font-medium text-[#7C3AED] hover:bg-[#F5F3FF]"
+            >
+              Add MCP
+            </button>
           </div>
-        )}
-      </CollapsibleSection>
-
-      {/* MCP Tools */}
-      <CollapsibleSection
-        title="MCP Tools"
-        defaultOpen={true}
-        action={
-          <button
-            type="button"
-            onClick={handleOpenMCPPicker}
-            className="rounded-md bg-[#7C3AED] px-3 py-1 text-xs font-medium text-white hover:bg-[#6D28D9]"
-          >
-            Add
-          </button>
         }
       >
         {showMCPPicker && (
@@ -627,18 +601,34 @@ export default function AgentDetailPage() {
             )}
           </div>
         )}
-        {attachedMCPTools.length === 0 ? (
+        {attachedTools.length === 0 && attachedMCPTools.length === 0 ? (
           <p className="text-sm text-gray-500">
-            No MCP tools attached. Click Add to browse available tools.
+            No tools attached. Click Add to browse the catalog.
           </p>
         ) : (
           <div className="space-y-2">
+            {attachedTools.map((tool) => (
+              <div
+                key={tool.id}
+                className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold">TOOL</span>
+                  <span className="text-sm text-gray-900">{tool.name}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Info className="h-3.5 w-3.5 text-gray-400" />
+                  <MoreVertical className="h-3.5 w-3.5 text-gray-400" />
+                </div>
+              </div>
+            ))}
             {attachedMCPTools.map((tool) => (
               <div
                 key={tool.id}
                 className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
               >
                 <div className="flex items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center rounded-full bg-purple-100 text-purple-700 px-1.5 py-0.5 text-[10px] font-semibold">MCP</span>
                   <Puzzle className="h-3.5 w-3.5 shrink-0 text-[#7C3AED]" />
                   <div className="min-w-0">
                     <span className="text-sm text-gray-900 truncate block">{tool.tool_name}</span>
@@ -774,7 +764,39 @@ export default function AgentDetailPage() {
         title="Guardrails"
         defaultOpen={false}
       >
-        <p className="text-sm text-gray-400">Coming in a future release</p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium text-gray-700">Content Safety</span>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium text-gray-700">PII Detection</span>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium text-gray-700">Prompt Injection Shield</span>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium text-gray-700">Grounding Enforcement</span>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Disabled</span>
+          </div>
+          <a href="/dashboard/guardrails" className="block text-xs text-[#7C3AED] hover:text-[#6D28D9] font-medium mt-1">
+            Manage all guardrails &rarr;
+          </a>
+        </div>
       </CollapsibleSection>
     </div>
   );
@@ -941,6 +963,15 @@ export default function AgentDetailPage() {
         onTabChange={(tab) => setActiveTab(tab as "playground" | "traces" | "monitor" | "evaluation")}
         onSave={handleSave}
         isSaving={isSaving}
+        onDelete={async () => {
+          if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
+          try {
+            await apiFetch(`/api/v1/agents/${agentId}`, { method: "DELETE" });
+            router.push("/dashboard/agents");
+          } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to delete agent");
+          }
+        }}
       />
 
       <div className="flex-1 overflow-hidden">

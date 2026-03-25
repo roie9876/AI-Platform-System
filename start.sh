@@ -28,14 +28,22 @@ kill_stale() {
 
 kill_stale 8000
 kill_stale 3000
+kill_stale 8081
+kill_stale 8082
 
 BACKEND_PID=""
 FRONTEND_PID=""
+MCP_WEB_PID=""
+MCP_ATLASSIAN_PID=""
 
 cleanup() {
     echo -e "\n${YELLOW}Shutting down...${NC}"
+    [ -n "$MCP_ATLASSIAN_PID" ] && kill "$MCP_ATLASSIAN_PID" 2>/dev/null || true
+    [ -n "$MCP_WEB_PID" ] && kill "$MCP_WEB_PID" 2>/dev/null || true
     [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null || true
     [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null || true
+    [ -n "$MCP_ATLASSIAN_PID" ] && wait "$MCP_ATLASSIAN_PID" 2>/dev/null || true
+    [ -n "$MCP_WEB_PID" ] && wait "$MCP_WEB_PID" 2>/dev/null || true
     [ -n "$BACKEND_PID" ] && wait "$BACKEND_PID" 2>/dev/null || true
     [ -n "$FRONTEND_PID" ] && wait "$FRONTEND_PID" 2>/dev/null || true
     echo -e "${GREEN}Done.${NC}"
@@ -100,6 +108,21 @@ alembic upgrade head 2>/dev/null || echo -e "${YELLOW}Migration warning (may be 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
 
+# ── 3b. MCP Servers (Demo) ──
+echo -e "${GREEN}Starting MCP servers for demo...${NC}"
+
+if [ -f "$ROOT_DIR/backend/mcp_server_web_tools.py" ]; then
+    python "$ROOT_DIR/backend/mcp_server_web_tools.py" &
+    MCP_WEB_PID=$!
+    echo -e "${GREEN}  Web Tools MCP server on port 8081${NC}"
+fi
+
+if [ -f "$ROOT_DIR/backend/mcp_server_atlassian_mock.py" ]; then
+    python "$ROOT_DIR/backend/mcp_server_atlassian_mock.py" &
+    MCP_ATLASSIAN_PID=$!
+    echo -e "${GREEN}  Atlassian (Jira + Confluence) MCP server on port 8082${NC}"
+fi
+
 # ── 4. Frontend ──
 echo -e "${GREEN}Starting frontend...${NC}"
 cd "$ROOT_DIR/frontend"
@@ -114,6 +137,8 @@ echo -e "${GREEN} AI Platform running!${NC}"
 echo -e "${GREEN}   Frontend:  http://localhost:3000${NC}"
 echo -e "${GREEN}   Backend:   http://localhost:8000${NC}"
 echo -e "${GREEN}   API Docs:  http://localhost:8000/docs${NC}"
+echo -e "${GREEN}   MCP Web:   http://localhost:8081/mcp${NC}"
+echo -e "${GREEN}   MCP Jira:  http://localhost:8082/mcp${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "Press Ctrl+C to stop all services."

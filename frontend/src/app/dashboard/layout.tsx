@@ -19,6 +19,14 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       {/* Top bar */}
       <header className="flex h-12 shrink-0 items-center justify-end border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/azure")}
+            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M2 20a2.4 2.4 0 0 0 2 1h16a2.4 2.4 0 0 0 2-1L13.7 2.4a1.6 1.6 0 0 0-3.4 0Z"/><path d="M2 20h20"/></svg>
+            Azure
+          </button>
           <span className="text-sm text-gray-600">{user?.full_name}</span>
           <button
             onClick={handleLogout}

@@ -1,18 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+
+const sourceTypeOptions = [
+  { value: "file", label: "File Upload" },
+  { value: "url", label: "URL" },
+  { value: "sharepoint", label: "SharePoint" },
+  { value: "onedrive", label: "OneDrive" },
+  { value: "azure_blob", label: "Azure Blob Storage" },
+  { value: "aws_s3", label: "Amazon S3" },
+  { value: "sql_server", label: "SQL Server" },
+  { value: "postgresql", label: "PostgreSQL" },
+  { value: "cosmos_db", label: "Azure Cosmos DB" },
+  { value: "google_drive", label: "Google Drive" },
+  { value: "confluence", label: "Confluence" },
+];
 
 export default function NewDataSourcePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedType = searchParams.get("type") || "file";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
     name: "",
     description: "",
-    source_type: "file",
+    source_type: preselectedType,
     config: null as Record<string, unknown> | null,
     credentials: "",
   });
@@ -87,8 +103,11 @@ export default function NewDataSourcePage() {
             onChange={(e) => setForm({ ...form, source_type: e.target.value })}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="file">File Upload</option>
-            <option value="url">URL</option>
+            {sourceTypeOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
 

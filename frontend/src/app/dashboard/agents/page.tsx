@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface Agent {
@@ -26,9 +28,22 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AgentsPage() {
+  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const handleDelete = async (e: React.MouseEvent, agentId: string, agentName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete agent "${agentName}"? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/v1/agents/${agentId}`, { method: "DELETE" });
+      setAgents((prev) => prev.filter((a) => a.id !== agentId));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete agent");
+    }
+  };
 
   useEffect(() => {
     apiFetch<AgentListResponse>("/api/v1/agents")
@@ -87,13 +102,23 @@ export default function AgentsPage() {
                 <h3 className="text-lg font-semibold text-gray-900 truncate">
                   {agent.name}
                 </h3>
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    statusColors[agent.status] || statusColors.inactive
-                  }`}
-                >
-                  {agent.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      statusColors[agent.status] || statusColors.inactive
+                    }`}
+                  >
+                    {agent.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(e, agent.id, agent.name)}
+                    className="text-gray-300 hover:text-red-500 transition-colors"
+                    title="Delete agent"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               {agent.description && (
                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">
