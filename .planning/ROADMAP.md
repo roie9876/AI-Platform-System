@@ -183,7 +183,13 @@ Plans:
   3. Platform admin can onboard a new tenant through a multi-step wizard (org name → Entra ID → model endpoint → first agent → review)
   4. Tenant admins can configure settings, view users, assign roles, and invite users via Entra ID groups
   5. Per-tenant usage summary displays API calls, agent executions, token consumption, and cost estimates
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 24-01-PLAN.md — TenantContext, TenantSelector, TenantStatusBadge, sidebar nav, tenants dashboard page
+- [ ] 24-02-PLAN.md — Tenant detail page with Settings, Users, and Usage tabs
+- [ ] 24-03-PLAN.md — Multi-step onboarding wizard (Organization → Entra ID → Model Endpoint → Agent → Review)
+
 **UI hint**: yes
 
 ### Phase Dependencies
