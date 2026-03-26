@@ -61,7 +61,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting (completed 2026-03-26)
 - [x] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views (completed 2026-03-26)
 - [ ] **Phase 25: Milestone Validation** — Fix DATA-06 gap, automated tests for data layer, tenant lifecycle, and health endpoints
-- [ ] **Phase 26: Tenant Context Wiring** — Wire useTenant() into all dashboard pages so tenant selector filters data (UI-02 critical fix)
+- [x] **Phase 26: Tenant Context Wiring** — Wire useTenant() into all dashboard pages so tenant selector filters data (UI-02 critical fix) (completed 2026-03-26)
 - [ ] **Phase 27: Verification & Traceability Closure** — Create VERIFICATION.md for Phases 19-24, update SUMMARY frontmatter, check off REQUIREMENTS.md
 
 ### Phase Details
@@ -222,10 +222,10 @@ Plans:
   1. Every dashboard page that fetches data calls `useTenant()` and passes `tenantId` to API requests
   2. Switching tenants in the TenantSelector immediately updates all page data
   3. No cross-tenant data leakage — pages only show data for the selected tenant
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 26-01-PLAN.md — API tenant header injection + core entity pages (agents, tools, data-sources, models, workflows, evaluations)
-- [ ] 26-02-PLAN.md — Observability + MCP tools pages + human verification
+- [x] 26-01-PLAN.md — API tenant header injection + core entity pages (agents, tools, data-sources, models, workflows, evaluations)
+- [x] 26-02-PLAN.md — Observability + MCP tools pages + human verification
 
 #### Phase 27: Verification & Traceability Closure
 **Goal**: All v3.0 requirements have formal verification evidence; REQUIREMENTS.md accurately reflects completion status
@@ -237,7 +237,12 @@ Plans:
   2. All SUMMARY frontmatter includes correct `requirements_completed` fields
   3. REQUIREMENTS.md checkboxes are checked for all satisfied requirements
   4. Audit re-run shows 0 unsatisfied must-have requirements
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 27-01-PLAN.md — VERIFICATION.md for Phases 19, 20, 21 + fix SUMMARY frontmatter
+- [ ] 27-02-PLAN.md — VERIFICATION.md for Phases 22, 23, 24 + fix SUMMARY frontmatter
+- [ ] 27-03-PLAN.md — Update REQUIREMENTS.md checkboxes for all verified requirements
 
 ### Phase Dependencies
 
@@ -281,7 +286,7 @@ Phase 17 (Infrastructure Foundation)
 | 23. Observability & Monitoring | 2/2 | Complete    | 2026-03-26 |
 | 24. Tenant Admin UI | 0/? | Not started | - |
 | 25. Milestone Validation | 0/3 | Not started | - |
-| 26. Tenant Context Wiring | 0/? | Not started | - |
+| 26. Tenant Context Wiring | 2/2 | Complete   | 2026-03-26 |
 | 27. Verification & Traceability | 0/? | Not started | - |
 
 ---
