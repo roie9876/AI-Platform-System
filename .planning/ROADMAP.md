@@ -168,7 +168,10 @@ Plans:
   3. AKS node/pod CPU, memory, and network metrics are visible in Container Insights
   4. Alerts fire when health checks fail, pods restart excessively, 5xx rates exceed threshold, or Cosmos DB RU consumption exceeds 80%
   5. Central Log Analytics workspace receives and correlates logs from App Insights, AKS, Cosmos DB diagnostics, and Key Vault audit
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 23-01-PLAN.md — OpenTelemetry instrumentation, telemetry middleware, structured JSON logging
+- [ ] 23-02-PLAN.md — Application Insights, Azure Monitor alerts, diagnostic settings, Container Insights
 
 #### Phase 24: Tenant Admin UI
 **Goal**: Platform admins can manage tenants and tenant admins can manage their team through the web UI
