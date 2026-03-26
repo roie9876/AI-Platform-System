@@ -27,6 +27,9 @@ param acrSku string = 'Standard'
 @description('Log Analytics retention in days')
 param logRetentionDays int = 30
 
+@description('Email address for alert notifications')
+param alertEmail string = 'admin@stumsft.com'
+
 // ============================================================================
 // Wave 1: No dependencies — leaf-node resources
 // ============================================================================
@@ -61,6 +64,7 @@ module cosmos './modules/cosmos.bicep' = {
   params: {
     location: location
     environmentName: environmentName
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
   }
 }
 
@@ -101,6 +105,32 @@ module keyvault './modules/keyvault.bicep' = {
     location: location
     environmentName: environmentName
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+  }
+}
+
+// ============================================================================
+// Wave 3: Observability — depends on Log Analytics, AKS, Cosmos DB
+// ============================================================================
+
+module appInsights './modules/appinsights.bicep' = {
+  name: 'appinsights-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    workspaceId: loganalytics.outputs.workspaceId
+  }
+}
+
+module alerts './modules/alerts.bicep' = {
+  name: 'alerts-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    appInsightsId: appInsights.outputs.appInsightsId
+    aksClusterId: aks.outputs.aksClusterId
+    cosmosAccountId: cosmos.outputs.cosmosAccountId
+    actionGroupEmail: alertEmail
   }
 }
 
@@ -137,3 +167,6 @@ output logAnalyticsWorkspaceId string = loganalytics.outputs.workspaceId
 
 @description('Workload identity client ID for pod identity binding')
 output workloadIdentityClientId string = identity.outputs.workloadIdentityClientId
+
+@description('Application Insights connection string')
+output appInsightsConnectionString string = appInsights.outputs.connectionString

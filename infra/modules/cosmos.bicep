@@ -4,6 +4,9 @@ param location string
 @description('Environment name used in resource naming')
 param environmentName string = 'prod'
 
+@description('Resource ID of Log Analytics workspace for diagnostics (optional)')
+param logAnalyticsWorkspaceId string = ''
+
 // Cosmos DB Account - Serverless NoSQL
 resource account 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   name: 'stumsft-aiplatform-${environmentName}-cosmos'
@@ -95,6 +98,35 @@ resource containers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containe
     }
   }
 }]
+
+// Diagnostic settings — send logs to Log Analytics
+resource cosmosDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
+  name: 'cosmos-diagnostics'
+  scope: account
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        category: 'DataPlaneRequests'
+        enabled: true
+      }
+      {
+        category: 'QueryRuntimeStatistics'
+        enabled: true
+      }
+      {
+        category: 'PartitionKeyStatistics'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'Requests'
+        enabled: true
+      }
+    ]
+  }
+}
 
 @description('Resource ID of the Cosmos DB account')
 output cosmosAccountId string = account.id

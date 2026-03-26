@@ -7,6 +7,9 @@ param environmentName string = 'prod'
 @description('Principal ID of workload identity for Key Vault Secrets User role')
 param workloadIdentityPrincipalId string
 
+@description('Resource ID of Log Analytics workspace for diagnostics (optional)')
+param logAnalyticsWorkspaceId string = ''
+
 @description('Azure AD tenant ID')
 param tenantId string = subscription().tenantId
 
@@ -35,6 +38,27 @@ resource kvSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@20
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
     principalId: workloadIdentityPrincipalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// Diagnostic settings — send audit logs to Log Analytics
+resource keyvaultDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
+  name: 'keyvault-diagnostics'
+  scope: vault
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        category: 'AuditEvent'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
   }
 }
 

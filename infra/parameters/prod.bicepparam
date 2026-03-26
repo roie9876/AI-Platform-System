@@ -9,3 +9,4 @@ param aksUserNodeVmSize = 'Standard_D4s_v5'
 param aksKubernetesVersion = '1.33'
 param acrSku = 'Standard'
 param logRetentionDays = 30
+param alertEmail = 'admin@stumsft.com'
