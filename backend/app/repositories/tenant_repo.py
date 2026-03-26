@@ -18,3 +18,26 @@ class TenantRepository(CosmosRepository):
         ):
             items.append(item)
         return items[0] if items else None
+
+    async def list_all_tenants(self) -> list[dict]:
+        """Cross-partition query to list all tenants."""
+        container = await self._container()
+        items = []
+        async for item in container.query_items(
+            query="SELECT * FROM c",
+            enable_cross_partition_query=True,
+        ):
+            items.append(item)
+        return items
+
+    async def get_by_status(self, status: str) -> list[dict]:
+        """Cross-partition query to find tenants by status."""
+        container = await self._container()
+        items = []
+        async for item in container.query_items(
+            query="SELECT * FROM c WHERE c.status = @status",
+            parameters=[{"name": "@status", "value": status}],
+            enable_cross_partition_query=True,
+        ):
+            items.append(item)
+        return items

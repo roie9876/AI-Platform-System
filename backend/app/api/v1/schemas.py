@@ -977,3 +977,42 @@ class AgentMCPToolResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- Tenant Schemas ---
+
+class TenantCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
+    admin_email: EmailStr
+
+
+class TenantUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    admin_email: Optional[EmailStr] = None
+
+
+class TenantSettingsUpdateRequest(BaseModel):
+    display_name: Optional[str] = Field(default=None, max_length=255)
+    allowed_providers: Optional[List[str]] = None
+    token_quota: Optional[int] = Field(default=None, ge=0)
+    feature_flags: Optional[dict] = None
+
+
+class TenantStateTransitionRequest(BaseModel):
+    state: str = Field(..., pattern=r"^(active|suspended|deactivated|deleted)$")
+
+
+class TenantResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    admin_email: str
+    status: str
+    settings: dict
+    created_at: str
+    updated_at: str
+
+
+class TenantListResponse(BaseModel):
+    tenants: List[TenantResponse]

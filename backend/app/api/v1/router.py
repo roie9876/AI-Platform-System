@@ -21,6 +21,7 @@ from app.api.v1.marketplace import router as marketplace_router
 from app.api.v1.mcp_servers import router as mcp_servers_router
 from app.api.v1.mcp_discovery import router as mcp_discovery_router
 from app.api.v1.agent_mcp_tools import router as agent_mcp_tools_router
+from app.api.v1.tenants import router as tenants_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -46,3 +47,4 @@ api_router.include_router(marketplace_router, prefix="/marketplace", tags=["mark
 api_router.include_router(mcp_servers_router, prefix="/mcp-servers", tags=["mcp-servers"])
 api_router.include_router(mcp_discovery_router, prefix="/mcp", tags=["mcp-discovery"])
 api_router.include_router(agent_mcp_tools_router, prefix="/agents", tags=["agent-mcp-tools"])
+api_router.include_router(tenants_router, prefix="/tenants", tags=["tenants"])
