@@ -31,18 +31,18 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - [x] Terminal & CLI execution — CLI with auth, agent listing, streamed execution (Validated in Phase 8)
 - [x] Azure subscription integration — ARM discovery, connections, tool catalog (Validated in Phase 9)
 - [x] Agent-level traces & monitoring — per-agent execution tracing and KPI dashboard (Validated in Phase 10)
+- [x] Azure IaC foundation — Bicep modules for AKS, ACR, Cosmos DB, VNet, Managed Identities (Validated in Phase 17)
+- [x] Entra ID authentication — Enterprise SSO replacing JWT-only auth, Managed Identity integration (Validated in Phase 18)
+- [x] Cosmos DB data layer — Replace PostgreSQL/SQLAlchemy with Cosmos DB NoSQL SDK, partition by tenant_id (Validated in Phase 19)
+- [x] Microservice packaging — Split monolith into API gateway, agent executor, workflow engine, tool executor, MCP servers (Validated in Phase 20)
+- [x] AKS tenant isolation — Namespace-per-tenant with NetworkPolicy, ResourceQuota, HPA (Validated in Phase 20)
+- [x] Tenant provisioning API — Automated K8s namespace creation, RBAC, quotas on tenant onboard (Validated in Phase 21)
+- [x] GitHub Actions CI/CD — Build, push to ACR, deploy to AKS pipeline (Validated in Phase 22)
+- [x] Azure observability — App Insights, Azure Monitor, per-tenant dashboards (Validated in Phase 23)
+- [x] Tenant admin UI — Tenant selector, onboarding flow, admin dashboard, scoped views (Validated in Phase 24)
 
 ### Active
 
-- [ ] Azure IaC foundation — Bicep modules for AKS, ACR, Cosmos DB, VNet, Managed Identities
-- [ ] Cosmos DB data layer — Replace PostgreSQL/SQLAlchemy with Cosmos DB NoSQL SDK, partition by tenant_id
-- [ ] Tenant provisioning API — Automated K8s namespace creation, RBAC, quotas on tenant onboard
-- [x] Entra ID authentication — Enterprise SSO replacing JWT-only auth, Managed Identity integration (Validated in Phase 18)
-- [ ] Microservice packaging — Split monolith into API gateway, agent executor, workflow engine, tool executor, MCP servers
-- [ ] AKS tenant isolation — Namespace-per-tenant with NetworkPolicy, ResourceQuota, HPA
-- [ ] Tenant admin UI — Tenant selector, onboarding flow, admin dashboard, scoped views
-- [ ] GitHub Actions CI/CD — Build, push to ACR, deploy to AKS pipeline
-- [ ] Azure observability — App Insights, Azure Monitor, per-tenant dashboards
 - [ ] Policy engine — governance, guardrails, and access control (deferred from v1.0)
 
 ### Out of Scope
@@ -74,7 +74,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - **Scale:** Designed for large-scale, multi-tenant enterprise deployment
 - **Model strategy:** Bring-your-own-endpoint — customers provide model API endpoints, platform routes to them. Azure OpenAI as the default provider
 - **Microsoft-first:** Product architecture maps to Microsoft services as extensively as possible
-- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 MCP Tool Integration shipped (2026-03-25). v3.0 Production Multi-Tenant Infrastructure in progress — Phase 17 (IaC) and Phase 18 (Entra ID auth) complete.
+- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 MCP Tool Integration shipped (2026-03-25). v3.0 Production Multi-Tenant Infrastructure complete (2026-03-26) — Bicep IaC, Entra ID auth, Cosmos DB, AKS microservices, tenant provisioning, CI/CD, observability, and tenant admin UI all delivered. 63/63 requirements satisfied with formal verification evidence.
 
 ## Constraints
 
