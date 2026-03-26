@@ -1,0 +1,160 @@
+# =============================================================================
+# Local microservice integration test — validates containerized architecture
+# before cloud deployment. Runs all 5 backend microservices + frontend.
+#
+# For development, use docker-compose.yml or start.sh instead.
+#
+# Usage:
+#   docker compose -f docker-compose.microservices.yml up --build
+#   docker compose -f docker-compose.microservices.yml down
+# =============================================================================
+
+services:
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: microservices/api_gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      COSMOS_ENDPOINT: "https://localhost:8081"
+      COSMOS_DATABASE: "aiplatform"
+      COSMOS_KEY: "local-dev-key"
+      AZURE_CLIENT_ID: "00000000-0000-0000-0000-000000000000"
+      AZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENTRA_VALIDATION_ENABLED: "false"
+      TOOL_EXECUTOR_URL: "http://tool-executor:8000"
+      MCP_PROXY_URL: "http://mcp-proxy:8000"
+      AGENT_EXECUTOR_URL: "http://agent-executor:8000"
+      WORKFLOW_ENGINE_URL: "http://workflow-engine:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - aiplatform
+
+  agent-executor:
+    build:
+      context: ./backend
+      dockerfile: microservices/agent_executor/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      COSMOS_ENDPOINT: "https://localhost:8081"
+      COSMOS_DATABASE: "aiplatform"
+      COSMOS_KEY: "local-dev-key"
+      AZURE_CLIENT_ID: "00000000-0000-0000-0000-000000000000"
+      AZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENTRA_VALIDATION_ENABLED: "false"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      TOOL_EXECUTOR_URL: "http://tool-executor:8000"
+      MCP_PROXY_URL: "http://mcp-proxy:8000"
+      WORKFLOW_ENGINE_URL: "http://workflow-engine:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - aiplatform
+
+  workflow-engine:
+    build:
+      context: ./backend
+      dockerfile: microservices/workflow_engine/Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      COSMOS_ENDPOINT: "https://localhost:8081"
+      COSMOS_DATABASE: "aiplatform"
+      COSMOS_KEY: "local-dev-key"
+      AZURE_CLIENT_ID: "00000000-0000-0000-0000-000000000000"
+      AZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENTRA_VALIDATION_ENABLED: "false"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      AGENT_EXECUTOR_URL: "http://agent-executor:8000"
+      TOOL_EXECUTOR_URL: "http://tool-executor:8000"
+      MCP_PROXY_URL: "http://mcp-proxy:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - aiplatform
+
+  tool-executor:
+    build:
+      context: ./backend
+      dockerfile: microservices/tool_executor/Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      COSMOS_ENDPOINT: "https://localhost:8081"
+      COSMOS_DATABASE: "aiplatform"
+      COSMOS_KEY: "local-dev-key"
+      AZURE_CLIENT_ID: "00000000-0000-0000-0000-000000000000"
+      AZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENTRA_VALIDATION_ENABLED: "false"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      MCP_PROXY_URL: "http://mcp-proxy:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - aiplatform
+
+  mcp-proxy:
+    build:
+      context: ./backend
+      dockerfile: microservices/mcp_proxy/Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      COSMOS_ENDPOINT: "https://localhost:8081"
+      COSMOS_DATABASE: "aiplatform"
+      COSMOS_KEY: "local-dev-key"
+      AZURE_CLIENT_ID: "00000000-0000-0000-0000-000000000000"
+      AZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENTRA_VALIDATION_ENABLED: "false"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      TOOL_EXECUTOR_URL: "http://tool-executor:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - aiplatform
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - aiplatform
+
+networks:
+  aiplatform:
+    driver: bridge
