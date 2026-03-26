@@ -9,6 +9,7 @@ commits:
     message: "feat(19-02): migrate remaining API routes to Cosmos DB repositories"
   - hash: c68f036
     message: "feat(19-02): migrate all API routes to Cosmos DB repositories"
+requirements_completed: [DATA-03, DATA-04]
 ---
 
 ## What Was Done

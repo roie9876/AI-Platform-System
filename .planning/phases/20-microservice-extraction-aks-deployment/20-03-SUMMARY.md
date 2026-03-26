@@ -58,6 +58,7 @@ patterns-established:
   - "K8s deployment pattern: 3 probes (liveness/readiness/startup), envFrom configmap, workload identity SA"
   - "Tenant isolation: namespace + NetworkPolicy + ResourceQuota + LimitRange + HPA per tenant"
   - "ACR image naming: stumsftaiplatformprodacr.azurecr.io/aiplatform-{service}:latest"
+requirements_completed: [COMPUTE-01, COMPUTE-02, COMPUTE-03, COMPUTE-04, COMPUTE-05, COMPUTE-06, COMPUTE-09]
 ---
 
 ## Summary

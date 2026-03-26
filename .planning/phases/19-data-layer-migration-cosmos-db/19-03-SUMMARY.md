@@ -7,6 +7,7 @@ commits:
     message: "feat(19-03): migrate all service files to Cosmos DB repositories"
   - hash: dff5e97
     message: "feat(19-03): add migration script and deprecate SQLAlchemy models"
+requirements_completed: [DATA-05]
 ---
 
 ## What Was Done
