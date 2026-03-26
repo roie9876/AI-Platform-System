@@ -58,7 +58,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS (completed 2026-03-26)
 - [x] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning (completed 2026-03-26)
 - [x] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS (completed 2026-03-26)
-- [ ] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting
+- [x] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting (completed 2026-03-26)
 - [ ] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views
 
 ### Phase Details
@@ -170,8 +170,8 @@ Plans:
   5. Central Log Analytics workspace receives and correlates logs from App Insights, AKS, Cosmos DB diagnostics, and Key Vault audit
 **Plans**: 2 plans
 Plans:
-- [ ] 23-01-PLAN.md — OpenTelemetry instrumentation, telemetry middleware, structured JSON logging
-- [ ] 23-02-PLAN.md — Application Insights, Azure Monitor alerts, diagnostic settings, Container Insights
+- [x] 23-01-PLAN.md — OpenTelemetry instrumentation, telemetry middleware, structured JSON logging
+- [x] 23-02-PLAN.md — Application Insights, Azure Monitor alerts, diagnostic settings, Container Insights
 
 #### Phase 24: Tenant Admin UI
 **Goal**: Platform admins can manage tenants and tenant admins can manage their team through the web UI
@@ -220,7 +220,7 @@ Phase 17 (Infrastructure Foundation)
 | 20. Microservice Extraction & AKS | 2/3 | Complete |  2026-03-26 |
 | 21. Tenant Lifecycle & Provisioning | 2/2 | Complete | 2026-03-26 |
 | 22. CI/CD Pipelines | 2/2 | Complete | 2026-03-26 |
-| 23. Observability & Monitoring | 0/? | Not started | - |
+| 23. Observability & Monitoring | 2/2 | Complete    | 2026-03-26 |
 | 24. Tenant Admin UI | 0/? | Not started | - |
 
 ---
