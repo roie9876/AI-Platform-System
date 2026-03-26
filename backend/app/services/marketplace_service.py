@@ -1,12 +1,14 @@
-from uuid import UUID
 from typing import Optional
+from uuid import uuid4
 
-from sqlalchemy import select, func, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.repositories.marketplace_repo import AgentTemplateRepository, ToolTemplateRepository
+from app.repositories.agent_repo import AgentRepository
+from app.repositories.tool_repo import ToolRepository
 
-from app.models.marketplace import AgentTemplate, ToolTemplate
-from app.models.agent import Agent
-from app.models.tool import Tool
+_agent_template_repo = AgentTemplateRepository()
+_tool_template_repo = ToolTemplateRepository()
+_agent_repo = AgentRepository()
+_tool_repo = ToolRepository()
 
 
 class MarketplaceService:
@@ -15,187 +17,176 @@ class MarketplaceService:
 
     @staticmethod
     async def list_agent_templates(
-        db: AsyncSession,
+        tenant_id: str,
         category: Optional[str] = None,
         search: Optional[str] = None,
         featured_only: bool = False,
         limit: int = 50,
         offset: int = 0,
     ):
-        query = select(AgentTemplate).where(AgentTemplate.is_public.is_(True))
+        # Build query dynamically
+        conditions = ["c.is_public = true"]
+        params = []
         if category:
-            query = query.where(AgentTemplate.category == category)
+            conditions.append("c.category = @cat")
+            params.append({"name": "@cat", "value": category})
         if featured_only:
-            query = query.where(AgentTemplate.is_featured.is_(True))
+            conditions.append("c.is_featured = true")
         if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    AgentTemplate.name.ilike(pattern),
-                    AgentTemplate.description.ilike(pattern),
-                )
-            )
-        query = query.order_by(AgentTemplate.install_count.desc()).offset(offset).limit(limit)
-        result = await db.execute(query)
-        return result.scalars().all()
+            conditions.append("(CONTAINS(LOWER(c.name), @search) OR CONTAINS(LOWER(c.description), @search))")
+            params.append({"name": "@search", "value": search.lower()})
+
+        where_clause = " AND ".join(conditions)
+        query = f"SELECT * FROM c WHERE {where_clause} ORDER BY c.install_count DESC OFFSET @offset LIMIT @limit"
+        params.extend([
+            {"name": "@offset", "value": offset},
+            {"name": "@limit", "value": limit},
+        ])
+        return await _agent_template_repo.query(tenant_id, query, params)
 
     @staticmethod
-    async def get_agent_template(db: AsyncSession, template_id: UUID):
-        result = await db.execute(
-            select(AgentTemplate).where(AgentTemplate.id == template_id)
-        )
-        return result.scalar_one_or_none()
+    async def get_agent_template(tenant_id: str, template_id: str):
+        return await _agent_template_repo.get(tenant_id, template_id)
 
     @staticmethod
     async def publish_agent_template(
-        db: AsyncSession,
-        agent_id: UUID,
-        tenant_id: UUID,
+        tenant_id: str,
+        agent_id: str,
         name: str,
         description: Optional[str],
         category: Optional[str],
         tags: Optional[list],
     ):
-        result = await db.execute(
-            select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-        )
-        agent = result.scalar_one_or_none()
+        agent = await _agent_repo.get(tenant_id, agent_id)
         if not agent:
             return None
 
-        template = AgentTemplate(
-            name=name,
-            description=description or agent.description,
-            category=category,
-            tags=tags,
-            system_prompt=agent.system_prompt,
-            config={
-                "temperature": agent.temperature,
-                "max_tokens": agent.max_tokens,
-                "timeout_seconds": agent.timeout_seconds,
+        template = {
+            "id": str(uuid4()),
+            "name": name,
+            "description": description or agent.get("description"),
+            "category": category,
+            "tags": tags,
+            "system_prompt": agent.get("system_prompt"),
+            "config": {
+                "temperature": agent.get("temperature"),
+                "max_tokens": agent.get("max_tokens"),
+                "timeout_seconds": agent.get("timeout_seconds"),
             },
-            author_tenant_id=tenant_id,
-            is_public=True,
-        )
-        db.add(template)
-        await db.commit()
-        await db.refresh(template)
-        return template
+            "author_tenant_id": tenant_id,
+            "is_public": True,
+            "install_count": 0,
+            "tenant_id": tenant_id,
+        }
+        return await _agent_template_repo.create(tenant_id, template)
 
     @staticmethod
     async def import_agent_template(
-        db: AsyncSession, template_id: UUID, tenant_id: UUID
+        tenant_id: str, template_id: str,
     ):
-        result = await db.execute(
-            select(AgentTemplate).where(AgentTemplate.id == template_id)
-        )
-        template = result.scalar_one_or_none()
+        template = await _agent_template_repo.get(tenant_id, template_id)
         if not template:
             return None
 
-        config = template.config or {}
-        agent = Agent(
-            name=template.name,
-            description=template.description,
-            system_prompt=template.system_prompt,
-            temperature=config.get("temperature", 0.7),
-            max_tokens=config.get("max_tokens", 1024),
-            timeout_seconds=config.get("timeout_seconds", 30),
-            status="inactive",
-            tenant_id=tenant_id,
-        )
-        db.add(agent)
-        template.install_count = (template.install_count or 0) + 1
-        await db.commit()
-        await db.refresh(agent)
-        return agent
+        config = template.get("config") or {}
+        agent = {
+            "id": str(uuid4()),
+            "name": template["name"],
+            "description": template.get("description"),
+            "system_prompt": template.get("system_prompt"),
+            "temperature": config.get("temperature", 0.7),
+            "max_tokens": config.get("max_tokens", 1024),
+            "timeout_seconds": config.get("timeout_seconds", 30),
+            "status": "inactive",
+            "tenant_id": tenant_id,
+        }
+        created = await _agent_repo.create(tenant_id, agent)
+
+        template["install_count"] = (template.get("install_count") or 0) + 1
+        await _agent_template_repo.update(tenant_id, template_id, template)
+
+        return created
 
     # ── Tool Templates ──
 
     @staticmethod
     async def list_tool_templates(
-        db: AsyncSession,
+        tenant_id: str,
         category: Optional[str] = None,
         search: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ):
-        query = select(ToolTemplate).where(ToolTemplate.is_public.is_(True))
+        conditions = ["c.is_public = true"]
+        params = []
         if category:
-            query = query.where(ToolTemplate.category == category)
+            conditions.append("c.category = @cat")
+            params.append({"name": "@cat", "value": category})
         if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    ToolTemplate.name.ilike(pattern),
-                    ToolTemplate.description.ilike(pattern),
-                )
-            )
-        query = query.order_by(ToolTemplate.install_count.desc()).offset(offset).limit(limit)
-        result = await db.execute(query)
-        return result.scalars().all()
+            conditions.append("(CONTAINS(LOWER(c.name), @search) OR CONTAINS(LOWER(c.description), @search))")
+            params.append({"name": "@search", "value": search.lower()})
+
+        where_clause = " AND ".join(conditions)
+        query = f"SELECT * FROM c WHERE {where_clause} ORDER BY c.install_count DESC OFFSET @offset LIMIT @limit"
+        params.extend([
+            {"name": "@offset", "value": offset},
+            {"name": "@limit", "value": limit},
+        ])
+        return await _tool_template_repo.query(tenant_id, query, params)
 
     @staticmethod
-    async def get_tool_template(db: AsyncSession, template_id: UUID):
-        result = await db.execute(
-            select(ToolTemplate).where(ToolTemplate.id == template_id)
-        )
-        return result.scalar_one_or_none()
+    async def get_tool_template(tenant_id: str, template_id: str):
+        return await _tool_template_repo.get(tenant_id, template_id)
 
     @staticmethod
     async def publish_tool_template(
-        db: AsyncSession,
-        tool_id: UUID,
-        tenant_id: UUID,
+        tenant_id: str,
+        tool_id: str,
         name: Optional[str],
         description: Optional[str],
         category: Optional[str],
         tags: Optional[list],
     ):
-        result = await db.execute(
-            select(Tool).where(Tool.id == tool_id, Tool.tenant_id == tenant_id)
-        )
-        tool = result.scalar_one_or_none()
+        tool = await _tool_repo.get(tenant_id, tool_id)
         if not tool:
             return None
 
-        template = ToolTemplate(
-            name=name or tool.name,
-            description=description or tool.description,
-            category=category,
-            tags=tags,
-            input_schema=tool.input_schema,
-            tool_type="function",
-            config={"timeout_seconds": tool.timeout_seconds},
-            author_tenant_id=tenant_id,
-            is_public=True,
-        )
-        db.add(template)
-        await db.commit()
-        await db.refresh(template)
-        return template
+        template = {
+            "id": str(uuid4()),
+            "name": name or tool["name"],
+            "description": description or tool.get("description"),
+            "category": category,
+            "tags": tags,
+            "input_schema": tool.get("input_schema"),
+            "tool_type": "function",
+            "config": {"timeout_seconds": tool.get("timeout_seconds")},
+            "author_tenant_id": tenant_id,
+            "is_public": True,
+            "install_count": 0,
+            "tenant_id": tenant_id,
+        }
+        return await _tool_template_repo.create(tenant_id, template)
 
     @staticmethod
     async def import_tool_template(
-        db: AsyncSession, template_id: UUID, tenant_id: UUID
+        tenant_id: str, template_id: str,
     ):
-        result = await db.execute(
-            select(ToolTemplate).where(ToolTemplate.id == template_id)
-        )
-        template = result.scalar_one_or_none()
+        template = await _tool_template_repo.get(tenant_id, template_id)
         if not template:
             return None
 
-        config = template.config or {}
-        tool = Tool(
-            name=template.name,
-            description=template.description,
-            input_schema=template.input_schema or {},
-            timeout_seconds=config.get("timeout_seconds", 30),
-            tenant_id=tenant_id,
-        )
-        db.add(tool)
-        template.install_count = (template.install_count or 0) + 1
-        await db.commit()
-        await db.refresh(tool)
-        return tool
+        config = template.get("config") or {}
+        tool = {
+            "id": str(uuid4()),
+            "name": template["name"],
+            "description": template.get("description"),
+            "input_schema": template.get("input_schema") or {},
+            "timeout_seconds": config.get("timeout_seconds", 30),
+            "tenant_id": tenant_id,
+        }
+        created = await _tool_repo.create(tenant_id, tool)
+
+        template["install_count"] = (template.get("install_count") or 0) + 1
+        await _tool_template_repo.update(tenant_id, template_id, template)
+
+        return created

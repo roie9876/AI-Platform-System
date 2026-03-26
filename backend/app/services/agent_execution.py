@@ -2,20 +2,14 @@ import json
 import logging
 import time
 from typing import Optional, List, Dict, Any, AsyncGenerator
-from uuid import UUID
+from uuid import uuid4
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.agent import Agent
-from app.models.execution_log import ExecutionLog
-from app.models.model_endpoint import ModelEndpoint
-from app.models.thread import Thread
-from app.models.thread_message import ThreadMessage
-from app.models.tool import Tool, AgentTool
-from app.models.agent_mcp_tool import AgentMCPTool
-from app.models.mcp_discovered_tool import MCPDiscoveredTool
-from app.models.mcp_server import MCPServer
+from app.repositories.agent_repo import AgentRepository
+from app.repositories.tool_repo import ToolRepository, AgentToolRepository
+from app.repositories.mcp_repo import MCPServerRepository, MCPDiscoveredToolRepository, AgentMCPToolRepository
+from app.repositories.observability_repo import ExecutionLogRepository
+from app.repositories.config_repo import ModelEndpointRepository
+from app.repositories.thread_repo import ThreadRepository, ThreadMessageRepository
 from app.services.model_abstraction import ModelAbstractionService, ModelError
 from app.services.tool_executor import ToolExecutor, ToolExecutionError
 from app.services.mcp_client import MCPClient, MCPClientError
@@ -25,6 +19,17 @@ from app.services.memory_service import MemoryService
 from app.services.platform_tools import get_adapter_by_name as get_platform_adapter
 
 logger = logging.getLogger(__name__)
+
+_agent_repo = AgentRepository()
+_tool_repo = ToolRepository()
+_agent_tool_repo = AgentToolRepository()
+_mcp_server_repo = MCPServerRepository()
+_mcp_tool_repo = MCPDiscoveredToolRepository()
+_agent_mcp_tool_repo = AgentMCPToolRepository()
+_exec_log_repo = ExecutionLogRepository()
+_endpoint_repo = ModelEndpointRepository()
+_thread_repo = ThreadRepository()
+_message_repo = ThreadMessageRepository()
 
 
 class AgentExecutionService:
@@ -41,9 +46,9 @@ class AgentExecutionService:
     async def _inject_rag_context(
         self,
         messages: List[Dict[str, Any]],
-        agent: Agent,
+        agent: dict,
         user_message: str,
-        db: AsyncSession,
+        tenant_id: str,
     ) -> List[Dict[str, str]]:
         """Retrieve relevant document chunks and inject as system context.
         Returns list of source descriptors for the frontend."""
@@ -52,9 +57,8 @@ class AgentExecutionService:
         # 1. Local document chunks (data sources attached to agent)
         chunks = await self._rag_service.retrieve(
             query=user_message,
-            agent_id=agent.id,
-            tenant_id=agent.tenant_id,
-            db=db,
+            agent_id=agent["id"],
+            tenant_id=tenant_id,
             top_k=5,
         )
         all_chunks.extend(chunks)
@@ -63,14 +67,13 @@ class AgentExecutionService:
         try:
             azure_chunks = await self._rag_service.retrieve_from_azure_search(
                 query=user_message,
-                agent_id=agent.id,
-                tenant_id=agent.tenant_id,
-                db=db,
+                agent_id=agent["id"],
+                tenant_id=tenant_id,
                 top_k=5,
             )
             all_chunks.extend(azure_chunks)
         except Exception:
-            logger.warning("Azure Search retrieval failed for agent %s", agent.id)
+            logger.warning("Azure Search retrieval failed for agent %s", agent["id"])
 
         if not all_chunks:
             return []
@@ -106,55 +109,58 @@ class AgentExecutionService:
                     sources.append({"type": "document", "name": meta.get("filename") or meta.get("url") or "local document"})
         return sources
 
-    async def _load_agent_tools(self, agent_id, db: AsyncSession) -> List[Tool]:
+    async def _load_agent_tools(self, agent_id: str, tenant_id: str) -> List[dict]:
         """Load all tools attached to this agent."""
-        result = await db.execute(
-            select(Tool)
-            .join(AgentTool, AgentTool.tool_id == Tool.id)
-            .where(AgentTool.agent_id == agent_id)
+        links = await _agent_tool_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.agent_id = @aid",
+            [{"name": "@aid", "value": agent_id}],
         )
-        return list(result.scalars().all())
+        tools = []
+        for link in links:
+            tool = await _tool_repo.get(tenant_id, link["tool_id"])
+            if tool:
+                tools.append(tool)
+        return tools
 
-    async def _load_agent_mcp_tools(
-        self, agent_id, db: AsyncSession
-    ) -> List[MCPDiscoveredTool]:
+    async def _load_agent_mcp_tools(self, agent_id: str, tenant_id: str) -> List[dict]:
         """Load all MCP tools attached to this agent."""
-        result = await db.execute(
-            select(MCPDiscoveredTool)
-            .join(AgentMCPTool, AgentMCPTool.mcp_tool_id == MCPDiscoveredTool.id)
-            .where(
-                AgentMCPTool.agent_id == agent_id,
-                MCPDiscoveredTool.is_available == True,
-            )
+        links = await _agent_mcp_tool_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.agent_id = @aid",
+            [{"name": "@aid", "value": agent_id}],
         )
-        return list(result.scalars().all())
+        tools = []
+        for link in links:
+            mt = await _mcp_tool_repo.get(tenant_id, link["mcp_tool_id"])
+            if mt and mt.get("is_available"):
+                tools.append(mt)
+        return tools
 
-    def _build_tool_schemas(self, tools: List[Tool]) -> List[Dict[str, Any]]:
-        """Convert Tool models to OpenAI-format tool schemas for LiteLLM."""
+    def _build_tool_schemas(self, tools: List[dict]) -> List[Dict[str, Any]]:
+        """Convert Tool dicts to OpenAI-format tool schemas for LiteLLM."""
         return [
             {
                 "type": "function",
                 "function": {
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "parameters": tool.input_schema,
+                    "name": tool["name"],
+                    "description": tool.get("description") or "",
+                    "parameters": tool.get("input_schema") or {"type": "object", "properties": {}},
                 },
             }
             for tool in tools
         ]
 
-    def _build_mcp_tool_schemas(
-        self, mcp_tools: List[MCPDiscoveredTool]
-    ) -> List[Dict[str, Any]]:
+    def _build_mcp_tool_schemas(self, mcp_tools: List[dict]) -> List[Dict[str, Any]]:
         """Convert MCP discovered tools to OpenAI-format tool schemas."""
         schemas = []
         for mt in mcp_tools:
-            params = mt.input_schema or {"type": "object", "properties": {}}
+            params = mt.get("input_schema") or {"type": "object", "properties": {}}
             schemas.append({
                 "type": "function",
                 "function": {
-                    "name": f"mcp__{mt.tool_name}",
-                    "description": mt.description or "",
+                    "name": f"mcp__{mt['tool_name']}",
+                    "description": mt.get("description") or "",
                     "parameters": params,
                 },
             })
@@ -162,24 +168,20 @@ class AgentExecutionService:
 
     async def _execute_mcp_tool(
         self,
-        mcp_tool: MCPDiscoveredTool,
+        mcp_tool: dict,
         arguments: Dict[str, Any],
-        db: AsyncSession,
+        tenant_id: str,
     ) -> Dict[str, Any]:
         """Execute an MCP tool via tools/call on the appropriate server."""
-        result = await db.execute(
-            select(MCPServer).where(MCPServer.id == mcp_tool.server_id)
-        )
-        server = result.scalar_one_or_none()
+        server = await _mcp_server_repo.get(tenant_id, mcp_tool["server_id"])
         if not server:
-            return {"error": f"MCP server not found for tool {mcp_tool.tool_name}"}
+            return {"error": f"MCP server not found for tool {mcp_tool['tool_name']}"}
 
         headers = _build_auth_headers(server)
-        client = MCPClient(server.url, timeout=30.0, headers=headers)
+        client = MCPClient(server["url"], timeout=30.0, headers=headers)
         try:
             await client.connect()
-            call_result = await client.call_tool(mcp_tool.tool_name, arguments)
-            # Extract text content from result
+            call_result = await client.call_tool(mcp_tool["tool_name"], arguments)
             text_parts = [
                 block.text for block in call_result.content
                 if block.type == "text" and block.text
@@ -191,55 +193,46 @@ class AgentExecutionService:
         except MCPClientError as e:
             return {"error": f"MCP tool execution failed: {e}"}
         except Exception as e:
-            logger.warning("Unexpected error executing MCP tool %s: %s", mcp_tool.tool_name, e, exc_info=True)
+            logger.warning("Unexpected error executing MCP tool %s: %s", mcp_tool["tool_name"], e, exc_info=True)
             return {"error": f"MCP tool execution failed: {e}"}
         finally:
             await client.disconnect()
 
     async def execute(
         self,
-        agent: Agent,
+        agent: dict,
         user_message: str,
-        db: AsyncSession,
+        tenant_id: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
-        thread_id: Optional[UUID] = None,
-        user_id: Optional[UUID] = None,
+        thread_id: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         start_time = time.monotonic()
 
         # Load primary endpoint
-        if not agent.model_endpoint_id:
+        model_endpoint_id = agent.get("model_endpoint_id")
+        if not model_endpoint_id:
             yield self._sse_error("Agent has no model endpoint assigned")
             return
 
-        result = await db.execute(
-            select(ModelEndpoint).where(
-                ModelEndpoint.id == agent.model_endpoint_id,
-                ModelEndpoint.is_active == True,
-            )
-        )
-        primary_endpoint = result.scalar_one_or_none()
-
-        if not primary_endpoint:
+        primary_endpoint = await _endpoint_repo.get(tenant_id, model_endpoint_id)
+        if not primary_endpoint or not primary_endpoint.get("is_active"):
             yield self._sse_error("Assigned model endpoint not found or inactive")
             return
 
-        # Load fallback endpoints (same tenant, active, different from primary, sorted by priority)
-        result = await db.execute(
-            select(ModelEndpoint).where(
-                ModelEndpoint.tenant_id == agent.tenant_id,
-                ModelEndpoint.is_active == True,
-                ModelEndpoint.id != agent.model_endpoint_id,
-            )
+        # Load fallback endpoints (same tenant, active, different from primary)
+        all_endpoints = await _endpoint_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.tenant_id = @tid AND c.is_active = true AND c.id != @pid",
+            [{"name": "@tid", "value": tenant_id}, {"name": "@pid", "value": model_endpoint_id}],
         )
-        fallback_endpoints = list(result.scalars().all())
-
-        endpoints = [primary_endpoint] + fallback_endpoints
+        endpoints = [primary_endpoint] + all_endpoints
 
         # Build messages
         messages: List[Dict[str, Any]] = []
-        if agent.system_prompt:
-            messages.append({"role": "system", "content": agent.system_prompt})
+        system_prompt = agent.get("system_prompt")
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
 
         # Inject current date/time so the model always knows today's date
         from datetime import datetime, timezone
@@ -252,29 +245,26 @@ class AgentExecutionService:
         messages.append({"role": "user", "content": user_message})
 
         # Inject RAG context from attached data sources
-        rag_sources = await self._inject_rag_context(messages, agent, user_message, db)
+        rag_sources = await self._inject_rag_context(messages, agent, user_message, tenant_id)
 
         # Inject long-term memory context if using a thread
         if thread_id:
             try:
                 memories = await self._memory_service.retrieve_relevant(
                     query=user_message,
-                    agent_id=agent.id,
+                    agent_id=agent["id"],
                     user_id=user_id,
-                    tenant_id=agent.tenant_id,
-                    db=db,
+                    tenant_id=tenant_id,
                     model_endpoint=primary_endpoint,
                     top_k=5,
                 )
                 if memories:
-                    memory_text = "\n\n".join(m.content for m in memories)
+                    memory_text = "\n\n".join(m.get("content", "") if isinstance(m, dict) else m.content for m in memories)
                     memory_msg = (
                         "Relevant memories from past interactions:\n\n"
                         f"{memory_text}"
                     )
-                    # Insert after RAG context, before conversation
                     insert_idx = 1 if messages and messages[0]["role"] == "system" else 0
-                    # Skip past any existing system messages (original + RAG)
                     while insert_idx < len(messages) and messages[insert_idx]["role"] == "system":
                         insert_idx += 1
                     messages.insert(insert_idx, {"role": "system", "content": memory_msg})
@@ -284,40 +274,46 @@ class AgentExecutionService:
         # Save user message to thread if thread_id provided
         if thread_id and user_id:
             try:
-                seq_result = await db.execute(
-                    select(func.coalesce(func.max(ThreadMessage.sequence_number), 0))
-                    .where(ThreadMessage.thread_id == thread_id)
+                # Get next sequence number via Cosmos query
+                seq_results = await _message_repo.query(
+                    tenant_id,
+                    "SELECT VALUE MAX(c.sequence_number) FROM c WHERE c.thread_id = @tid",
+                    [{"name": "@tid", "value": thread_id}],
                 )
-                next_seq = (seq_result.scalar() or 0) + 1
-                user_msg = ThreadMessage(
-                    thread_id=thread_id,
-                    role="user",
-                    content=user_message,
-                    sequence_number=next_seq,
-                )
-                db.add(user_msg)
-                await db.commit()
+                next_seq = (seq_results[0] if seq_results and seq_results[0] is not None else 0) + 1
+
+                user_msg_id = str(uuid4())
+                user_msg = {
+                    "id": user_msg_id,
+                    "thread_id": thread_id,
+                    "role": "user",
+                    "content": user_message,
+                    "sequence_number": next_seq,
+                    "tenant_id": tenant_id,
+                }
+                await _message_repo.create(tenant_id, user_msg)
 
                 # Log execution event
-                log_entry = ExecutionLog(
-                    thread_id=thread_id,
-                    message_id=user_msg.id,
-                    event_type="message_sent",
-                    state_snapshot={"messages_count": len(messages)},
-                    duration_ms=0,
-                )
-                db.add(log_entry)
-                await db.commit()
+                log_entry = {
+                    "id": str(uuid4()),
+                    "thread_id": thread_id,
+                    "message_id": user_msg_id,
+                    "event_type": "message_sent",
+                    "state_snapshot": {"messages_count": len(messages)},
+                    "duration_ms": 0,
+                    "tenant_id": tenant_id,
+                    "agent_id": agent["id"],
+                }
+                await _exec_log_repo.create(tenant_id, log_entry)
 
                 # Store user message as memory for cross-thread recall
                 if len(user_message) > 10:
                     try:
                         await self._memory_service.store_memory(
-                            agent_id=agent.id,
+                            agent_id=agent["id"],
                             user_id=user_id,
-                            tenant_id=agent.tenant_id,
+                            tenant_id=tenant_id,
                             content=f"User said: {user_message}",
-                            db=db,
                             model_endpoint=None,
                             memory_type="user_input",
                             source_thread_id=thread_id,
@@ -328,18 +324,18 @@ class AgentExecutionService:
                 logger.warning("Failed to save user message to thread %s", thread_id, exc_info=True)
 
         # Update agent status to active
-        agent.status = "active"
-        await db.commit()
+        agent["status"] = "active"
+        await _agent_repo.update(tenant_id, agent["id"], agent)
 
         # Load tools attached to this agent (platform + sandbox + MCP)
-        tools_list = await self._load_agent_tools(agent.id, db)
-        mcp_tools_list = await self._load_agent_mcp_tools(agent.id, db)
+        tools_list = await self._load_agent_tools(agent["id"], tenant_id)
+        mcp_tools_list = await self._load_agent_mcp_tools(agent["id"], tenant_id)
         tool_schemas = self._build_tool_schemas(tools_list) if tools_list else []
         mcp_schemas = self._build_mcp_tool_schemas(mcp_tools_list) if mcp_tools_list else []
         all_schemas = tool_schemas + mcp_schemas
         tool_schemas = all_schemas if all_schemas else None
-        tool_map = {t.name: t for t in tools_list}
-        mcp_tool_map = {f"mcp__{mt.tool_name}": mt for mt in mcp_tools_list}
+        tool_map = {t["name"]: t for t in tools_list}
+        mcp_tool_map = {f"mcp__{mt['tool_name']}": mt for mt in mcp_tools_list}
 
         try:
             # Emit sources event so the frontend knows what knowledge was used
@@ -358,9 +354,9 @@ class AgentExecutionService:
                         messages=messages,
                         endpoints=endpoints,
                         tools=tool_schemas,
-                        temperature=agent.temperature,
-                        max_tokens=agent.max_tokens,
-                        timeout=agent.timeout_seconds,
+                        temperature=agent.get("temperature"),
+                        max_tokens=agent.get("max_tokens"),
+                        timeout=agent.get("timeout_seconds"),
                     )
 
                     if response["tool_calls"]:
@@ -394,25 +390,22 @@ class AgentExecutionService:
                             try:
                                 args = json.loads(tc.function.arguments)
                                 if mcp_tool:
-                                    # Execute via MCP server (third path)
                                     result = await self._execute_mcp_tool(
-                                        mcp_tool, args, db
+                                        mcp_tool, args, tenant_id
                                     )
-                                elif tool.is_platform_tool:
-                                    # Execute via platform adapter (direct call)
-                                    adapter = get_platform_adapter(tool.name)
+                                elif tool.get("is_platform_tool"):
+                                    adapter = get_platform_adapter(tool["name"])
                                     if adapter:
                                         result = await adapter.execute(args)
                                     else:
-                                        result = {"error": f"No adapter for platform tool: {tool.name}"}
+                                        result = {"error": f"No adapter for platform tool: {tool['name']}"}
                                 else:
-                                    # Execute via subprocess sandbox
                                     result = await self._tool_executor.execute(
-                                        tool_name=tool.name,
+                                        tool_name=tool["name"],
                                         input_data=args,
-                                        input_schema=tool.input_schema,
-                                        execution_command=tool.execution_command,
-                                        timeout_seconds=tool.timeout_seconds,
+                                        input_schema=tool.get("input_schema"),
+                                        execution_command=tool.get("execution_command"),
+                                        timeout_seconds=tool.get("timeout_seconds"),
                                     )
                                 messages.append({
                                     "role": "tool",
@@ -438,12 +431,11 @@ class AgentExecutionService:
                         collected_response = response["content"] or ""
                         if collected_response:
                             yield self._sse_data(collected_response, done=False)
-                        # Extract token usage from response
                         usage = response.get("usage") or {}
                         input_tokens = usage.get("prompt_tokens")
                         output_tokens = usage.get("completion_tokens")
                         await self._save_assistant_response(
-                            db, thread_id, user_id, agent, collected_response,
+                            tenant_id, thread_id, user_id, agent, collected_response,
                             rag_sources, start_time, primary_endpoint,
                             input_tokens=input_tokens, output_tokens=output_tokens,
                             tools_called=tools_called,
@@ -459,18 +451,17 @@ class AgentExecutionService:
             async for token in self._model_service.complete_with_fallback(
                 messages=messages,
                 endpoints=endpoints,
-                temperature=agent.temperature,
-                max_tokens=agent.max_tokens,
-                timeout=agent.timeout_seconds,
+                temperature=agent.get("temperature"),
+                max_tokens=agent.get("max_tokens"),
+                timeout=agent.get("timeout_seconds"),
                 stream=True,
             ):
                 collected_response += token
                 yield self._sse_data(token, done=False)
 
-            # Extract usage captured during streaming
             usage = self._model_service.get_last_usage()
             await self._save_assistant_response(
-                db, thread_id, user_id, agent, collected_response,
+                tenant_id, thread_id, user_id, agent, collected_response,
                 rag_sources, start_time, primary_endpoint,
                 input_tokens=usage.get("prompt_tokens"),
                 output_tokens=usage.get("completion_tokens"),
@@ -478,26 +469,26 @@ class AgentExecutionService:
             yield self._sse_data("", done=True)
 
         except ModelError as exc:
-            agent.status = "error"
-            await db.commit()
+            agent["status"] = "error"
+            await _agent_repo.update(tenant_id, agent["id"], agent)
             logger.error("Agent execution failed: %s", str(exc))
             yield self._sse_error(str(exc))
         except Exception as exc:
-            agent.status = "error"
-            await db.commit()
+            agent["status"] = "error"
+            await _agent_repo.update(tenant_id, agent["id"], agent)
             logger.error("Unexpected agent execution error: %s", str(exc), exc_info=True)
             yield self._sse_error("An unexpected error occurred during execution")
 
     async def _save_assistant_response(
         self,
-        db: AsyncSession,
-        thread_id: Optional[UUID],
-        user_id: Optional[UUID],
-        agent: Agent,
+        tenant_id: str,
+        thread_id: Optional[str],
+        user_id: Optional[str],
+        agent: dict,
         content: str,
         rag_sources: List[Dict[str, str]],
         start_time: float,
-        primary_endpoint: ModelEndpoint,
+        primary_endpoint: dict,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
         tools_called: Optional[List[Dict[str, Any]]] = None,
@@ -509,82 +500,78 @@ class AgentExecutionService:
             duration_ms = int((time.monotonic() - start_time) * 1000)
 
             # Get next sequence number
-            seq_result = await db.execute(
-                select(func.coalesce(func.max(ThreadMessage.sequence_number), 0))
-                .where(ThreadMessage.thread_id == thread_id)
+            seq_results = await _message_repo.query(
+                tenant_id,
+                "SELECT VALUE MAX(c.sequence_number) FROM c WHERE c.thread_id = @tid",
+                [{"name": "@tid", "value": thread_id}],
             )
-            next_seq = (seq_result.scalar() or 0) + 1
+            next_seq = (seq_results[0] if seq_results and seq_results[0] is not None else 0) + 1
 
             # Save assistant message
             metadata = {}
             if rag_sources:
                 metadata["sources"] = rag_sources
-            assistant_msg = ThreadMessage(
-                thread_id=thread_id,
-                role="assistant",
-                content=content,
-                message_metadata=metadata if metadata else None,
-                sequence_number=next_seq,
-            )
-            db.add(assistant_msg)
-            await db.commit()
+            assistant_msg_id = str(uuid4())
+            assistant_msg = {
+                "id": assistant_msg_id,
+                "thread_id": thread_id,
+                "role": "assistant",
+                "content": content,
+                "message_metadata": metadata if metadata else None,
+                "sequence_number": next_seq,
+                "tenant_id": tenant_id,
+            }
+            await _message_repo.create(tenant_id, assistant_msg)
 
             # Auto-title: if thread has only 2 messages (1 user + 1 assistant), set title
-            msg_count_result = await db.execute(
-                select(func.count(ThreadMessage.id))
-                .where(ThreadMessage.thread_id == thread_id)
+            count_results = await _message_repo.query(
+                tenant_id,
+                "SELECT VALUE COUNT(1) FROM c WHERE c.thread_id = @tid",
+                [{"name": "@tid", "value": thread_id}],
             )
-            msg_count = msg_count_result.scalar() or 0
+            msg_count = count_results[0] if count_results else 0
             if msg_count <= 2:
-                thread_result = await db.execute(
-                    select(Thread).where(Thread.id == thread_id)
-                )
-                thread = thread_result.scalar_one_or_none()
-                if thread and not thread.title:
-                    # Get first user message for title
-                    first_msg_result = await db.execute(
-                        select(ThreadMessage.content)
-                        .where(
-                            ThreadMessage.thread_id == thread_id,
-                            ThreadMessage.role == "user",
-                        )
-                        .order_by(ThreadMessage.sequence_number)
-                        .limit(1)
+                thread = await _thread_repo.get(tenant_id, thread_id)
+                if thread and not thread.get("title"):
+                    first_msg_results = await _message_repo.query(
+                        tenant_id,
+                        "SELECT * FROM c WHERE c.thread_id = @tid AND c.role = 'user' ORDER BY c.sequence_number OFFSET 0 LIMIT 1",
+                        [{"name": "@tid", "value": thread_id}],
                     )
-                    first_msg = first_msg_result.scalar_one_or_none()
-                    if first_msg:
-                        thread.title = first_msg[:80]
-                        await db.commit()
+                    if first_msg_results:
+                        thread["title"] = first_msg_results[0].get("content", "")[:80]
+                        await _thread_repo.update(tenant_id, thread_id, thread)
 
             # Execution log
             state = {
                 "response_length": len(content),
-                "model_name": primary_endpoint.model_name if primary_endpoint else None,
-                "model_endpoint_id": str(primary_endpoint.id) if primary_endpoint else None,
+                "model_name": primary_endpoint.get("model_name") if primary_endpoint else None,
+                "model_endpoint_id": primary_endpoint.get("id") if primary_endpoint else None,
             }
             if tools_called:
                 state["tool_calls"] = tools_called
 
-            log_entry = ExecutionLog(
-                thread_id=thread_id,
-                message_id=assistant_msg.id,
-                event_type="model_response",
-                state_snapshot=state,
-                duration_ms=duration_ms,
-                token_count={"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0},
-            )
-            db.add(log_entry)
-            await db.commit()
+            log_entry = {
+                "id": str(uuid4()),
+                "thread_id": thread_id,
+                "message_id": assistant_msg_id,
+                "event_type": "model_response",
+                "state_snapshot": state,
+                "duration_ms": duration_ms,
+                "token_count": {"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0},
+                "tenant_id": tenant_id,
+                "agent_id": agent["id"],
+            }
+            await _exec_log_repo.create(tenant_id, log_entry)
 
             # Store assistant response as long-term memory
             if len(content) > 10:
                 try:
                     await self._memory_service.store_memory(
-                        agent_id=agent.id,
+                        agent_id=agent["id"],
                         user_id=user_id,
-                        tenant_id=agent.tenant_id,
+                        tenant_id=tenant_id,
                         content=content,
-                        db=db,
                         model_endpoint=None,
                         memory_type="knowledge",
                         source_thread_id=thread_id,

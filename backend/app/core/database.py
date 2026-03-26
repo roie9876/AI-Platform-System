@@ -1,3 +1,6 @@
+# DEPRECATED: SQLAlchemy data access replaced by Cosmos DB repositories in app.repositories.
+# Kept temporarily for migration script (backend/scripts/migrate_to_cosmos.py).
+
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from app.core.config import settings

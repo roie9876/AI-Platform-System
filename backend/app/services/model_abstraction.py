@@ -4,7 +4,6 @@ from typing import Optional, List, Dict, Any, AsyncGenerator
 
 import litellm
 
-from app.models.model_endpoint import ModelEndpoint
 from app.services.secret_store import decrypt_api_key
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,7 @@ _circuit_breaker = CircuitBreaker()
 
 
 def _build_litellm_params(
-    endpoint: ModelEndpoint,
+    endpoint: dict,
     messages: List[Dict[str, str]],
     temperature: float,
     max_tokens: int,
@@ -76,8 +75,8 @@ def _build_litellm_params(
     tool_choice: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build kwargs for litellm.acompletion based on provider and auth type."""
-    provider = endpoint.provider_type
-    model_name = endpoint.model_name
+    provider = endpoint.get("provider_type", "")
+    model_name = endpoint.get("model_name", "")
 
     params: Dict[str, Any] = {
         "messages": messages,
@@ -89,25 +88,25 @@ def _build_litellm_params(
 
     if provider == "azure_openai":
         params["model"] = f"azure/{model_name}"
-        if endpoint.endpoint_url:
-            params["api_base"] = endpoint.endpoint_url
-        if endpoint.auth_type == "api_key" and endpoint.api_key_encrypted:
-            params["api_key"] = decrypt_api_key(endpoint.api_key_encrypted)
+        if endpoint.get("endpoint_url"):
+            params["api_base"] = endpoint["endpoint_url"]
+        if endpoint.get("auth_type") == "api_key" and endpoint.get("api_key_encrypted"):
+            params["api_key"] = decrypt_api_key(endpoint["api_key_encrypted"])
         # For entra_id auth, litellm can pick up AZURE_AD_TOKEN env var or
         # DefaultAzureCredential via azure-identity at runtime.
     elif provider in ("openai", "anthropic", "custom"):
         if provider == "custom":
             params["model"] = f"openai/{model_name}"
-            if endpoint.endpoint_url:
-                params["api_base"] = endpoint.endpoint_url
+            if endpoint.get("endpoint_url"):
+                params["api_base"] = endpoint["endpoint_url"]
         else:
             params["model"] = f"{provider}/{model_name}"
-        if endpoint.api_key_encrypted:
-            params["api_key"] = decrypt_api_key(endpoint.api_key_encrypted)
+        if endpoint.get("api_key_encrypted"):
+            params["api_key"] = decrypt_api_key(endpoint["api_key_encrypted"])
     else:
         params["model"] = model_name
-        if endpoint.api_key_encrypted:
-            params["api_key"] = decrypt_api_key(endpoint.api_key_encrypted)
+        if endpoint.get("api_key_encrypted"):
+            params["api_key"] = decrypt_api_key(endpoint["api_key_encrypted"])
 
     if tools:
         params["tools"] = tools
@@ -132,16 +131,16 @@ class ModelAbstractionService:
     async def complete(
         self,
         messages: List[Dict[str, str]],
-        endpoint: ModelEndpoint,
+        endpoint: dict,
         temperature: float = 0.7,
         max_tokens: int = 1024,
         timeout: int = 30,
         stream: bool = True,
     ) -> AsyncGenerator[str, None]:
-        endpoint_id = str(endpoint.id)
+        endpoint_id = endpoint.get("id", "")
 
         if not _circuit_breaker.is_available(endpoint_id):
-            raise ModelError(f"Circuit breaker open for endpoint {endpoint.name}")
+            raise ModelError(f"Circuit breaker open for endpoint {endpoint.get('name', '')}")
 
         params = _build_litellm_params(
             endpoint, messages, temperature, max_tokens, timeout, stream
@@ -182,7 +181,7 @@ class ModelAbstractionService:
             _circuit_breaker.record_failure(endpoint_id)
             logger.warning(
                 "Model completion failed for endpoint %s: %s",
-                endpoint.name,
+                endpoint.get("name", ""),
                 str(exc),
             )
             raise ModelError(f"Model completion failed: {exc}") from exc
@@ -190,20 +189,20 @@ class ModelAbstractionService:
     async def complete_with_fallback(
         self,
         messages: List[Dict[str, str]],
-        endpoints: List[ModelEndpoint],
+        endpoints: List[dict],
         temperature: float = 0.7,
         max_tokens: int = 1024,
         timeout: int = 30,
         stream: bool = True,
     ) -> AsyncGenerator[str, None]:
         """Try endpoints in priority order (lower = higher priority), skip if circuit open."""
-        sorted_endpoints = sorted(endpoints, key=lambda e: e.priority)
+        sorted_endpoints = sorted(endpoints, key=lambda e: e.get("priority", 0))
         last_error: Optional[Exception] = None
 
         for endpoint in sorted_endpoints:
-            endpoint_id = str(endpoint.id)
+            endpoint_id = endpoint.get("id", "")
             if not _circuit_breaker.is_available(endpoint_id):
-                logger.info("Skipping endpoint %s — circuit breaker open", endpoint.name)
+                logger.info("Skipping endpoint %s — circuit breaker open", endpoint.get("name", ""))
                 continue
 
             try:
@@ -216,7 +215,7 @@ class ModelAbstractionService:
                 last_error = exc
                 logger.warning(
                     "Endpoint %s failed, trying next fallback: %s",
-                    endpoint.name,
+                    endpoint.get("name", ""),
                     str(exc),
                 )
                 continue
@@ -228,7 +227,7 @@ class ModelAbstractionService:
     async def complete_with_tools(
         self,
         messages: List[Dict[str, Any]],
-        endpoints: List[ModelEndpoint],
+        endpoints: List[dict],
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
         temperature: float = 0.7,
@@ -237,15 +236,15 @@ class ModelAbstractionService:
     ) -> Dict[str, Any]:
         """Non-streaming completion that returns full response including tool_calls.
         Returns dict with keys: content (str|None), tool_calls (list|None), finish_reason (str)."""
-        sorted_endpoints = sorted(endpoints, key=lambda e: e.priority)
+        sorted_endpoints = sorted(endpoints, key=lambda e: e.get("priority", 0))
         last_error: Optional[Exception] = None
 
         for endpoint in sorted_endpoints:
-            endpoint_id = str(endpoint.id)
+            endpoint_id = endpoint.get("id", "")
             if not _circuit_breaker.is_available(endpoint_id):
                 logger.info(
                     "Skipping endpoint %s — circuit breaker open",
-                    endpoint.name,
+                    endpoint.get("name", ""),
                 )
                 continue
 
@@ -276,7 +275,7 @@ class ModelAbstractionService:
                 last_error = exc
                 logger.warning(
                     "Endpoint %s failed, trying next fallback: %s",
-                    endpoint.name,
+                    endpoint.get("name", ""),
                     str(exc),
                 )
                 continue

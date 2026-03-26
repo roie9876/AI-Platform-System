@@ -2,11 +2,9 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.tool import Tool
+from app.repositories.tool_repo import ToolRepository
 
 logger = logging.getLogger(__name__)
 
@@ -314,31 +312,35 @@ PLATFORM_ADAPTERS: List[PlatformToolAdapter] = [
 ]
 
 
-async def register_platform_tools(db: AsyncSession) -> List[Tool]:
+_tool_repo = ToolRepository()
+
+
+async def register_platform_tools(tenant_id: str) -> list[dict]:
     """Register all platform tool adapters as Tool records (is_platform_tool=True).
     Idempotent — skips tools that already exist by name."""
     registered = []
     for adapter in PLATFORM_ADAPTERS:
-        result = await db.execute(
-            select(Tool).where(Tool.name == adapter.tool_name(), Tool.is_platform_tool == True)
+        existing = await _tool_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.name = @name AND c.is_platform_tool = true",
+            [{"name": "@name", "value": adapter.tool_name()}],
         )
-        existing = result.scalar_one_or_none()
         if existing:
-            registered.append(existing)
+            registered.append(existing[0])
             continue
 
-        tool = Tool(
-            name=adapter.tool_name(),
-            description=adapter.description(),
-            input_schema=adapter.get_input_schema(),
-            is_platform_tool=True,
-            tenant_id=None,
-            timeout_seconds=30,
-        )
-        db.add(tool)
-        registered.append(tool)
+        tool = {
+            "id": str(uuid4()),
+            "name": adapter.tool_name(),
+            "description": adapter.description(),
+            "input_schema": adapter.get_input_schema(),
+            "is_platform_tool": True,
+            "tenant_id": tenant_id,
+            "timeout_seconds": 30,
+        }
+        created = await _tool_repo.create(tenant_id, tool)
+        registered.append(created)
 
-    await db.commit()
     return registered
 
 

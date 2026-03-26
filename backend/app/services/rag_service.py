@@ -1,20 +1,26 @@
 import logging
 import re
 from typing import List, Dict, Any, Optional
-from uuid import UUID
+from uuid import uuid4
 
 import httpx
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.azure_connection import AzureConnection
-from app.models.azure_subscription import AzureSubscription
-from app.models.data_source import AgentDataSource
-from app.models.document import Document, DocumentChunk
+from app.repositories.data_source_repo import (
+    AgentDataSourceRepository,
+    DocumentRepository,
+    DocumentChunkRepository,
+)
+from app.repositories.config_repo import AzureConnectionRepository, AzureSubscriptionRepository
 from app.services.document_parser import DocumentParser, TextChunker
 from app.services.secret_store import decrypt_api_key
 
 logger = logging.getLogger(__name__)
+
+_agent_ds_repo = AgentDataSourceRepository()
+_doc_repo = DocumentRepository()
+_chunk_repo = DocumentChunkRepository()
+_conn_repo = AzureConnectionRepository()
+_sub_repo = AzureSubscriptionRepository()
 
 
 class RAGService:
@@ -26,67 +32,65 @@ class RAGService:
 
     async def ingest_file(
         self,
-        data_source_id: UUID,
-        tenant_id: UUID,
+        data_source_id: str,
+        tenant_id: str,
         filename: str,
         file_content: bytes,
-        db: AsyncSession,
-    ) -> Document:
-        """Ingest a file: parse -> chunk -> store chunks in DB. Returns Document record."""
+    ) -> dict:
+        """Ingest a file: parse -> chunk -> store chunks. Returns Document record."""
         text_content = self._parser.parse_bytes(file_content, filename)
         content_hash = self._parser.compute_hash(file_content)
 
         # Check for duplicate
-        result = await db.execute(
-            select(Document).where(
-                Document.data_source_id == data_source_id,
-                Document.content_hash == content_hash,
-            )
+        existing = await _doc_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.data_source_id = @dsid AND c.content_hash = @hash",
+            [{"name": "@dsid", "value": data_source_id}, {"name": "@hash", "value": content_hash}],
         )
-        existing = result.scalar_one_or_none()
         if existing:
             logger.info("Document with same hash already exists, skipping: %s", filename)
-            return existing
+            return existing[0]
 
-        doc = Document(
-            data_source_id=data_source_id,
-            filename=filename,
-            content_type=self._guess_content_type(filename),
-            file_size=len(file_content),
-            content_hash=content_hash,
-            status="processing",
-            tenant_id=tenant_id,
-        )
-        db.add(doc)
-        await db.flush()
+        doc_id = str(uuid4())
+        doc = {
+            "id": doc_id,
+            "data_source_id": data_source_id,
+            "filename": filename,
+            "content_type": self._guess_content_type(filename),
+            "file_size": len(file_content),
+            "content_hash": content_hash,
+            "status": "processing",
+            "tenant_id": tenant_id,
+        }
+        await _doc_repo.create(tenant_id, doc)
 
         chunks = self._chunker.chunk(text_content)
 
         for idx, chunk_text in enumerate(chunks):
-            chunk = DocumentChunk(
-                document_id=doc.id,
-                content=chunk_text,
-                chunk_index=idx,
-                chunk_metadata={"filename": filename, "chunk_index": idx},
-                embedding=None,
-                tenant_id=tenant_id,
-            )
-            db.add(chunk)
+            chunk = {
+                "id": str(uuid4()),
+                "document_id": doc_id,
+                "content": chunk_text,
+                "chunk_index": idx,
+                "chunk_metadata": {"filename": filename, "chunk_index": idx},
+                "embedding": None,
+                "tenant_id": tenant_id,
+            }
+            await _chunk_repo.create(tenant_id, chunk)
 
-        doc.chunk_count = len(chunks)
-        doc.status = "ready"
-        await db.flush()
+        doc["chunk_count"] = len(chunks)
+        doc["status"] = "ready"
+        await _doc_repo.update(tenant_id, doc_id, doc)
 
         logger.info("Ingested document '%s': %d chunks", filename, len(chunks))
         return doc
 
     async def ingest_url(
         self,
-        data_source_id: UUID,
-        tenant_id: UUID,
+        data_source_id: str,
+        tenant_id: str,
         url: str,
-        db: AsyncSession,
-    ) -> Document:
+    ) -> dict:
         """Scrape URL content and ingest: fetch -> extract text -> chunk -> store."""
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(url)
@@ -96,33 +100,35 @@ class RAGService:
         content_bytes = response.content
         content_hash = self._parser.compute_hash(content_bytes)
 
-        doc = Document(
-            data_source_id=data_source_id,
-            filename=url,
-            content_type="text/html",
-            file_size=len(content_bytes),
-            content_hash=content_hash,
-            status="processing",
-            tenant_id=tenant_id,
-        )
-        db.add(doc)
-        await db.flush()
+        doc_id = str(uuid4())
+        doc = {
+            "id": doc_id,
+            "data_source_id": data_source_id,
+            "filename": url,
+            "content_type": "text/html",
+            "file_size": len(content_bytes),
+            "content_hash": content_hash,
+            "status": "processing",
+            "tenant_id": tenant_id,
+        }
+        await _doc_repo.create(tenant_id, doc)
 
         chunks = self._chunker.chunk(content_text)
         for idx, chunk_text in enumerate(chunks):
-            chunk = DocumentChunk(
-                document_id=doc.id,
-                content=chunk_text,
-                chunk_index=idx,
-                chunk_metadata={"url": url, "chunk_index": idx},
-                embedding=None,
-                tenant_id=tenant_id,
-            )
-            db.add(chunk)
+            chunk = {
+                "id": str(uuid4()),
+                "document_id": doc_id,
+                "content": chunk_text,
+                "chunk_index": idx,
+                "chunk_metadata": {"url": url, "chunk_index": idx},
+                "embedding": None,
+                "tenant_id": tenant_id,
+            }
+            await _chunk_repo.create(tenant_id, chunk)
 
-        doc.chunk_count = len(chunks)
-        doc.status = "ready"
-        await db.flush()
+        doc["chunk_count"] = len(chunks)
+        doc["status"] = "ready"
+        await _doc_repo.update(tenant_id, doc_id, doc)
 
         logger.info("Ingested URL '%s': %d chunks", url, len(chunks))
         return doc
@@ -130,33 +136,33 @@ class RAGService:
     async def retrieve(
         self,
         query: str,
-        agent_id: UUID,
-        tenant_id: UUID,
-        db: AsyncSession,
+        agent_id: str,
+        tenant_id: str,
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve relevant document chunks for an agent's connected data sources.
-        Uses keyword matching for PoC (full vector search via Azure AI Search in production)."""
-        ds_result = await db.execute(
-            select(AgentDataSource.data_source_id).where(
-                AgentDataSource.agent_id == agent_id
-            )
+        Uses keyword matching for PoC."""
+        ds_links = await _agent_ds_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.agent_id = @aid",
+            [{"name": "@aid", "value": agent_id}],
         )
-        ds_ids = [row[0] for row in ds_result.fetchall()]
+        ds_ids = [link["data_source_id"] for link in ds_links]
 
         if not ds_ids:
             return []
 
-        doc_result = await db.execute(
-            select(Document.id).where(
-                Document.data_source_id.in_(ds_ids),
-                Document.status == "ready",
-                Document.tenant_id == tenant_id,
+        # Get ready documents for these data sources
+        all_doc_ids = []
+        for ds_id in ds_ids:
+            docs = await _doc_repo.query(
+                tenant_id,
+                "SELECT c.id FROM c WHERE c.data_source_id = @dsid AND c.status = 'ready' AND c.tenant_id = @tid",
+                [{"name": "@dsid", "value": ds_id}, {"name": "@tid", "value": tenant_id}],
             )
-        )
-        doc_ids = [row[0] for row in doc_result.fetchall()]
+            all_doc_ids.extend(d["id"] for d in docs)
 
-        if not doc_ids:
+        if not all_doc_ids:
             return []
 
         # Keyword-based retrieval for PoC
@@ -164,67 +170,45 @@ class RAGService:
         if not search_words:
             return []
 
-        # Build parameterized query for safe keyword search
-        conditions = " OR ".join(
-            [f"LOWER(content) LIKE :word_{i}" for i in range(len(search_words))]
-        )
-        params: Dict[str, Any] = {
-            f"word_{i}": f"%{word}%" for i, word in enumerate(search_words)
-        }
-        params["tenant_id"] = str(tenant_id)
-        params["top_k"] = top_k
+        # Query chunks for each document, filter by keyword match client-side
+        results = []
+        for doc_id in all_doc_ids:
+            chunks = await _chunk_repo.query(
+                tenant_id,
+                "SELECT * FROM c WHERE c.document_id = @did AND c.tenant_id = @tid",
+                [{"name": "@did", "value": doc_id}, {"name": "@tid", "value": tenant_id}],
+            )
+            for chunk in chunks:
+                content_lower = chunk.get("content", "").lower()
+                if any(word in content_lower for word in search_words):
+                    results.append({
+                        "chunk_id": chunk["id"],
+                        "document_id": chunk["document_id"],
+                        "content": chunk["content"],
+                        "chunk_index": chunk.get("chunk_index"),
+                        "metadata": chunk.get("chunk_metadata"),
+                    })
+                    if len(results) >= top_k:
+                        return results
 
-        # Use parameterized IN clause
-        doc_id_placeholders = ", ".join(
-            [f":doc_id_{i}" for i in range(len(doc_ids))]
-        )
-        for i, doc_id in enumerate(doc_ids):
-            params[f"doc_id_{i}"] = str(doc_id)
-
-        query_sql = text(f"""
-            SELECT id, document_id, content, chunk_index, metadata
-            FROM document_chunks
-            WHERE tenant_id = :tenant_id
-            AND document_id IN ({doc_id_placeholders})
-            AND ({conditions})
-            LIMIT :top_k
-        """)
-
-        result = await db.execute(query_sql, params)
-        rows = result.fetchall()
-
-        return [
-            {
-                "chunk_id": str(row[0]),
-                "document_id": str(row[1]),
-                "content": row[2],
-                "chunk_index": row[3],
-                "metadata": row[4],
-            }
-            for row in rows
-        ]
+        return results[:top_k]
 
     async def retrieve_from_azure_search(
         self,
         query: str,
-        agent_id: UUID,
-        tenant_id: UUID,
-        db: AsyncSession,
+        agent_id: str,
+        tenant_id: str,
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve documents from Azure AI Search indexes connected to the agent."""
         from app.services.azure_arm import AzureARMService
 
-        # Find connections for this agent OR shared platform-level connections (agent_id IS NULL)
-        conn_result = await db.execute(
-            select(AzureConnection).where(
-                AzureConnection.tenant_id == tenant_id,
-                AzureConnection.resource_type == "Microsoft.Search/searchServices",
-            ).where(
-                (AzureConnection.agent_id == agent_id) | (AzureConnection.agent_id.is_(None))
-            )
+        # Find connections for this agent OR shared platform-level connections
+        connections = await _conn_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.tenant_id = @tid AND c.resource_type = 'Microsoft.Search/searchServices' AND (c.agent_id = @aid OR NOT IS_DEFINED(c.agent_id) OR c.agent_id = null)",
+            [{"name": "@tid", "value": tenant_id}, {"name": "@aid", "value": agent_id}],
         )
-        connections = list(conn_result.scalars().all())
         if not connections:
             return []
 
@@ -232,12 +216,12 @@ class RAGService:
         results: List[Dict[str, Any]] = []
 
         for conn in connections:
-            selected_indexes = (conn.config or {}).get("selected_indexes", [])
+            selected_indexes = (conn.get("config") or {}).get("selected_indexes", [])
             if not selected_indexes:
                 continue
 
-            # Try cached admin key first (survives token expiry)
-            cached_key_enc = (conn.config or {}).get("cached_admin_key")
+            # Try cached admin key first
+            cached_key_enc = (conn.get("config") or {}).get("cached_admin_key")
             admin_key = None
             if cached_key_enc:
                 try:
@@ -247,23 +231,18 @@ class RAGService:
 
             # Fall back to ARM API if no cached key
             if not admin_key:
-                sub_result = await db.execute(
-                    select(AzureSubscription).where(
-                        AzureSubscription.id == conn.azure_subscription_id
-                    )
-                )
-                subscription = sub_result.scalar_one_or_none()
-                if not subscription or not subscription.access_token_encrypted:
+                subscription = await _sub_repo.get(tenant_id, conn.get("azure_subscription_id", ""))
+                if not subscription or not subscription.get("access_token_encrypted"):
                     continue
 
-                access_token = decrypt_api_key(subscription.access_token_encrypted)
-                admin_key = await arm_service._get_search_admin_key(access_token, conn.resource_id)
+                access_token = decrypt_api_key(subscription["access_token_encrypted"])
+                admin_key = await arm_service._get_search_admin_key(access_token, conn["resource_id"])
                 if not admin_key:
-                    logger.warning("Could not get admin key for %s", conn.resource_name)
+                    logger.warning("Could not get admin key for %s", conn.get("resource_name"))
                     continue
 
             # Derive data plane endpoint from resource name
-            search_endpoint = f"https://{conn.resource_name}.search.windows.net"
+            search_endpoint = f"https://{conn['resource_name']}.search.windows.net"
 
             for index_name in selected_indexes:
                 search_url = f"{search_endpoint}/indexes/{index_name}/docs/search"
@@ -283,7 +262,6 @@ class RAGService:
                         for doc in data.get("value", []):
                             content = doc.get("content") or doc.get("chunk") or doc.get("text") or ""
                             if not content:
-                                # Try to build content from all string fields
                                 content = " ".join(
                                     str(v) for k, v in doc.items()
                                     if isinstance(v, str) and not k.startswith("@")
@@ -291,7 +269,7 @@ class RAGService:
                             results.append({
                                 "source": "azure_search",
                                 "index": index_name,
-                                "connection_id": str(conn.id),
+                                "connection_id": conn["id"],
                                 "content": content,
                                 "metadata": {
                                     k: v for k, v in doc.items()
@@ -303,18 +281,13 @@ class RAGService:
                 except httpx.HTTPStatusError as e:
                     logger.warning(
                         "Azure Search query failed for index %s: %s — HTTP %d: %s",
-                        index_name,
-                        search_endpoint,
-                        e.response.status_code,
-                        e.response.text[:500],
+                        index_name, search_endpoint, e.response.status_code, e.response.text[:500],
                     )
                     continue
                 except httpx.HTTPError as e:
                     logger.warning(
                         "Azure Search query failed for index %s: %s — %s",
-                        index_name,
-                        search_endpoint,
-                        str(e),
+                        index_name, search_endpoint, str(e),
                     )
                     continue
 

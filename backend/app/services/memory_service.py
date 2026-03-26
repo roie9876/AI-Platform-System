@@ -1,32 +1,28 @@
 import logging
 from typing import List, Optional
-from uuid import UUID
+from uuid import uuid4
 
 import litellm
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.agent_memory import AgentMemory
 from app.core.config import settings
-from app.models.model_endpoint import ModelEndpoint
-from app.models.thread_message import ThreadMessage
+from app.repositories.agent_repo import AgentRepository
+from app.repositories.thread_repo import ThreadMessageRepository, AgentMemoryRepository
 from app.services.secret_store import decrypt_api_key
 
 logger = logging.getLogger(__name__)
 
+_memory_repo = AgentMemoryRepository()
+_message_repo = ThreadMessageRepository()
+
 
 class MemoryService:
-    """Manages long-term agent memory with pgvector embeddings."""
+    """Manages long-term agent memory with embeddings."""
 
-    async def embed(self, text: str, model_endpoint: ModelEndpoint) -> List[float]:
-        """Generate embedding vector using LiteLLM.
-
-        Uses the configured EMBEDDING_MODEL (default: text-embedding-3-small)
-        with credentials from the provided model_endpoint.
-        """
+    async def embed(self, text: str, model_endpoint: dict) -> List[float]:
+        """Generate embedding vector using LiteLLM."""
         try:
             embedding_model = settings.EMBEDDING_MODEL
-            provider = model_endpoint.provider_type
+            provider = model_endpoint.get("provider_type", "")
             if provider == "azure_openai":
                 model_str = f"azure/{embedding_model}"
             elif provider == "openai":
@@ -39,11 +35,11 @@ class MemoryService:
                 "input": [text],
             }
 
-            if model_endpoint.endpoint_url:
-                kwargs["api_base"] = model_endpoint.endpoint_url
+            if model_endpoint.get("endpoint_url"):
+                kwargs["api_base"] = model_endpoint["endpoint_url"]
 
-            if model_endpoint.api_key_encrypted:
-                decrypted = decrypt_api_key(model_endpoint.api_key_encrypted)
+            if model_endpoint.get("api_key_encrypted"):
+                decrypted = decrypt_api_key(model_endpoint["api_key_encrypted"])
                 kwargs["api_key"] = decrypted
 
             response = await litellm.aembedding(**kwargs)
@@ -54,15 +50,14 @@ class MemoryService:
 
     async def store_memory(
         self,
-        agent_id: UUID,
-        user_id: UUID,
-        tenant_id: UUID,
+        agent_id: str,
+        user_id: str,
+        tenant_id: str,
         content: str,
-        db: AsyncSession,
-        model_endpoint: Optional[ModelEndpoint] = None,
+        model_endpoint: Optional[dict] = None,
         memory_type: str = "knowledge",
-        source_thread_id: Optional[UUID] = None,
-    ) -> AgentMemory:
+        source_thread_id: Optional[str] = None,
+    ) -> dict:
         """Store a memory with optional embedding."""
         embedding = None
         if model_endpoint:
@@ -70,87 +65,63 @@ class MemoryService:
             if vector:
                 embedding = vector
 
-        memory = AgentMemory(
-            agent_id=agent_id,
-            user_id=user_id,
-            tenant_id=tenant_id,
-            content=content,
-            embedding=embedding,
-            memory_type=memory_type,
-            source_thread_id=source_thread_id,
-        )
-        db.add(memory)
-        await db.commit()
-        await db.refresh(memory)
-        return memory
+        memory = {
+            "id": str(uuid4()),
+            "agent_id": agent_id,
+            "user_id": user_id,
+            "tenant_id": tenant_id,
+            "content": content,
+            "embedding": embedding,
+            "memory_type": memory_type,
+            "source_thread_id": source_thread_id,
+        }
+        return await _memory_repo.create(tenant_id, memory)
 
     async def retrieve_relevant(
         self,
         query: str,
-        agent_id: UUID,
-        user_id: UUID,
-        tenant_id: UUID,
-        db: AsyncSession,
-        model_endpoint: Optional[ModelEndpoint] = None,
+        agent_id: str,
+        user_id: str,
+        tenant_id: str,
+        model_endpoint: Optional[dict] = None,
         top_k: int = 5,
-    ) -> List[AgentMemory]:
-        """Retrieve relevant memories using cosine similarity or recency fallback."""
-        base_filter = [
-            AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == user_id,
-            AgentMemory.tenant_id == tenant_id,
-        ]
-
-        if model_endpoint:
-            query_embedding = await self.embed(query, model_endpoint)
-            if query_embedding:
-                # Use cosine distance for similarity search
-                result = await db.execute(
-                    select(AgentMemory)
-                    .where(*base_filter)
-                    .order_by(AgentMemory.embedding.cosine_distance(query_embedding))
-                    .limit(top_k)
-                )
-                return list(result.scalars().all())
-
-        # Fallback: return most recent memories
-        result = await db.execute(
-            select(AgentMemory)
-            .where(*base_filter)
-            .order_by(AgentMemory.created_at.desc())
-            .limit(top_k)
+    ) -> list[dict]:
+        """Retrieve relevant memories using recency (vector search not available in Cosmos)."""
+        memories = await _memory_repo.query(
+            tenant_id,
+            "SELECT TOP @top_k * FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid AND c.user_id = @uid ORDER BY c._ts DESC",
+            [
+                {"name": "@tid", "value": tenant_id},
+                {"name": "@aid", "value": agent_id},
+                {"name": "@uid", "value": user_id},
+                {"name": "@top_k", "value": top_k},
+            ],
         )
-        return list(result.scalars().all())
+        return memories
 
     async def extract_memories_from_thread(
         self,
-        thread_id: UUID,
-        agent_id: UUID,
-        user_id: UUID,
-        tenant_id: UUID,
-        db: AsyncSession,
-        model_endpoint: Optional[ModelEndpoint] = None,
+        thread_id: str,
+        agent_id: str,
+        user_id: str,
+        tenant_id: str,
+        model_endpoint: Optional[dict] = None,
     ) -> int:
         """Extract memories from assistant messages in a thread. Returns count stored."""
-        result = await db.execute(
-            select(ThreadMessage)
-            .where(
-                ThreadMessage.thread_id == thread_id,
-                ThreadMessage.role == "assistant",
-            )
-            .order_by(ThreadMessage.sequence_number)
+        messages = await _message_repo.query(
+            tenant_id,
+            "SELECT * FROM c WHERE c.thread_id = @thid AND c.role = 'assistant' ORDER BY c.sequence_number",
+            [{"name": "@thid", "value": thread_id}],
         )
-        messages = result.scalars().all()
 
         count = 0
         for msg in messages:
-            if len(msg.content) > 50:
+            if len(msg.get("content", "")) > 50:
                 await self.store_memory(
                     agent_id=agent_id,
                     user_id=user_id,
                     tenant_id=tenant_id,
-                    content=msg.content,
-                    db=db,
+                    content=msg["content"],
                     model_endpoint=model_endpoint,
                     memory_type="knowledge",
                     source_thread_id=thread_id,
