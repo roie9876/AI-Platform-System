@@ -15,6 +15,8 @@ from app.repositories.workflow_repo import (
 from app.repositories.agent_repo import AgentRepository
 from app.repositories.thread_repo import ThreadRepository
 from app.services.agent_execution import AgentExecutionService
+from app.core.config import settings
+from app.services.service_client import ServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,13 @@ class WorkflowEngine:
     """Executes multi-agent workflows with sequential, parallel, autonomous, and custom DAG modes."""
 
     def __init__(self) -> None:
-        self._agent_service = AgentExecutionService()
+        # In microservice mode, use HTTP calls; in monolith mode, use direct imports
+        if settings.SERVICE_NAME == "workflow-engine":
+            self._service_client = ServiceClient()
+            self._agent_service = None
+        else:
+            self._service_client = None
+            self._agent_service = AgentExecutionService()
 
     async def run(
         self,
@@ -490,7 +498,20 @@ class WorkflowEngine:
         user_id: str,
         tenant_id: str,
         thread_id: str,
+        auth_token: Optional[str] = None,
     ) -> str:
+        # In microservice mode, use HTTP call to agent-executor
+        if self._service_client and auth_token:
+            result = await self._service_client.execute_agent(
+                agent_id=node["agent_id"],
+                message=message,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                thread_id=thread_id,
+                auth_token=auth_token,
+            )
+            return result.get("response", "")
+
         # Load agent
         agent = await _agent_repo.get(tenant_id, node["agent_id"])
         if not agent:
