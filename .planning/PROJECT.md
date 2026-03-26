@@ -37,7 +37,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - [ ] Azure IaC foundation — Bicep modules for AKS, ACR, Cosmos DB, VNet, Managed Identities
 - [ ] Cosmos DB data layer — Replace PostgreSQL/SQLAlchemy with Cosmos DB NoSQL SDK, partition by tenant_id
 - [ ] Tenant provisioning API — Automated K8s namespace creation, RBAC, quotas on tenant onboard
-- [ ] Entra ID authentication — Enterprise SSO replacing JWT-only auth, Managed Identity integration
+- [x] Entra ID authentication — Enterprise SSO replacing JWT-only auth, Managed Identity integration (Validated in Phase 18)
 - [ ] Microservice packaging — Split monolith into API gateway, agent executor, workflow engine, tool executor, MCP servers
 - [ ] AKS tenant isolation — Namespace-per-tenant with NetworkPolicy, ResourceQuota, HPA
 - [ ] Tenant admin UI — Tenant selector, onboarding flow, admin dashboard, scoped views
@@ -74,7 +74,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - **Scale:** Designed for large-scale, multi-tenant enterprise deployment
 - **Model strategy:** Bring-your-own-endpoint — customers provide model API endpoints, platform routes to them. Azure OpenAI as the default provider
 - **Microsoft-first:** Product architecture maps to Microsoft services as extensively as possible
-- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 MCP Tool Integration shipped (2026-03-25). v3.0 Production Multi-Tenant Infrastructure in progress.
+- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 MCP Tool Integration shipped (2026-03-25). v3.0 Production Multi-Tenant Infrastructure in progress — Phase 17 (IaC) and Phase 18 (Entra ID auth) complete.
 
 ## Constraints
 
