@@ -1,0 +1,183 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "7693364960081162309"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "workloadIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of workload identity for Key Vault Secrets User role"
+      }
+    },
+    "workloadIdentityClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Client ID of workload identity (stored as secret for pod consumption)"
+      }
+    },
+    "cosmosEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Cosmos DB document endpoint (stored as secret for pod consumption)"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Resource ID of Log Analytics workspace for diagnostics (optional)"
+      }
+    },
+    "tenantId": {
+      "type": "string",
+      "defaultValue": "[subscription().tenantId]",
+      "metadata": {
+        "description": "Azure AD tenant ID"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[format('stumsft-aiplat-{0}-kv', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "tenantId": "[parameters('tenantId')]",
+        "enableRbacAuthorization": true,
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 7,
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName'))), parameters('workloadIdentityPrincipalId'), '4633458b-17de-408a-b874-0445c86b69e6')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+        "principalId": "[parameters('workloadIdentityPrincipalId')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'cosmos-endpoint')]",
+      "properties": {
+        "value": "[parameters('cosmosEndpoint')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'entra-client-id')]",
+      "properties": {
+        "value": "[parameters('workloadIdentityClientId')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'entra-tenant-id')]",
+      "properties": {
+        "value": "[parameters('tenantId')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'workload-client-id')]",
+      "properties": {
+        "value": "[parameters('workloadIdentityClientId')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]",
+      "name": "keyvault-diagnostics",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "category": "AuditEvent",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "keyVaultId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Key Vault"
+      },
+      "value": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of Key Vault"
+      },
+      "value": "[format('stumsft-aiplat-{0}-kv', parameters('environmentName'))]"
+    },
+    "keyVaultUri": {
+      "type": "string",
+      "metadata": {
+        "description": "URI of Key Vault"
+      },
+      "value": "[reference(resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName'))), '2023-07-01').vaultUri]"
+    }
+  }
+}

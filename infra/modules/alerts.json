@@ -1,0 +1,226 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "18359750723964569627"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "appInsightsId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Application Insights"
+      }
+    },
+    "aksClusterId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of AKS cluster"
+      }
+    },
+    "cosmosAccountId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Cosmos DB account"
+      }
+    },
+    "actionGroupEmail": {
+      "type": "string",
+      "defaultValue": "admin@stumsft.com",
+      "metadata": {
+        "description": "Email address for alert notifications"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2023-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-ag', parameters('environmentName'))]",
+      "location": "global",
+      "properties": {
+        "groupShortName": "AIPlatform",
+        "enabled": true,
+        "emailReceivers": [
+          {
+            "name": "PlatformAdmin",
+            "emailAddress": "[parameters('actionGroupEmail')]",
+            "useCommonAlertSchema": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('stumsft-aiplatform-{0}-aks-pod-restart-alert', parameters('environmentName'))]",
+      "location": "global",
+      "properties": {
+        "description": "AKS pod restart count exceeds threshold",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('aksClusterId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT5M",
+        "autoMitigate": true,
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "name": "PodRestarts",
+              "metricName": "restartingContainerCount",
+              "metricNamespace": "Insights.Container/pods",
+              "operator": "GreaterThan",
+              "threshold": 5,
+              "timeAggregation": "Average",
+              "criterionType": "StaticThresholdCriterion"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('stumsft-aiplatform-{0}-app-5xx-rate-alert', parameters('environmentName'))]",
+      "location": "global",
+      "properties": {
+        "description": "Application 5xx error rate exceeds threshold",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('appInsightsId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT5M",
+        "autoMitigate": true,
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "name": "FailedRequests",
+              "metricName": "requests/failed",
+              "metricNamespace": "microsoft.insights/components",
+              "operator": "GreaterThan",
+              "threshold": 10,
+              "timeAggregation": "Count",
+              "criterionType": "StaticThresholdCriterion"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('stumsft-aiplatform-{0}-cosmos-ru-consumption-alert', parameters('environmentName'))]",
+      "location": "global",
+      "properties": {
+        "description": "Cosmos DB Normalized RU Consumption exceeds 80%",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('cosmosAccountId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT5M",
+        "autoMitigate": true,
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "name": "NormalizedRU",
+              "metricName": "NormalizedRUConsumption",
+              "metricNamespace": "microsoft.documentdb/databaseaccounts",
+              "operator": "GreaterThan",
+              "threshold": 80,
+              "timeAggregation": "Maximum",
+              "criterionType": "StaticThresholdCriterion"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('stumsft-aiplatform-{0}-aks-node-cpu-alert', parameters('environmentName'))]",
+      "location": "global",
+      "properties": {
+        "description": "AKS node CPU usage exceeds 80%",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('aksClusterId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT5M",
+        "autoMitigate": true,
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "name": "NodeCPU",
+              "metricName": "node_cpu_usage_percentage",
+              "metricNamespace": "Insights.Container/nodes",
+              "operator": "GreaterThan",
+              "threshold": 80,
+              "timeAggregation": "Average",
+              "criterionType": "StaticThresholdCriterion"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+      ]
+    }
+  ]
+}

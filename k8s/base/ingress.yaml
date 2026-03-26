@@ -78,3 +78,11 @@ spec:
                 name: api-gateway
                 port:
                   number: 8000
+          # Frontend — catch-all for everything else
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

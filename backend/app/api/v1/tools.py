@@ -21,7 +21,7 @@ agent_tool_repo = AgentToolRepository()
 agent_repo = AgentRepository()
 
 
-@router.post("/", response_model=ToolResponse, status_code=201)
+@router.post("", response_model=ToolResponse, status_code=201)
 async def create_tool(
     body: ToolCreateRequest,
     request: Request,
@@ -42,7 +42,7 @@ async def create_tool(
     return tool
 
 
-@router.get("/", response_model=ToolListResponse)
+@router.get("", response_model=ToolListResponse)
 async def list_tools(
     request: Request,
     current_user: dict = Depends(get_current_user),

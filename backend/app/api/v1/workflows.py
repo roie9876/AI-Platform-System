@@ -37,7 +37,7 @@ node_execution_repo = WorkflowNodeExecutionRepository()
 agent_repo = AgentRepository()
 
 
-@router.post("/", response_model=WorkflowDetailResponse, status_code=201)
+@router.post("", response_model=WorkflowDetailResponse, status_code=201)
 async def create_workflow(
     body: WorkflowCreateRequest,
     request: Request,
@@ -102,7 +102,7 @@ async def create_workflow(
     )
 
 
-@router.get("/", response_model=WorkflowListResponse)
+@router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     request: Request,
     current_user: dict = Depends(get_current_user),

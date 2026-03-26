@@ -27,7 +27,7 @@ def _build_config_snapshot(agent: dict) -> dict:
     }
 
 
-@router.post("/", response_model=AgentResponse, status_code=201)
+@router.post("", response_model=AgentResponse, status_code=201)
 async def create_agent(
     body: AgentCreateRequest,
     request: Request,
@@ -57,7 +57,7 @@ async def create_agent(
     return agent
 
 
-@router.get("/", response_model=AgentListResponse)
+@router.get("", response_model=AgentListResponse)
 async def list_agents(
     request: Request,
     current_user: dict = Depends(get_current_user),

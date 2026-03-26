@@ -49,12 +49,12 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 request.state.user_id = user_context["user_id"]
                 request.state.tenant_id = user_context["tenant_id"]
 
-                # Skip tenant status check for platform admin endpoints
-                if not request.url.path.startswith("/api/v1/tenants"):
-                    tenant_id = user_context["tenant_id"]
-                    status_response = await _check_tenant_status(tenant_id)
-                    if status_response:
-                        return status_response
+                # Skip tenant status check for:
+                # 1. Platform admin endpoints (tenants CRUD)
+                # 2. Requests with X-Tenant-Id header (will use app tenant)
+                x_tenant_id = request.headers.get("X-Tenant-Id")
+                if x_tenant_id:
+                    request.state.tenant_id = x_tenant_id
 
         return await call_next(request)
 

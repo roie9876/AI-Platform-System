@@ -7,6 +7,12 @@ param environmentName string = 'prod'
 @description('Principal ID of workload identity for Key Vault Secrets User role')
 param workloadIdentityPrincipalId string
 
+@description('Client ID of workload identity (stored as secret for pod consumption)')
+param workloadIdentityClientId string
+
+@description('Cosmos DB document endpoint (stored as secret for pod consumption)')
+param cosmosEndpoint string
+
 @description('Resource ID of Log Analytics workspace for diagnostics (optional)')
 param logAnalyticsWorkspaceId string = ''
 
@@ -38,6 +44,42 @@ resource kvSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@20
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
     principalId: workloadIdentityPrincipalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// ============================================================================
+// Secrets — auto-seeded from Bicep deployment outputs (no hardcoded values)
+// ============================================================================
+
+resource secretCosmosEndpoint 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'cosmos-endpoint'
+  properties: {
+    value: cosmosEndpoint
+  }
+}
+
+resource secretEntraClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'entra-client-id'
+  properties: {
+    value: workloadIdentityClientId
+  }
+}
+
+resource secretEntraTenantId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'entra-tenant-id'
+  properties: {
+    value: tenantId
+  }
+}
+
+resource secretWorkloadClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'workload-client-id'
+  properties: {
+    value: workloadIdentityClientId
   }
 }
 

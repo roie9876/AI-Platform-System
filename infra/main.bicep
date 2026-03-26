@@ -65,6 +65,7 @@ module cosmos './modules/cosmos.bicep' = {
     location: location
     environmentName: environmentName
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
   }
 }
 
@@ -105,6 +106,8 @@ module keyvault './modules/keyvault.bicep' = {
     location: location
     environmentName: environmentName
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    workloadIdentityClientId: identity.outputs.workloadIdentityClientId
+    cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
   }
 }
@@ -132,6 +135,29 @@ module alerts './modules/alerts.bicep' = {
     cosmosAccountId: cosmos.outputs.cosmosAccountId
     actionGroupEmail: alertEmail
   }
+}
+
+// ============================================================================
+// Wave 3.5: Workload Identity Federation — depends on identity + AKS OIDC issuer
+// ============================================================================
+
+resource workloadIdentityRef 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'stumsft-aiplatform-${environmentName}-workload-id'
+}
+
+resource federatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: workloadIdentityRef
+  name: 'aiplatform-federated-credential'
+  properties: {
+    issuer: aks.outputs.aksOidcIssuerUrl
+    subject: 'system:serviceaccount:aiplatform:aiplatform-workload'
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+  }
+  dependsOn: [
+    identity
+  ]
 }
 
 // ============================================================================

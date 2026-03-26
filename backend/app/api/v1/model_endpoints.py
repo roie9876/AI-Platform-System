@@ -32,7 +32,7 @@ def _encrypt_api_key(raw_key: str) -> str:
     return f.encrypt(raw_key.encode()).decode()
 
 
-@router.post("/", response_model=ModelEndpointResponse, status_code=201)
+@router.post("", response_model=ModelEndpointResponse, status_code=201)
 async def create_model_endpoint(
     body: ModelEndpointCreateRequest,
     request: Request,
@@ -69,7 +69,7 @@ async def create_model_endpoint(
     return endpoint
 
 
-@router.get("/", response_model=ModelEndpointListResponse)
+@router.get("", response_model=ModelEndpointListResponse)
 async def list_model_endpoints(
     request: Request,
     current_user: dict = Depends(get_current_user),

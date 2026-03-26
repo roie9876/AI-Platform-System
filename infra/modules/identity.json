@@ -1,0 +1,77 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "16789878418079015570"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('stumsft-aiplatform-{0}-aks-id', parameters('environmentName'))]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName'))]",
+      "location": "[parameters('location')]"
+    }
+  ],
+  "outputs": {
+    "aksIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of AKS control plane identity"
+      },
+      "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-aks-id', parameters('environmentName')))]"
+    },
+    "aksIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of AKS control plane identity"
+      },
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-aks-id', parameters('environmentName'))), '2023-01-31').principalId]"
+    },
+    "workloadIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of workload identity"
+      },
+      "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName')))]"
+    },
+    "workloadIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of workload identity"
+      },
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName'))), '2023-01-31').principalId]"
+    },
+    "workloadIdentityClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Client ID of workload identity"
+      },
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName'))), '2023-01-31').clientId]"
+    }
+  }
+}

@@ -1,0 +1,248 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "8508070357920250625"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/16",
+      "metadata": {
+        "description": "VNet address space"
+      }
+    },
+    "aksNodesSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/22",
+      "metadata": {
+        "description": "AKS nodes subnet address prefix"
+      }
+    },
+    "aksPodsSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.4.0/22",
+      "metadata": {
+        "description": "AKS pods subnet address prefix (Azure CNI Overlay)"
+      }
+    },
+    "privateEndpointsSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.8.0/24",
+      "metadata": {
+        "description": "Private endpoints subnet address prefix"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2024-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "DenyAllInbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Inbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowAllOutbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2024-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "DenyAllInbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Inbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowAllOutbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2024-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "DenyAllInbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Inbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowAllOutbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2024-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('vnetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "aks-nodes",
+            "properties": {
+              "addressPrefix": "[parameters('aksNodesSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName')))]"
+              }
+            }
+          },
+          {
+            "name": "aks-pods",
+            "properties": {
+              "addressPrefix": "[parameters('aksPodsSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName')))]"
+              }
+            }
+          },
+          {
+            "name": "private-endpoints",
+            "properties": {
+              "addressPrefix": "[parameters('privateEndpointsSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName')))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName')))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the VNet"
+      },
+      "value": "[resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName')))]"
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the VNet"
+      },
+      "value": "[format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))]"
+    },
+    "aksNodesSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the aks-nodes subnet"
+      },
+      "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[0].id]"
+    },
+    "aksPodsSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the aks-pods subnet"
+      },
+      "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[1].id]"
+    },
+    "privateEndpointsSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the private-endpoints subnet"
+      },
+      "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[2].id]"
+    }
+  }
+}

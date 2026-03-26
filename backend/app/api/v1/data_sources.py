@@ -30,7 +30,7 @@ ALLOWED_EXTENSIONS = {"pdf", "txt", "md", "docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
-@router.post("/", response_model=DataSourceResponse, status_code=201)
+@router.post("", response_model=DataSourceResponse, status_code=201)
 async def create_data_source(
     body: DataSourceCreateRequest,
     request: Request,
@@ -55,7 +55,7 @@ async def create_data_source(
     return data_source
 
 
-@router.get("/", response_model=DataSourceListResponse)
+@router.get("", response_model=DataSourceListResponse)
 async def list_data_sources(
     request: Request,
     current_user: dict = Depends(get_current_user),

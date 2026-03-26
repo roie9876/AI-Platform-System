@@ -15,7 +15,7 @@ router = APIRouter()
 server_repo = MCPServerRepository()
 
 
-@router.post("/", response_model=MCPServerResponse, status_code=201)
+@router.post("", response_model=MCPServerResponse, status_code=201)
 async def create_mcp_server(
     body: MCPServerCreateRequest,
     request: Request,
@@ -34,7 +34,7 @@ async def create_mcp_server(
     return server
 
 
-@router.get("/", response_model=MCPServerListResponse)
+@router.get("", response_model=MCPServerListResponse)
 async def list_mcp_servers(
     request: Request,
     current_user: dict = Depends(get_current_user),

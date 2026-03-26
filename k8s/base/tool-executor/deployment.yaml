@@ -16,6 +16,7 @@ spec:
       labels:
         app: tool-executor
         app.kubernetes.io/name: tool-executor
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: aiplatform-workload
       containers:
@@ -45,6 +46,11 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: AZURE_TENANT_ID
+            - name: AZURE_WORKLOAD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: AZURE_WORKLOAD_CLIENT_ID
           livenessProbe:
             httpGet:
               path: /healthz

@@ -52,7 +52,7 @@ def init_telemetry(service_name: str, service_version: str = "0.1.0") -> None:
     metrics.set_meter_provider(meter_provider)
 
     # Auto-instrument FastAPI and httpx
-    FastAPIInstrumentor.instrument()
+    FastAPIInstrumentor().instrument()
     HTTPXClientInstrumentor().instrument()
 
     logger.info("OpenTelemetry initialized for %s", service_name)

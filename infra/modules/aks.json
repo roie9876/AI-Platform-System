@@ -1,0 +1,174 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "2222482607028625383"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "aksNodesSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "AKS nodes subnet resource ID"
+      }
+    },
+    "aksPodsSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "AKS pods subnet resource ID (for CNI Overlay pod subnet)"
+      }
+    },
+    "aksIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of AKS control plane user-assigned identity"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Log Analytics workspace for monitoring"
+      }
+    },
+    "systemNodeCount": {
+      "type": "int",
+      "defaultValue": 2,
+      "metadata": {
+        "description": "Number of system node pool nodes"
+      }
+    },
+    "systemNodeVmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v5",
+      "metadata": {
+        "description": "VM size for system node pool"
+      }
+    },
+    "userNodeCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of user node pool nodes"
+      }
+    },
+    "userNodeVmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v5",
+      "metadata": {
+        "description": "VM size for user node pool"
+      }
+    },
+    "kubernetesVersion": {
+      "type": "string",
+      "defaultValue": "1.29",
+      "metadata": {
+        "description": "Kubernetes version"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2024-05-01",
+      "name": "[format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', parameters('aksIdentityId'))]": {}
+        }
+      },
+      "properties": {
+        "kubernetesVersion": "[parameters('kubernetesVersion')]",
+        "dnsPrefix": "[format('stumsft-aiplatform-{0}', parameters('environmentName'))]",
+        "enableRBAC": true,
+        "aadProfile": {
+          "managed": true,
+          "enableAzureRBAC": true
+        },
+        "networkProfile": {
+          "networkPlugin": "azure",
+          "networkPluginMode": "overlay",
+          "podCidr": "192.168.0.0/16",
+          "serviceCidr": "172.16.0.0/16",
+          "dnsServiceIP": "172.16.0.10"
+        },
+        "addonProfiles": {
+          "omsagent": {
+            "enabled": true,
+            "config": {
+              "logAnalyticsWorkspaceResourceID": "[parameters('logAnalyticsWorkspaceId')]"
+            }
+          }
+        },
+        "oidcIssuerProfile": {
+          "enabled": true
+        },
+        "securityProfile": {
+          "workloadIdentity": {
+            "enabled": true
+          }
+        },
+        "agentPoolProfiles": [
+          {
+            "name": "system",
+            "mode": "System",
+            "count": "[parameters('systemNodeCount')]",
+            "vmSize": "[parameters('systemNodeVmSize')]",
+            "vnetSubnetID": "[parameters('aksNodesSubnetId')]",
+            "osType": "Linux",
+            "osDiskSizeGB": 128
+          },
+          {
+            "name": "userpool",
+            "mode": "User",
+            "count": "[parameters('userNodeCount')]",
+            "vmSize": "[parameters('userNodeVmSize')]",
+            "vnetSubnetID": "[parameters('aksNodesSubnetId')]",
+            "osType": "Linux",
+            "osDiskSizeGB": 128
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "aksClusterId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the AKS cluster"
+      },
+      "value": "[resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName')))]"
+    },
+    "aksClusterName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the AKS cluster"
+      },
+      "value": "[format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))]"
+    },
+    "aksOidcIssuerUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "OIDC issuer URL for workload identity federation"
+      },
+      "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))), '2024-05-01').oidcIssuerProfile.issuerURL]"
+    }
+  }
+}

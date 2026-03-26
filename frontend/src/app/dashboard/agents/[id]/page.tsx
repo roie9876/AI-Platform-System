@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { msalInstance, loginScopes } from "@/lib/msal";
+import { getMsalInstance, getLoginScopes } from "@/lib/msal";
 import { AgentConfigTopBar } from "@/components/agent/agent-config-top-bar";
 import { AgentConfigLayout } from "@/components/agent/agent-config-layout";
 import { AgentTracesPanel } from "@/components/agent/agent-traces-panel";
@@ -211,11 +211,12 @@ export default function AgentDetailPage() {
         if (history.length > 0) body.conversation_history = history;
       }
 
-      const account = msalInstance.getActiveAccount();
+      const instance = getMsalInstance();
+      const account = instance.getActiveAccount();
       let authHeaders: Record<string, string> = {};
       if (account) {
         try {
-          const tokenResponse = await msalInstance.acquireTokenSilent({ scopes: loginScopes, account });
+          const tokenResponse = await instance.acquireTokenSilent({ scopes: getLoginScopes(), account });
           authHeaders["Authorization"] = `Bearer ${tokenResponse.accessToken}`;
         } catch { /* will get 401 */ }
       }

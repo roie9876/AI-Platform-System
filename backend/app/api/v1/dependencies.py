@@ -3,9 +3,10 @@ from typing import Callable
 from fastapi import Depends, HTTPException, Request
 
 
-# Role constants
-PLATFORM_ADMIN = "Platform Admin"
-TENANT_ADMIN = "Tenant Admin"
+# Role constants — must match _ROLE_MAP in app.core.security
+PLATFORM_ADMIN = "platform_admin"
+TENANT_ADMIN = "tenant_admin"
+TENANT_USER = "tenant_user"
 MEMBER = "Member"
 VIEWER = "Viewer"
 

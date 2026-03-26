@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
-import { loginScopes } from "@/lib/msal";
+import { getLoginScopes } from "@/lib/msal";
 
 interface User {
   id: string;
@@ -55,7 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, accounts, loading, instance]);
 
   const login = async () => {
-    await instance.loginRedirect({ scopes: loginScopes });
+    if (inProgress !== InteractionStatus.None) return;
+    try {
+      await instance.loginRedirect({ scopes: getLoginScopes(), prompt: "select_account" });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      if (!msg.includes("interaction_in_progress")) {
+        console.error("Login failed:", e);
+      }
+    }
   };
 
   const logout = async () => {

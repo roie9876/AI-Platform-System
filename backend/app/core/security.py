@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 import httpx
-from jose import jwt, jwk, JWTError
+from jose import jwt, JWTError
 
 from app.core.config import settings
 
@@ -43,38 +43,89 @@ async def validate_entra_token(token: str) -> dict | None:
         headers = jwt.get_unverified_headers(token)
         kid = headers.get("kid")
         if not kid:
+            logger.error("Token has no kid header")
             return None
+
+        # Decode without verification to inspect claims for debugging
+        unverified = jwt.get_unverified_claims(token)
+        logger.info("Token aud=%s, iss=%s, kid=%s", unverified.get("aud"), unverified.get("iss"), kid)
 
         keys = await _get_jwks_keys()
         signing_key = _find_signing_key(keys, kid)
         if not signing_key:
+            logger.error("No signing key found for kid=%s (have %d keys)", kid, len(keys))
             return None
 
-        rsa_key = jwk.construct(signing_key)
+        # Accept both raw client ID and api:// prefixed URI as valid audiences
+        valid_audiences = {settings.AZURE_CLIENT_ID}
+        if not settings.AZURE_CLIENT_ID.startswith("api://"):
+            valid_audiences.add(f"api://{settings.AZURE_CLIENT_ID}")
+
+        # python-jose audience can be a string or set — check token's actual aud
+        token_aud = unverified.get("aud")
+        matched_aud = None
+        if isinstance(token_aud, str) and token_aud in valid_audiences:
+            matched_aud = token_aud
+        elif isinstance(token_aud, list):
+            for a in token_aud:
+                if a in valid_audiences:
+                    matched_aud = a
+                    break
+
+        if not matched_aud:
+            logger.error("Token audience %s not in valid audiences %s", token_aud, valid_audiences)
+            return None
+
+        logger.info("Validating with audience=%s, issuer=%s", matched_aud, settings.AZURE_ISSUER)
+
+        # Accept both v1 (sts.windows.net) and v2 (login.microsoftonline.com) issuers
+        token_iss = unverified.get("iss", "")
+        valid_issuers = [
+            settings.AZURE_ISSUER,  # v2.0: https://login.microsoftonline.com/{tid}/v2.0
+            f"https://sts.windows.net/{settings.AZURE_TENANT_ID}/",  # v1
+        ]
+        matched_issuer = token_iss if token_iss in valid_issuers else None
+        if not matched_issuer:
+            logger.error("Token issuer %s not in valid issuers %s", token_iss, valid_issuers)
+            return None
 
         claims = jwt.decode(
             token,
-            rsa_key.to_dict(),
+            signing_key,
             algorithms=["RS256"],
-            audience=settings.AZURE_CLIENT_ID,
-            issuer=settings.AZURE_ISSUER,
+            audience=matched_aud,
+            issuer=matched_issuer,
         )
+        logger.info("Token validated successfully for user=%s", claims.get("preferred_username") or claims.get("upn"))
         return claims
     except JWTError as e:
-        logger.debug("Entra ID token validation failed: %s", e)
+        logger.error("Entra ID token validation FAILED: %s", e)
         return None
     except Exception as e:
-        logger.warning("Unexpected error validating Entra ID token: %s", e)
+        logger.error("Unexpected error validating Entra ID token: %s", e)
         return None
+
+
+# Map Entra ID app role values to internal role names
+_ROLE_MAP = {
+    "Platform.Admin": "platform_admin",
+    "Tenant.Admin": "tenant_admin",
+    "Tenant.User": "tenant_user",
+}
 
 
 def extract_user_context(claims: dict) -> dict:
+    # v1 tokens use 'upn', v2 tokens use 'preferred_username'
+    email = claims.get("preferred_username") or claims.get("upn", "")
+    # Normalize Entra app role values to internal role names
+    raw_roles = claims.get("roles", [])
+    roles = [_ROLE_MAP.get(r, r) for r in raw_roles]
     return {
         "user_id": claims.get("oid", ""),
         "tenant_id": claims.get("tid", ""),
-        "email": claims.get("preferred_username", ""),
+        "email": email,
         "name": claims.get("name", ""),
-        "roles": claims.get("roles", []),
+        "roles": roles,
     }
 
 

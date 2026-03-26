@@ -12,6 +12,8 @@ class TenantRepository(CosmosRepository):
     async def get_by_slug(self, slug: str) -> dict | None:
         """Cross-partition query to find tenant by slug."""
         container = await self._container()
+        if container is None:
+            return None
         items = []
         async for item in container.query_items(
             query="SELECT * FROM c WHERE c.slug = @slug",
@@ -24,6 +26,8 @@ class TenantRepository(CosmosRepository):
     async def list_all_tenants(self) -> list[dict]:
         """Cross-partition query to list all tenants."""
         container = await self._container()
+        if container is None:
+            return []
         items = []
         async for item in container.query_items(
             query="SELECT * FROM c",
@@ -35,6 +39,8 @@ class TenantRepository(CosmosRepository):
     async def get_by_status(self, status: str) -> list[dict]:
         """Cross-partition query to find tenants by status."""
         container = await self._container()
+        if container is None:
+            return []
         items = []
         async for item in container.query_items(
             query="SELECT * FROM c WHERE c.status = @status",

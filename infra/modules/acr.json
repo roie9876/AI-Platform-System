@@ -1,0 +1,90 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "8365074955106971382"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "ACR SKU"
+      }
+    },
+    "aksIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of AKS identity for AcrPull role assignment"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[format('stumsftaiplatform{0}acr', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('sku')]"
+      },
+      "properties": {
+        "adminUserEnabled": false
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName'))), parameters('aksIdentityPrincipalId'), '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+        "principalId": "[parameters('aksIdentityPrincipalId')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "acrId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of ACR"
+      },
+      "value": "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "metadata": {
+        "description": "ACR login server URL"
+      },
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName'))), '2023-07-01').loginServer]"
+    },
+    "acrName": {
+      "type": "string",
+      "metadata": {
+        "description": "ACR name"
+      },
+      "value": "[format('stumsftaiplatform{0}acr', parameters('environmentName'))]"
+    }
+  }
+}

@@ -7,6 +7,9 @@ param environmentName string = 'prod'
 @description('Resource ID of Log Analytics workspace for diagnostics (optional)')
 param logAnalyticsWorkspaceId string = ''
 
+@description('Principal ID of workload identity for Cosmos DB data plane RBAC')
+param workloadIdentityPrincipalId string
+
 // Cosmos DB Account - Serverless NoSQL
 resource account 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   name: 'stumsft-aiplatform-${environmentName}-cosmos'
@@ -155,6 +158,18 @@ resource cosmosDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pre
         enabled: true
       }
     ]
+  }
+}
+
+// Cosmos DB Built-in Data Contributor role assignment for workload identity
+// Role ID 00000000-0000-0000-0000-000000000002 = Built-in Data Contributor (read/write all data)
+resource cosmosDataContributorRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
+  parent: account
+  name: guid(account.id, workloadIdentityPrincipalId, '00000000-0000-0000-0000-000000000002')
+  properties: {
+    roleDefinitionId: '${account.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+    principalId: workloadIdentityPrincipalId
+    scope: account.id
   }
 }
 

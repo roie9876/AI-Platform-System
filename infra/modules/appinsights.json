@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "17851826568815317377"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "workspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Log Analytics workspace"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[format('stumsft-aiplatform-{0}-appi', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[parameters('workspaceId')]",
+        "IngestionMode": "LogAnalytics",
+        "RetentionInDays": 90
+      }
+    }
+  ],
+  "outputs": {
+    "appInsightsId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Application Insights"
+      },
+      "value": "[resourceId('Microsoft.Insights/components', format('stumsft-aiplatform-{0}-appi', parameters('environmentName')))]"
+    },
+    "instrumentationKey": {
+      "type": "string",
+      "metadata": {
+        "description": "Instrumentation key"
+      },
+      "value": "[reference(resourceId('Microsoft.Insights/components', format('stumsft-aiplatform-{0}-appi', parameters('environmentName'))), '2020-02-02').InstrumentationKey]"
+    },
+    "connectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "Connection string for Application Insights"
+      },
+      "value": "[reference(resourceId('Microsoft.Insights/components', format('stumsft-aiplatform-{0}-appi', parameters('environmentName'))), '2020-02-02').ConnectionString]"
+    }
+  }
+}

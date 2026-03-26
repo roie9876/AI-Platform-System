@@ -24,7 +24,7 @@ def _require_platform_admin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Platform admin role required")
 
 
-@router.post("/", status_code=201, response_model=TenantResponse)
+@router.post("", status_code=201, response_model=TenantResponse)
 async def create_tenant(body: TenantCreateRequest, request: Request):
     _require_platform_admin(request)
     service = TenantService()
@@ -37,7 +37,7 @@ async def create_tenant(body: TenantCreateRequest, request: Request):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@router.get("/", response_model=TenantListResponse)
+@router.get("", response_model=TenantListResponse)
 async def list_tenants(request: Request, status: str | None = None):
     _require_platform_admin(request)
     service = TenantService()

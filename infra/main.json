@@ -1,0 +1,1866 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "1421055926839388253"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Environment name — must be provided"
+      }
+    },
+    "aksSystemNodeCount": {
+      "type": "int",
+      "defaultValue": 2,
+      "metadata": {
+        "description": "Number of AKS system node pool nodes"
+      }
+    },
+    "aksSystemNodeVmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v5",
+      "metadata": {
+        "description": "VM size for AKS system node pool"
+      }
+    },
+    "aksUserNodeCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of AKS user node pool nodes"
+      }
+    },
+    "aksUserNodeVmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v5",
+      "metadata": {
+        "description": "VM size for AKS user node pool"
+      }
+    },
+    "aksKubernetesVersion": {
+      "type": "string",
+      "defaultValue": "1.33",
+      "metadata": {
+        "description": "Kubernetes version"
+      }
+    },
+    "acrSku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "ACR SKU tier"
+      }
+    },
+    "logRetentionDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Log Analytics retention in days"
+      }
+    },
+    "alertEmail": {
+      "type": "string",
+      "defaultValue": "admin@stumsft.com",
+      "metadata": {
+        "description": "Email address for alert notifications"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName')), 'aiplatform-federated-credential')]",
+      "properties": {
+        "issuer": "[reference(resourceId('Microsoft.Resources/deployments', 'aks-deployment'), '2025-04-01').outputs.aksOidcIssuerUrl.value]",
+        "subject": "system:serviceaccount:aiplatform:aiplatform-workload",
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'aks-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "vnet-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "8508070357920250625"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "vnetAddressPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.0.0/16",
+              "metadata": {
+                "description": "VNet address space"
+              }
+            },
+            "aksNodesSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.0.0/22",
+              "metadata": {
+                "description": "AKS nodes subnet address prefix"
+              }
+            },
+            "aksPodsSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.4.0/22",
+              "metadata": {
+                "description": "AKS pods subnet address prefix (Azure CNI Overlay)"
+              }
+            },
+            "privateEndpointsSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.8.0/24",
+              "metadata": {
+                "description": "Private endpoints subnet address prefix"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  },
+                  {
+                    "name": "AllowAllOutbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  },
+                  {
+                    "name": "AllowAllOutbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  },
+                  {
+                    "name": "AllowAllOutbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[parameters('vnetAddressPrefix')]"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "aks-nodes",
+                    "properties": {
+                      "addressPrefix": "[parameters('aksNodesSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName')))]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "aks-pods",
+                    "properties": {
+                      "addressPrefix": "[parameters('aksPodsSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName')))]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "private-endpoints",
+                    "properties": {
+                      "addressPrefix": "[parameters('privateEndpointsSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName')))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName')))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the VNet"
+              },
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName')))]"
+            },
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the VNet"
+              },
+              "value": "[format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))]"
+            },
+            "aksNodesSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the aks-nodes subnet"
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[0].id]"
+            },
+            "aksPodsSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the aks-pods subnet"
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[1].id]"
+            },
+            "privateEndpointsSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the private-endpoints subnet"
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[2].id]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "loganalytics-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "retentionInDays": {
+            "value": "[parameters('logRetentionDays')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "3847863232861731261"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "metadata": {
+                "description": "Log retention in days"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2023-09-01",
+              "name": "[format('stumsft-aiplatform-{0}-law', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]"
+              }
+            }
+          ],
+          "outputs": {
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Log Analytics workspace"
+              },
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('stumsft-aiplatform-{0}-law', parameters('environmentName')))]"
+            },
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Log Analytics workspace"
+              },
+              "value": "[format('stumsft-aiplatform-{0}-law', parameters('environmentName'))]"
+            },
+            "workspaceCustomerId": {
+              "type": "string",
+              "metadata": {
+                "description": "Customer ID of the Log Analytics workspace"
+              },
+              "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('stumsft-aiplatform-{0}-law', parameters('environmentName'))), '2023-09-01').customerId]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "identity-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "16789878418079015570"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('stumsft-aiplatform-{0}-aks-id', parameters('environmentName'))]",
+              "location": "[parameters('location')]"
+            },
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName'))]",
+              "location": "[parameters('location')]"
+            }
+          ],
+          "outputs": {
+            "aksIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of AKS control plane identity"
+              },
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-aks-id', parameters('environmentName')))]"
+            },
+            "aksIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of AKS control plane identity"
+              },
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-aks-id', parameters('environmentName'))), '2023-01-31').principalId]"
+            },
+            "workloadIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of workload identity"
+              },
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName')))]"
+            },
+            "workloadIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of workload identity"
+              },
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName'))), '2023-01-31').principalId]"
+            },
+            "workloadIdentityClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID of workload identity"
+              },
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('stumsft-aiplatform-{0}-workload-id', parameters('environmentName'))), '2023-01-31').clientId]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "cosmos-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "workloadIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "4754553989326206125"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of Log Analytics workspace for diagnostics (optional)"
+              }
+            },
+            "workloadIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of workload identity for Cosmos DB data plane RBAC"
+              }
+            }
+          },
+          "variables": {
+            "containersWithUniqueKeys": [
+              {
+                "name": "agents",
+                "uniqueKeyPaths": [
+                  "/slug"
+                ]
+              },
+              {
+                "name": "data_sources",
+                "uniqueKeyPaths": [
+                  "/name"
+                ]
+              },
+              {
+                "name": "mcp_servers",
+                "uniqueKeyPaths": [
+                  "/name"
+                ]
+              },
+              {
+                "name": "model_endpoints",
+                "uniqueKeyPaths": [
+                  "/name"
+                ]
+              },
+              {
+                "name": "tenants",
+                "uniqueKeyPaths": [
+                  "/slug"
+                ]
+              },
+              {
+                "name": "tools",
+                "uniqueKeyPaths": [
+                  "/name"
+                ]
+              },
+              {
+                "name": "users",
+                "uniqueKeyPaths": [
+                  "/email"
+                ]
+              }
+            ],
+            "simpleContainerNames": [
+              "agent_config_versions",
+              "agent_data_sources",
+              "agent_mcp_tools",
+              "agent_memories",
+              "agent_templates",
+              "agent_tools",
+              "azure_connections",
+              "azure_subscriptions",
+              "catalog_entries",
+              "cost_alerts",
+              "documents",
+              "document_chunks",
+              "evaluation_results",
+              "evaluation_runs",
+              "execution_logs",
+              "mcp_discovered_tools",
+              "model_pricing",
+              "refresh_tokens",
+              "test_cases",
+              "test_suites",
+              "thread_messages",
+              "threads",
+              "tool_templates",
+              "workflow_edges",
+              "workflow_executions",
+              "workflow_node_executions",
+              "workflow_nodes",
+              "workflows"
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts",
+              "apiVersion": "2024-05-15",
+              "name": "[format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "kind": "GlobalDocumentDB",
+              "properties": {
+                "databaseAccountOfferType": "Standard",
+                "capabilities": [
+                  {
+                    "name": "EnableServerless"
+                  }
+                ],
+                "consistencyPolicy": {
+                  "defaultConsistencyLevel": "Session"
+                },
+                "locations": [
+                  {
+                    "locationName": "[parameters('location')]",
+                    "failoverPriority": 0
+                  }
+                ],
+                "publicNetworkAccess": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]",
+              "properties": {
+                "resource": {
+                  "id": "aiplatform"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "uniqueContainers",
+                "count": "[length(variables('containersWithUniqueKeys'))]"
+              },
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('containersWithUniqueKeys')[copyIndex()].name)]",
+              "properties": {
+                "resource": {
+                  "id": "[variables('containersWithUniqueKeys')[copyIndex()].name]",
+                  "partitionKey": {
+                    "paths": [
+                      "/tenant_id"
+                    ],
+                    "kind": "Hash"
+                  },
+                  "uniqueKeyPolicy": {
+                    "uniqueKeys": [
+                      {
+                        "paths": "[variables('containersWithUniqueKeys')[copyIndex()].uniqueKeyPaths]"
+                      }
+                    ]
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "simpleContainers",
+                "count": "[length(variables('simpleContainerNames'))]"
+              },
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('simpleContainerNames')[copyIndex()])]",
+              "properties": {
+                "resource": {
+                  "id": "[variables('simpleContainerNames')[copyIndex()]]",
+                  "partitionKey": {
+                    "paths": [
+                      "/tenant_id"
+                    ],
+                    "kind": "Hash"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]",
+              "name": "cosmos-diagnostics",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "DataPlaneRequests",
+                    "enabled": true
+                  },
+                  {
+                    "category": "QueryRuntimeStatistics",
+                    "enabled": true
+                  },
+                  {
+                    "category": "PartitionKeyStatistics",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "Requests",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))), parameters('workloadIdentityPrincipalId'), '00000000-0000-0000-0000-000000000002'))]",
+              "properties": {
+                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))))]",
+                "principalId": "[parameters('workloadIdentityPrincipalId')]",
+                "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "cosmosAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Cosmos DB account"
+              },
+              "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+            },
+            "cosmosAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Cosmos DB account"
+              },
+              "value": "[format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))]"
+            },
+            "cosmosEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Document endpoint of the Cosmos DB account"
+              },
+              "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))), '2024-05-15').documentEndpoint]"
+            },
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the database"
+              },
+              "value": "aiplatform"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "acr-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "sku": {
+            "value": "[parameters('acrSku')]"
+          },
+          "aksIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.aksIdentityPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "8365074955106971382"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "metadata": {
+                "description": "ACR SKU"
+              }
+            },
+            "aksIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of AKS identity for AcrPull role assignment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[format('stumsftaiplatform{0}acr', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "properties": {
+                "adminUserEnabled": false
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName'))), parameters('aksIdentityPrincipalId'), '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                "principalId": "[parameters('aksIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "acrId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of ACR"
+              },
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]"
+            },
+            "acrLoginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "ACR login server URL"
+              },
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName'))), '2023-07-01').loginServer]"
+            },
+            "acrName": {
+              "type": "string",
+              "metadata": {
+                "description": "ACR name"
+              },
+              "value": "[format('stumsftaiplatform{0}acr', parameters('environmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aks-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "aksNodesSubnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'vnet-deployment'), '2025-04-01').outputs.aksNodesSubnetId.value]"
+          },
+          "aksPodsSubnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'vnet-deployment'), '2025-04-01').outputs.aksPodsSubnetId.value]"
+          },
+          "aksIdentityId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.aksIdentityId.value]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "systemNodeCount": {
+            "value": "[parameters('aksSystemNodeCount')]"
+          },
+          "systemNodeVmSize": {
+            "value": "[parameters('aksSystemNodeVmSize')]"
+          },
+          "userNodeCount": {
+            "value": "[parameters('aksUserNodeCount')]"
+          },
+          "userNodeVmSize": {
+            "value": "[parameters('aksUserNodeVmSize')]"
+          },
+          "kubernetesVersion": {
+            "value": "[parameters('aksKubernetesVersion')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "11124841020219576084"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "aksNodesSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "AKS nodes subnet resource ID"
+              }
+            },
+            "aksPodsSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "AKS pods subnet resource ID (for CNI Overlay pod subnet)"
+              }
+            },
+            "aksIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of AKS control plane user-assigned identity"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of Log Analytics workspace for monitoring"
+              }
+            },
+            "systemNodeCount": {
+              "type": "int",
+              "defaultValue": 2,
+              "metadata": {
+                "description": "Number of system node pool nodes"
+              }
+            },
+            "systemNodeVmSize": {
+              "type": "string",
+              "defaultValue": "Standard_D4s_v5",
+              "metadata": {
+                "description": "VM size for system node pool"
+              }
+            },
+            "userNodeCount": {
+              "type": "int",
+              "defaultValue": 1,
+              "metadata": {
+                "description": "Number of user node pool nodes"
+              }
+            },
+            "userNodeVmSize": {
+              "type": "string",
+              "defaultValue": "Standard_D4s_v5",
+              "metadata": {
+                "description": "VM size for user node pool"
+              }
+            },
+            "kubernetesVersion": {
+              "type": "string",
+              "defaultValue": "1.33",
+              "metadata": {
+                "description": "Kubernetes version"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerService/managedClusters",
+              "apiVersion": "2024-05-01",
+              "name": "[format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('aksIdentityId'))]": {}
+                }
+              },
+              "properties": {
+                "kubernetesVersion": "[parameters('kubernetesVersion')]",
+                "dnsPrefix": "[format('stumsft-aiplatform-{0}', parameters('environmentName'))]",
+                "enableRBAC": true,
+                "aadProfile": {
+                  "managed": true,
+                  "enableAzureRBAC": true
+                },
+                "networkProfile": {
+                  "networkPlugin": "azure",
+                  "networkPluginMode": "overlay",
+                  "podCidr": "192.168.0.0/16",
+                  "serviceCidr": "172.16.0.0/16",
+                  "dnsServiceIP": "172.16.0.10"
+                },
+                "addonProfiles": {
+                  "omsagent": {
+                    "enabled": true,
+                    "config": {
+                      "logAnalyticsWorkspaceResourceID": "[parameters('logAnalyticsWorkspaceId')]"
+                    }
+                  }
+                },
+                "oidcIssuerProfile": {
+                  "enabled": true
+                },
+                "securityProfile": {
+                  "workloadIdentity": {
+                    "enabled": true
+                  }
+                },
+                "agentPoolProfiles": [
+                  {
+                    "name": "system",
+                    "mode": "System",
+                    "count": "[parameters('systemNodeCount')]",
+                    "vmSize": "[parameters('systemNodeVmSize')]",
+                    "vnetSubnetID": "[parameters('aksNodesSubnetId')]",
+                    "osType": "Linux",
+                    "osDiskSizeGB": 128
+                  },
+                  {
+                    "name": "userpool",
+                    "mode": "User",
+                    "count": "[parameters('userNodeCount')]",
+                    "vmSize": "[parameters('userNodeVmSize')]",
+                    "vnetSubnetID": "[parameters('aksNodesSubnetId')]",
+                    "osType": "Linux",
+                    "osDiskSizeGB": 128
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "aksClusterId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the AKS cluster"
+              },
+              "value": "[resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName')))]"
+            },
+            "aksClusterName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the AKS cluster"
+              },
+              "value": "[format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))]"
+            },
+            "aksOidcIssuerUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "OIDC issuer URL for workload identity federation"
+              },
+              "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))), '2024-05-01').oidcIssuerProfile.issuerURL]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'vnet-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "keyvault-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "workloadIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityPrincipalId.value]"
+          },
+          "workloadIdentityClientId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityClientId.value]"
+          },
+          "cosmosEndpoint": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmos-deployment'), '2025-04-01').outputs.cosmosEndpoint.value]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "7693364960081162309"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "workloadIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of workload identity for Key Vault Secrets User role"
+              }
+            },
+            "workloadIdentityClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID of workload identity (stored as secret for pod consumption)"
+              }
+            },
+            "cosmosEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos DB document endpoint (stored as secret for pod consumption)"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of Log Analytics workspace for diagnostics (optional)"
+              }
+            },
+            "tenantId": {
+              "type": "string",
+              "defaultValue": "[subscription().tenantId]",
+              "metadata": {
+                "description": "Azure AD tenant ID"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2023-07-01",
+              "name": "[format('stumsft-aiplat-{0}-kv', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "family": "A",
+                  "name": "standard"
+                },
+                "tenantId": "[parameters('tenantId')]",
+                "enableRbacAuthorization": true,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": 7,
+                "publicNetworkAccess": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName'))), parameters('workloadIdentityPrincipalId'), '4633458b-17de-408a-b874-0445c86b69e6')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                "principalId": "[parameters('workloadIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'cosmos-endpoint')]",
+              "properties": {
+                "value": "[parameters('cosmosEndpoint')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'entra-client-id')]",
+              "properties": {
+                "value": "[parameters('workloadIdentityClientId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'entra-tenant-id')]",
+              "properties": {
+                "value": "[parameters('tenantId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'workload-client-id')]",
+              "properties": {
+                "value": "[parameters('workloadIdentityClientId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]",
+              "name": "keyvault-diagnostics",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "AuditEvent",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "keyVaultId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of Key Vault"
+              },
+              "value": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of Key Vault"
+              },
+              "value": "[format('stumsft-aiplat-{0}-kv', parameters('environmentName'))]"
+            },
+            "keyVaultUri": {
+              "type": "string",
+              "metadata": {
+                "description": "URI of Key Vault"
+              },
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName'))), '2023-07-01').vaultUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'cosmos-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "appinsights-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "workspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "17851826568815317377"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of Log Analytics workspace"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[format('stumsft-aiplatform-{0}-appi', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[parameters('workspaceId')]",
+                "IngestionMode": "LogAnalytics",
+                "RetentionInDays": 90
+              }
+            }
+          ],
+          "outputs": {
+            "appInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of Application Insights"
+              },
+              "value": "[resourceId('Microsoft.Insights/components', format('stumsft-aiplatform-{0}-appi', parameters('environmentName')))]"
+            },
+            "instrumentationKey": {
+              "type": "string",
+              "metadata": {
+                "description": "Instrumentation key"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', format('stumsft-aiplatform-{0}-appi', parameters('environmentName'))), '2020-02-02').InstrumentationKey]"
+            },
+            "connectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "Connection string for Application Insights"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', format('stumsft-aiplatform-{0}-appi', parameters('environmentName'))), '2020-02-02').ConnectionString]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "alerts-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "appInsightsId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'appinsights-deployment'), '2025-04-01').outputs.appInsightsId.value]"
+          },
+          "aksClusterId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aks-deployment'), '2025-04-01').outputs.aksClusterId.value]"
+          },
+          "cosmosAccountId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmos-deployment'), '2025-04-01').outputs.cosmosAccountId.value]"
+          },
+          "actionGroupEmail": {
+            "value": "[parameters('alertEmail')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "18359750723964569627"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "appInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of Application Insights"
+              }
+            },
+            "aksClusterId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of AKS cluster"
+              }
+            },
+            "cosmosAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of Cosmos DB account"
+              }
+            },
+            "actionGroupEmail": {
+              "type": "string",
+              "defaultValue": "admin@stumsft.com",
+              "metadata": {
+                "description": "Email address for alert notifications"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/actionGroups",
+              "apiVersion": "2023-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-ag', parameters('environmentName'))]",
+              "location": "global",
+              "properties": {
+                "groupShortName": "AIPlatform",
+                "enabled": true,
+                "emailReceivers": [
+                  {
+                    "name": "PlatformAdmin",
+                    "emailAddress": "[parameters('actionGroupEmail')]",
+                    "useCommonAlertSchema": true
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('stumsft-aiplatform-{0}-aks-pod-restart-alert', parameters('environmentName'))]",
+              "location": "global",
+              "properties": {
+                "description": "AKS pod restart count exceeds threshold",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                  "[parameters('aksClusterId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "autoMitigate": true,
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "PodRestarts",
+                      "metricName": "restartingContainerCount",
+                      "metricNamespace": "Insights.Container/pods",
+                      "operator": "GreaterThan",
+                      "threshold": 5,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('stumsft-aiplatform-{0}-app-5xx-rate-alert', parameters('environmentName'))]",
+              "location": "global",
+              "properties": {
+                "description": "Application 5xx error rate exceeds threshold",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                  "[parameters('appInsightsId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "autoMitigate": true,
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "FailedRequests",
+                      "metricName": "requests/failed",
+                      "metricNamespace": "microsoft.insights/components",
+                      "operator": "GreaterThan",
+                      "threshold": 10,
+                      "timeAggregation": "Count",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('stumsft-aiplatform-{0}-cosmos-ru-consumption-alert', parameters('environmentName'))]",
+              "location": "global",
+              "properties": {
+                "description": "Cosmos DB Normalized RU Consumption exceeds 80%",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                  "[parameters('cosmosAccountId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "autoMitigate": true,
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "NormalizedRU",
+                      "metricName": "NormalizedRUConsumption",
+                      "metricNamespace": "microsoft.documentdb/databaseaccounts",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Maximum",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('stumsft-aiplatform-{0}-aks-node-cpu-alert', parameters('environmentName'))]",
+              "location": "global",
+              "properties": {
+                "description": "AKS node CPU usage exceeds 80%",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                  "[parameters('aksClusterId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "autoMitigate": true,
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "NodeCPU",
+                      "metricName": "node_cpu_usage_percentage",
+                      "metricNamespace": "Insights.Container/nodes",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('stumsft-aiplatform-{0}-ag', parameters('environmentName')))]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'aks-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'appinsights-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'cosmos-deployment')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "VNet resource ID"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'vnet-deployment'), '2025-04-01').outputs.vnetId.value]"
+    },
+    "aksClusterName": {
+      "type": "string",
+      "metadata": {
+        "description": "AKS cluster name"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aks-deployment'), '2025-04-01').outputs.aksClusterName.value]"
+    },
+    "aksOidcIssuerUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "AKS OIDC issuer URL for workload identity federation"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aks-deployment'), '2025-04-01').outputs.aksOidcIssuerUrl.value]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "metadata": {
+        "description": "ACR login server URL"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.acrLoginServer.value]"
+    },
+    "cosmosEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Cosmos DB document endpoint"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmos-deployment'), '2025-04-01').outputs.cosmosEndpoint.value]"
+    },
+    "cosmosDatabaseName": {
+      "type": "string",
+      "metadata": {
+        "description": "Cosmos DB database name"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmos-deployment'), '2025-04-01').outputs.databaseName.value]"
+    },
+    "keyVaultUri": {
+      "type": "string",
+      "metadata": {
+        "description": "Key Vault URI"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyvault-deployment'), '2025-04-01').outputs.keyVaultUri.value]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Key Vault name"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyvault-deployment'), '2025-04-01').outputs.keyVaultName.value]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics workspace resource ID"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
+    },
+    "workloadIdentityClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Workload identity client ID for pod identity binding"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityClientId.value]"
+    },
+    "appInsightsConnectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Insights connection string"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'appinsights-deployment'), '2025-04-01').outputs.connectionString.value]"
+    }
+  }
+}

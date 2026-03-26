@@ -4,11 +4,11 @@ metadata:
   name: aiplatform-config
 data:
   COSMOS_DATABASE: "aiplatform"
-  CORS_ORIGINS: '["https://aiplatform.stumsft.com"]'
+  CORS_ORIGINS: '["https://aiplatform.stumsft.com","http://localhost:3000","http://4.165.149.111","https://4.165.149.111"]'
   TOOL_EXECUTOR_URL: "http://tool-executor:8000"
   MCP_PROXY_URL: "http://mcp-proxy:8000"
   AGENT_EXECUTOR_URL: "http://agent-executor:8000"
   API_GATEWAY_URL: "http://api-gateway:8000"
   WORKFLOW_ENGINE_URL: "http://workflow-engine:8000"
-  APPLICATIONINSIGHTS_CONNECTION_STRING: "REPLACE_WITH_APP_INSIGHTS_CONNECTION_STRING"
+  APPLICATIONINSIGHTS_CONNECTION_STRING: ""
   OTEL_SERVICE_NAME: "ai-platform"

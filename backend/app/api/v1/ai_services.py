@@ -17,7 +17,7 @@ tool_repo = ToolRepository()
 agent_tool_repo = AgentToolRepository()
 
 
-@router.get("/", response_model=PlatformToolListResponse)
+@router.get("", response_model=PlatformToolListResponse)
 async def list_platform_tools(
     request: Request,
     agent_id: str = Query(default=None),

@@ -1,9 +1,9 @@
 import {
   InteractionRequiredAuthError,
 } from "@azure/msal-browser";
-import { msalInstance, loginScopes } from "@/lib/msal";
+import { getMsalInstance, getLoginScopes } from "@/lib/msal";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 let _currentTenantId: string | null = null;
 
@@ -12,21 +12,35 @@ export function setCurrentTenantId(id: string | null) {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  const account = msalInstance.getActiveAccount();
-  if (!account) return null;
+  let instance;
+  try {
+    instance = getMsalInstance();
+  } catch {
+    console.warn("[apiFetch] MSAL not initialized yet");
+    return null;
+  }
+
+  const account = instance.getActiveAccount();
+  if (!account) {
+    console.warn("[apiFetch] No active MSAL account");
+    return null;
+  }
 
   try {
-    const response = await msalInstance.acquireTokenSilent({
-      scopes: loginScopes,
+    const response = await instance.acquireTokenSilent({
+      scopes: getLoginScopes(),
       account,
     });
     return response.accessToken;
   } catch (error) {
+    console.error("[apiFetch] acquireTokenSilent failed:", error);
     if (error instanceof InteractionRequiredAuthError) {
-      await msalInstance.acquireTokenRedirect({ scopes: loginScopes });
+      await instance.acquireTokenRedirect({ scopes: getLoginScopes() });
       return null;
     }
-    throw error;
+    // Don't re-throw MSAL errors — proceed without token so the API
+    // returns a proper 401 instead of a cryptic "Failed to fetch"
+    return null;
   }
 }
 
@@ -50,10 +64,16 @@ export async function apiFetch<T>(
     headers["X-Tenant-Id"] = _currentTenantId;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (networkError) {
+    console.error("[apiFetch] Network error for", url, networkError);
+    throw new Error(`Network error: Unable to reach API at ${url}`);
+  }
   if (!response.ok) {
     const error = await response
       .json()

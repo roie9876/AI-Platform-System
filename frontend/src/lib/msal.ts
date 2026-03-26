@@ -1,18 +1,40 @@
-import { PublicClientApplication, Configuration } from "@azure/msal-browser";
+import { PublicClientApplication, Configuration, BrowserCacheLocation } from "@azure/msal-browser";
 
-const msalConfig: Configuration = {
-  auth: {
-    clientId: process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || "",
-    authority: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_AZURE_TENANT_ID || "common"}`,
-    redirectUri: typeof window !== "undefined" ? window.location.origin : "",
-  },
-  cache: {
-    cacheLocation: "sessionStorage",
-  },
-};
+let msalInstance: PublicClientApplication | null = null;
+let loginScopes: string[] = [];
 
-export const msalInstance = new PublicClientApplication(msalConfig);
+export async function initializeMsal(): Promise<PublicClientApplication> {
+  if (msalInstance) return msalInstance;
 
-export const loginScopes = [
-  `api://${process.env.NEXT_PUBLIC_AZURE_CLIENT_ID}/access_as_user`,
-];
+  const res = await fetch("/api/config");
+  const config = await res.json();
+  const clientId = config.clientId || "";
+  const tenantId = config.tenantId || "common";
+
+  const msalConfig: Configuration = {
+    auth: {
+      clientId,
+      authority: `https://login.microsoftonline.com/${tenantId}`,
+      redirectUri: typeof window !== "undefined" ? window.location.origin : "",
+    },
+    cache: {
+      cacheLocation: BrowserCacheLocation.SessionStorage,
+    },
+  };
+
+  msalInstance = new PublicClientApplication(msalConfig);
+  loginScopes = [`api://${clientId}/access_as_user`];
+
+  await msalInstance.initialize();
+
+  return msalInstance;
+}
+
+export function getMsalInstance(): PublicClientApplication {
+  if (!msalInstance) throw new Error("MSAL not initialized — call initializeMsal() first");
+  return msalInstance;
+}
+
+export function getLoginScopes(): string[] {
+  return loginScopes;
+}

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     AZURE_JWKS_URI: str = ""
     AZURE_ISSUER: str = ""
 
+    # Workload Identity client ID (for Cosmos DB auth via DefaultAzureCredential)
+    AZURE_WORKLOAD_CLIENT_ID: str = ""
+
     # Inter-service URLs (K8s DNS defaults)
     TOOL_EXECUTOR_URL: str = "http://tool-executor:8000"
     MCP_PROXY_URL: str = "http://mcp-proxy:8000"

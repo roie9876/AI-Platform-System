@@ -1,0 +1,284 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "4754553989326206125"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Resource ID of Log Analytics workspace for diagnostics (optional)"
+      }
+    },
+    "workloadIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of workload identity for Cosmos DB data plane RBAC"
+      }
+    }
+  },
+  "variables": {
+    "containersWithUniqueKeys": [
+      {
+        "name": "agents",
+        "uniqueKeyPaths": [
+          "/slug"
+        ]
+      },
+      {
+        "name": "data_sources",
+        "uniqueKeyPaths": [
+          "/name"
+        ]
+      },
+      {
+        "name": "mcp_servers",
+        "uniqueKeyPaths": [
+          "/name"
+        ]
+      },
+      {
+        "name": "model_endpoints",
+        "uniqueKeyPaths": [
+          "/name"
+        ]
+      },
+      {
+        "name": "tenants",
+        "uniqueKeyPaths": [
+          "/slug"
+        ]
+      },
+      {
+        "name": "tools",
+        "uniqueKeyPaths": [
+          "/name"
+        ]
+      },
+      {
+        "name": "users",
+        "uniqueKeyPaths": [
+          "/email"
+        ]
+      }
+    ],
+    "simpleContainerNames": [
+      "agent_config_versions",
+      "agent_data_sources",
+      "agent_mcp_tools",
+      "agent_memories",
+      "agent_templates",
+      "agent_tools",
+      "azure_connections",
+      "azure_subscriptions",
+      "catalog_entries",
+      "cost_alerts",
+      "documents",
+      "document_chunks",
+      "evaluation_results",
+      "evaluation_runs",
+      "execution_logs",
+      "mcp_discovered_tools",
+      "model_pricing",
+      "refresh_tokens",
+      "test_cases",
+      "test_suites",
+      "thread_messages",
+      "threads",
+      "tool_templates",
+      "workflow_edges",
+      "workflow_executions",
+      "workflow_node_executions",
+      "workflow_nodes",
+      "workflows"
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts",
+      "apiVersion": "2024-05-15",
+      "name": "[format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "GlobalDocumentDB",
+      "properties": {
+        "databaseAccountOfferType": "Standard",
+        "capabilities": [
+          {
+            "name": "EnableServerless"
+          }
+        ],
+        "consistencyPolicy": {
+          "defaultConsistencyLevel": "Session"
+        },
+        "locations": [
+          {
+            "locationName": "[parameters('location')]",
+            "failoverPriority": 0
+          }
+        ],
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]",
+      "properties": {
+        "resource": {
+          "id": "aiplatform"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "uniqueContainers",
+        "count": "[length(variables('containersWithUniqueKeys'))]"
+      },
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('containersWithUniqueKeys')[copyIndex()].name)]",
+      "properties": {
+        "resource": {
+          "id": "[variables('containersWithUniqueKeys')[copyIndex()].name]",
+          "partitionKey": {
+            "paths": [
+              "/tenant_id"
+            ],
+            "kind": "Hash"
+          },
+          "uniqueKeyPolicy": {
+            "uniqueKeys": [
+              {
+                "paths": "[variables('containersWithUniqueKeys')[copyIndex()].uniqueKeyPaths]"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "simpleContainers",
+        "count": "[length(variables('simpleContainerNames'))]"
+      },
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('simpleContainerNames')[copyIndex()])]",
+      "properties": {
+        "resource": {
+          "id": "[variables('simpleContainerNames')[copyIndex()]]",
+          "partitionKey": {
+            "paths": [
+              "/tenant_id"
+            ],
+            "kind": "Hash"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]",
+      "name": "cosmos-diagnostics",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "category": "DataPlaneRequests",
+            "enabled": true
+          },
+          {
+            "category": "QueryRuntimeStatistics",
+            "enabled": true
+          },
+          {
+            "category": "PartitionKeyStatistics",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "Requests",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))), parameters('workloadIdentityPrincipalId'), '00000000-0000-0000-0000-000000000002'))]",
+      "properties": {
+        "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))))]",
+        "principalId": "[parameters('workloadIdentityPrincipalId')]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "cosmosAccountId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Cosmos DB account"
+      },
+      "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+    },
+    "cosmosAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Cosmos DB account"
+      },
+      "value": "[format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))]"
+    },
+    "cosmosEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Document endpoint of the Cosmos DB account"
+      },
+      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))), '2024-05-15').documentEndpoint]"
+    },
+    "databaseName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the database"
+      },
+      "value": "aiplatform"
+    }
+  }
+}

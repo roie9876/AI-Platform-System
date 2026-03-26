@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "3847863232861731261"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "retentionInDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Log retention in days"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('stumsft-aiplatform-{0}-law', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": "[parameters('retentionInDays')]"
+      }
+    }
+  ],
+  "outputs": {
+    "workspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics workspace"
+      },
+      "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('stumsft-aiplatform-{0}-law', parameters('environmentName')))]"
+    },
+    "workspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      },
+      "value": "[format('stumsft-aiplatform-{0}-law', parameters('environmentName'))]"
+    },
+    "workspaceCustomerId": {
+      "type": "string",
+      "metadata": {
+        "description": "Customer ID of the Log Analytics workspace"
+      },
+      "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('stumsft-aiplatform-{0}-law', parameters('environmentName'))), '2023-09-01').customerId]"
+    }
+  }
+}
