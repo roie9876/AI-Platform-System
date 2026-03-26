@@ -2,14 +2,16 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, delete
-from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
-from app.models.evaluation import TestSuite, TestCase, EvaluationRun, EvaluationResult
+from app.repositories.evaluation_repo import (
+    TestSuiteRepository,
+    TestCaseRepository,
+    EvaluationRunRepository,
+    EvaluationResultRepository,
+)
 from app.services.evaluation_service import EvaluationService
 from app.api.v1.schemas import (
     TestSuiteCreate,
@@ -22,57 +24,49 @@ from app.api.v1.schemas import (
 
 router = APIRouter()
 
+suite_repo = TestSuiteRepository()
+case_repo = TestCaseRepository()
+run_repo = EvaluationRunRepository()
+result_repo = EvaluationResultRepository()
+
 
 # --- Test Suite CRUD ---
 
 @router.get("/test-suites", response_model=list[TestSuiteResponse])
 async def list_test_suites(
-    agent_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    agent_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    query = select(TestSuite).where(TestSuite.tenant_id == UUID(tenant_id))
     if agent_id:
-        query = query.where(TestSuite.agent_id == agent_id)
-    result = await db.execute(query.order_by(TestSuite.created_at.desc()))
-    suites = list(result.scalars().all())
+        suites = await suite_repo.list_by_agent(tenant_id, agent_id)
+    else:
+        suites = await suite_repo.list_all(tenant_id)
     return suites
 
 
 @router.post("/test-suites", response_model=TestSuiteResponse, status_code=201)
 async def create_test_suite(
     body: TestSuiteCreate,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    suite = TestSuite(
-        name=body.name,
-        description=body.description,
-        agent_id=body.agent_id,
-        tenant_id=UUID(tenant_id),
-    )
-    db.add(suite)
-    await db.commit()
-    await db.refresh(suite)
+    suite_data = {
+        "name": body.name,
+        "description": body.description,
+        "agent_id": str(body.agent_id) if body.agent_id else None,
+    }
+    suite = await suite_repo.create(tenant_id, suite_data)
     return suite
 
 
 @router.get("/test-suites/{suite_id}", response_model=TestSuiteResponse)
 async def get_test_suite(
-    suite_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    suite_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(TestSuite).where(
-            TestSuite.id == suite_id,
-            TestSuite.tenant_id == UUID(tenant_id),
-        )
-    )
-    suite = result.scalar_one_or_none()
+    suite = await suite_repo.get(tenant_id, suite_id)
     if not suite:
         raise HTTPException(status_code=404, detail="Test suite not found")
     return suite
@@ -80,169 +74,125 @@ async def get_test_suite(
 
 @router.put("/test-suites/{suite_id}", response_model=TestSuiteResponse)
 async def update_test_suite(
-    suite_id: UUID,
+    suite_id: str,
     body: TestSuiteCreate,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(TestSuite).where(
-            TestSuite.id == suite_id,
-            TestSuite.tenant_id == UUID(tenant_id),
-        )
-    )
-    suite = result.scalar_one_or_none()
+    suite = await suite_repo.get(tenant_id, suite_id)
     if not suite:
         raise HTTPException(status_code=404, detail="Test suite not found")
-    suite.name = body.name
-    suite.description = body.description
-    suite.agent_id = body.agent_id
-    await db.commit()
-    await db.refresh(suite)
-    return suite
+    suite["name"] = body.name
+    suite["description"] = body.description
+    suite["agent_id"] = str(body.agent_id) if body.agent_id else None
+    updated = await suite_repo.update(tenant_id, suite_id, suite)
+    return updated
 
 
 @router.delete("/test-suites/{suite_id}", status_code=204)
 async def delete_test_suite(
-    suite_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    suite_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    await db.execute(
-        delete(TestSuite).where(
-            TestSuite.id == suite_id,
-            TestSuite.tenant_id == UUID(tenant_id),
-        )
-    )
-    await db.commit()
+    await suite_repo.delete(tenant_id, suite_id)
 
 
 # --- Test Cases ---
 
 @router.post("/test-suites/{suite_id}/cases", response_model=TestCaseResponse, status_code=201)
 async def add_test_case(
-    suite_id: UUID,
+    suite_id: str,
     body: TestCaseCreate,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    # Verify suite exists and belongs to tenant
-    result = await db.execute(
-        select(TestSuite).where(
-            TestSuite.id == suite_id,
-            TestSuite.tenant_id == UUID(tenant_id),
-        )
-    )
-    if not result.scalar_one_or_none():
+    suite = await suite_repo.get(tenant_id, suite_id)
+    if not suite:
         raise HTTPException(status_code=404, detail="Test suite not found")
 
-    case = TestCase(
-        test_suite_id=suite_id,
-        input_message=body.input_message,
-        expected_output=body.expected_output,
-        expected_keywords=body.expected_keywords,
-        metadata_=body.metadata_,
-        order_index=body.order_index,
-    )
-    db.add(case)
-    await db.commit()
-    await db.refresh(case)
+    case_data = {
+        "test_suite_id": suite_id,
+        "input_message": body.input_message,
+        "expected_output": body.expected_output,
+        "expected_keywords": body.expected_keywords,
+        "metadata_": body.metadata_,
+        "order_index": body.order_index,
+    }
+    case = await case_repo.create(tenant_id, case_data)
     return case
 
 
 @router.put("/test-suites/{suite_id}/cases/{case_id}", response_model=TestCaseResponse)
 async def update_test_case(
-    suite_id: UUID,
-    case_id: UUID,
+    suite_id: str,
+    case_id: str,
     body: TestCaseCreate,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(TestCase).where(TestCase.id == case_id, TestCase.test_suite_id == suite_id)
-    )
-    case = result.scalar_one_or_none()
-    if not case:
+    case = await case_repo.get(tenant_id, case_id)
+    if not case or case.get("test_suite_id") != suite_id:
         raise HTTPException(status_code=404, detail="Test case not found")
-    case.input_message = body.input_message
-    case.expected_output = body.expected_output
-    case.expected_keywords = body.expected_keywords
-    case.metadata_ = body.metadata_
-    case.order_index = body.order_index
-    await db.commit()
-    await db.refresh(case)
-    return case
+    case["input_message"] = body.input_message
+    case["expected_output"] = body.expected_output
+    case["expected_keywords"] = body.expected_keywords
+    case["metadata_"] = body.metadata_
+    case["order_index"] = body.order_index
+    updated = await case_repo.update(tenant_id, case_id, case)
+    return updated
 
 
 @router.delete("/test-suites/{suite_id}/cases/{case_id}", status_code=204)
 async def delete_test_case(
-    suite_id: UUID,
-    case_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    suite_id: str,
+    case_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    await db.execute(
-        delete(TestCase).where(TestCase.id == case_id, TestCase.test_suite_id == suite_id)
-    )
-    await db.commit()
+    await case_repo.delete(tenant_id, case_id)
 
 
 # --- Evaluation Runs ---
 
 @router.post("/test-suites/{suite_id}/run", response_model=EvaluationRunResponse)
 async def trigger_evaluation_run(
-    suite_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    suite_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     try:
-        run_id = await EvaluationService.run_evaluation(db, suite_id, UUID(tenant_id))
+        run_id = await EvaluationService.run_evaluation(suite_id, tenant_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    result = await db.execute(
-        select(EvaluationRun).where(EvaluationRun.id == run_id)
-    )
-    return result.scalar_one()
+    run = await run_repo.get(tenant_id, run_id)
+    return run
 
 
 @router.get("/runs", response_model=list[EvaluationRunResponse])
 async def list_runs(
-    agent_id: Optional[UUID] = None,
-    suite_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    agent_id: Optional[str] = None,
+    suite_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    query = select(EvaluationRun).where(EvaluationRun.tenant_id == UUID(tenant_id))
-    if agent_id:
-        query = query.where(EvaluationRun.agent_id == agent_id)
     if suite_id:
-        query = query.where(EvaluationRun.test_suite_id == suite_id)
-    result = await db.execute(query.order_by(EvaluationRun.created_at.desc()))
-    return list(result.scalars().all())
+        runs = await run_repo.list_by_suite(tenant_id, suite_id)
+    else:
+        runs = await run_repo.list_all(tenant_id)
+    if agent_id:
+        runs = [r for r in runs if r.get("agent_id") == agent_id]
+    return runs
 
 
 @router.get("/runs/{run_id}", response_model=EvaluationRunResponse)
 async def get_run(
-    run_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    run_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(EvaluationRun).where(
-            EvaluationRun.id == run_id,
-            EvaluationRun.tenant_id == UUID(tenant_id),
-        )
-    )
-    run = result.scalar_one_or_none()
+    run = await run_repo.get(tenant_id, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Evaluation run not found")
     return run
@@ -250,28 +200,26 @@ async def get_run(
 
 @router.get("/runs/{run_id}/results")
 async def get_run_results(
-    run_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    run_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    results = await EvaluationService.get_run_results(db, run_id)
+    results = await EvaluationService.get_run_results(run_id, tenant_id)
     return {"results": results}
 
 
 # --- Comparison ---
 
 class CompareRequest(BaseModel):
-    run_ids: List[UUID]
+    run_ids: List[str]
 
 
 @router.post("/compare")
 async def compare_runs(
     body: CompareRequest,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     if len(body.run_ids) < 2:
         raise HTTPException(status_code=400, detail="At least 2 run IDs required")
-    return await EvaluationService.compare_runs(db, body.run_ids)
+    return await EvaluationService.compare_runs(body.run_ids, tenant_id)

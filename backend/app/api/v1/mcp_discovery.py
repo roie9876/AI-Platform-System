@@ -1,14 +1,9 @@
-from uuid import UUID as PyUUID
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
-from app.models.mcp_server import MCPServer
+from app.repositories.mcp_repo import MCPServerRepository, MCPDiscoveredToolRepository
 from app.services.mcp_discovery import MCPDiscoveryService
 from app.api.v1.schemas import (
     MCPDiscoveredToolListResponse,
@@ -19,18 +14,20 @@ from app.api.v1.schemas import (
 
 router = APIRouter()
 
+server_repo = MCPServerRepository()
+tool_repo = MCPDiscoveredToolRepository()
+
 
 @router.get("/tools", response_model=MCPDiscoveredToolListResponse)
 async def list_discovered_tools(
     request: Request,
-    server_id: Optional[PyUUID] = None,
-    db: AsyncSession = Depends(get_db),
+    server_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all discovered MCP tools, optionally filtered by server."""
     tools = await MCPDiscoveryService.get_all_discovered_tools(
-        db, tenant_id=tenant_id, server_id=server_id
+        tenant_id=tenant_id, server_id=server_id
     )
     return MCPDiscoveredToolListResponse(tools=tools, total=len(tools))
 
@@ -38,12 +35,11 @@ async def list_discovered_tools(
 @router.post("/discover-all", response_model=MCPDiscoverySummaryResponse)
 async def discover_all_tools(
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Trigger tool discovery across all active MCP servers for the tenant."""
-    summary = await MCPDiscoveryService.discover_all_servers(db, tenant_id=tenant_id)
+    summary = await MCPDiscoveryService.discover_all_servers(tenant_id=tenant_id)
     return MCPDiscoverySummaryResponse(
         servers_scanned=len(summary),
         tools_discovered=summary,
@@ -55,23 +51,17 @@ async def discover_all_tools(
     response_model=MCPDiscoveredToolListResponse,
 )
 async def discover_tools_from_server(
-    server_id: PyUUID,
+    server_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Trigger tool discovery from a specific MCP server."""
-    result = await db.execute(
-        select(MCPServer).where(
-            MCPServer.id == server_id, MCPServer.tenant_id == tenant_id
-        )
-    )
-    server = result.scalar_one_or_none()
+    server = await server_repo.get(tenant_id, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="MCP server not found")
 
-    tools = await MCPDiscoveryService.discover_tools_from_server(db, server)
+    tools = await MCPDiscoveryService.discover_tools_from_server(server, tenant_id=tenant_id)
     return MCPDiscoveredToolListResponse(tools=tools, total=len(tools))
 
 
@@ -80,22 +70,16 @@ async def discover_tools_from_server(
     response_model=MCPServerResponse,
 )
 async def health_check_server(
-    server_id: PyUUID,
+    server_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Check MCP server health and update its status."""
-    result = await db.execute(
-        select(MCPServer).where(
-            MCPServer.id == server_id, MCPServer.tenant_id == tenant_id
-        )
-    )
-    server = result.scalar_one_or_none()
+    server = await server_repo.get(tenant_id, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="MCP server not found")
 
-    await MCPDiscoveryService.health_check_server(db, server)
-    await db.refresh(server)
-    return server
+    await MCPDiscoveryService.health_check_server(server, tenant_id=tenant_id)
+    updated = await server_repo.get(tenant_id, server_id)
+    return updated

@@ -1,17 +1,15 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import get_current_user
 from app.api.v1.schemas import AgentMemoryListResponse, AgentMemoryResponse
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.models.agent import Agent
-from app.models.agent_memory import AgentMemory
+from app.repositories.agent_repo import AgentRepository
+from app.repositories.thread_repo import AgentMemoryRepository
 
 router = APIRouter()
+
+agent_repo = AgentRepository()
+memory_repo = AgentMemoryRepository()
 
 
 @router.get(
@@ -19,51 +17,45 @@ router = APIRouter()
     response_model=AgentMemoryListResponse,
 )
 async def list_agent_memories(
-    agent_id: UUID,
+    agent_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
 ):
     """List all memories for an agent scoped to the current user and tenant."""
-    # Validate agent exists and belongs to tenant
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-    )
-    if not result.scalar_one_or_none():
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    count_result = await db.execute(
-        select(func.count()).where(
-            AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user["user_id"],
-            AgentMemory.tenant_id == tenant_id,
-        )
+    all_memories = await memory_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid AND c.user_id = @uid ORDER BY c.created_at DESC OFFSET 0 LIMIT 50",
+        [
+            {"name": "@tid", "value": tenant_id},
+            {"name": "@aid", "value": agent_id},
+            {"name": "@uid", "value": current_user["user_id"]},
+        ],
     )
-    total = count_result.scalar() or 0
 
-    result = await db.execute(
-        select(AgentMemory)
-        .where(
-            AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user["user_id"],
-            AgentMemory.tenant_id == tenant_id,
-        )
-        .order_by(AgentMemory.created_at.desc())
-        .limit(50)
+    total = await memory_repo.count(
+        tenant_id,
+        "c.agent_id = @aid AND c.user_id = @uid",
+        [
+            {"name": "@aid", "value": agent_id},
+            {"name": "@uid", "value": current_user["user_id"]},
+        ],
     )
-    memories = result.scalars().all()
 
     return AgentMemoryListResponse(
         memories=[
             AgentMemoryResponse(
-                id=m.id,
-                agent_id=m.agent_id,
-                content=m.content,
-                memory_type=m.memory_type,
-                source_thread_id=m.source_thread_id,
-                created_at=m.created_at,
+                id=m["id"],
+                agent_id=m["agent_id"],
+                content=m["content"],
+                memory_type=m.get("memory_type"),
+                source_thread_id=m.get("source_thread_id"),
+                created_at=m["created_at"],
             )
-            for m in memories
+            for m in all_memories
         ],
         total=total,
     )
@@ -74,29 +66,16 @@ async def list_agent_memories(
     status_code=204,
 )
 async def delete_agent_memory(
-    agent_id: UUID,
-    memory_id: UUID,
+    agent_id: str,
+    memory_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
 ):
     """Delete a specific memory entry."""
-    result = await db.execute(
-        select(AgentMemory).where(
-            AgentMemory.id == memory_id,
-            AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user["user_id"],
-            AgentMemory.tenant_id == tenant_id,
-        )
-    )
-    memory = result.scalar_one_or_none()
-    if not memory:
+    memory = await memory_repo.get(tenant_id, memory_id)
+    if not memory or memory.get("agent_id") != agent_id or memory.get("user_id") != current_user["user_id"]:
         raise HTTPException(status_code=404, detail="Memory not found")
-
-    await db.execute(
-        delete(AgentMemory).where(AgentMemory.id == memory_id)
-    )
-    await db.commit()
+    await memory_repo.delete(tenant_id, memory_id)
 
 
 @router.delete(
@@ -104,23 +83,23 @@ async def delete_agent_memory(
     status_code=204,
 )
 async def clear_agent_memories(
-    agent_id: UUID,
+    agent_id: str,
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
 ):
     """Clear all memories for an agent scoped to the current user."""
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-    )
-    if not result.scalar_one_or_none():
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    await db.execute(
-        delete(AgentMemory).where(
-            AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user["user_id"],
-            AgentMemory.tenant_id == tenant_id,
-        )
+    memories = await memory_repo.query(
+        tenant_id,
+        "SELECT c.id FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid AND c.user_id = @uid",
+        [
+            {"name": "@tid", "value": tenant_id},
+            {"name": "@aid", "value": agent_id},
+            {"name": "@uid", "value": current_user["user_id"]},
+        ],
     )
-    await db.commit()
+    for m in memories:
+        await memory_repo.delete(tenant_id, m["id"])

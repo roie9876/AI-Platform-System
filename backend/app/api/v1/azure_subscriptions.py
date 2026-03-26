@@ -1,13 +1,8 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
-from app.models.azure_subscription import AzureSubscription
+from app.repositories.config_repo import AzureSubscriptionRepository
 from app.services.azure_arm import AzureARMService
 from app.services.secret_store import encrypt_api_key, decrypt_api_key
 from app.api.v1.schemas import (
@@ -18,6 +13,7 @@ from app.api.v1.schemas import (
 )
 
 router = APIRouter()
+sub_repo = AzureSubscriptionRepository()
 arm_service = AzureARMService()
 
 
@@ -25,80 +21,62 @@ arm_service = AzureARMService()
 async def connect_subscription(
     body: AzureSubscriptionCreate,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Connect an Azure subscription to the platform (upserts if already connected)."""
-    # Check if subscription already exists for this tenant
-    result = await db.execute(
-        select(AzureSubscription).where(
-            AzureSubscription.subscription_id == body.subscription_id,
-            AzureSubscription.tenant_id == tenant_id,
-        )
+    existing_list = await sub_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.subscription_id = @sid",
+        [
+            {"name": "@tid", "value": tenant_id},
+            {"name": "@sid", "value": body.subscription_id},
+        ],
     )
-    existing = result.scalar_one_or_none()
 
-    if existing:
-        # Update the token on the existing subscription
-        existing.access_token_encrypted = encrypt_api_key(body.access_token)
+    if existing_list:
+        existing = existing_list[0]
+        existing["access_token_encrypted"] = encrypt_api_key(body.access_token)
         if body.refresh_token:
-            existing.refresh_token_encrypted = encrypt_api_key(body.refresh_token)
-        existing.display_name = body.display_name
-        await db.flush()
-        await db.refresh(existing)
-        return existing
+            existing["refresh_token_encrypted"] = encrypt_api_key(body.refresh_token)
+        existing["display_name"] = body.display_name
+        updated = await sub_repo.update(tenant_id, existing["id"], existing)
+        return updated
 
-    subscription = AzureSubscription(
-        subscription_id=body.subscription_id,
-        display_name=body.display_name,
-        tenant_azure_id=body.tenant_azure_id,
-        tenant_id=tenant_id,
-        access_token_encrypted=encrypt_api_key(body.access_token),
-        refresh_token_encrypted=encrypt_api_key(body.refresh_token) if body.refresh_token else None,
-    )
-    db.add(subscription)
-    await db.flush()
-    await db.refresh(subscription)
+    sub_data = {
+        "subscription_id": body.subscription_id,
+        "display_name": body.display_name,
+        "tenant_azure_id": body.tenant_azure_id,
+        "access_token_encrypted": encrypt_api_key(body.access_token),
+        "refresh_token_encrypted": encrypt_api_key(body.refresh_token) if body.refresh_token else None,
+    }
+    subscription = await sub_repo.create(tenant_id, sub_data)
     return subscription
 
 
 @router.get("/subscriptions", response_model=list[AzureSubscriptionResponse])
 async def list_subscriptions(
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List connected Azure subscriptions for the current tenant."""
-    result = await db.execute(
-        select(AzureSubscription)
-        .where(AzureSubscription.tenant_id == tenant_id)
-        .order_by(AzureSubscription.created_at.desc())
-    )
-    return list(result.scalars().all())
+    subscriptions = await sub_repo.list_all(tenant_id)
+    return subscriptions
 
 
 @router.delete("/subscriptions/{subscription_db_id}", status_code=204)
 async def disconnect_subscription(
-    subscription_db_id: UUID,
+    subscription_db_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Disconnect an Azure subscription (cascades to connections)."""
-    result = await db.execute(
-        select(AzureSubscription).where(
-            AzureSubscription.id == subscription_db_id,
-            AzureSubscription.tenant_id == tenant_id,
-        )
-    )
-    subscription = result.scalar_one_or_none()
+    subscription = await sub_repo.get(tenant_id, subscription_db_id)
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
-    await db.delete(subscription)
-    await db.flush()
+    await sub_repo.delete(tenant_id, subscription_db_id)
 
 
 @router.get(
@@ -106,27 +84,20 @@ async def disconnect_subscription(
     response_model=ResourceDiscoveryResponse,
 )
 async def discover_resources(
-    subscription_db_id: UUID,
+    subscription_db_id: str,
     resource_type: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Discover Azure resources of a given type within a connected subscription."""
-    result = await db.execute(
-        select(AzureSubscription).where(
-            AzureSubscription.id == subscription_db_id,
-            AzureSubscription.tenant_id == tenant_id,
-        )
-    )
-    subscription = result.scalar_one_or_none()
+    subscription = await sub_repo.get(tenant_id, subscription_db_id)
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
 
-    access_token = decrypt_api_key(subscription.access_token_encrypted)
+    access_token = decrypt_api_key(subscription["access_token_encrypted"])
     resources = await arm_service.list_resources_by_type(
-        access_token, subscription.subscription_id, resource_type
+        access_token, subscription["subscription_id"], resource_type
     )
 
     discovered = [
@@ -141,7 +112,7 @@ async def discover_resources(
     ]
 
     return ResourceDiscoveryResponse(
-        subscription_id=subscription.subscription_id,
+        subscription_id=subscription["subscription_id"],
         resource_type=resource_type,
         resources=discovered,
         count=len(discovered),

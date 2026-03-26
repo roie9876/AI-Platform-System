@@ -1,15 +1,9 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
-from app.models.agent import Agent
-from app.models.data_source import DataSource, AgentDataSource
-from app.models.document import Document
+from app.repositories.agent_repo import AgentRepository
+from app.repositories.data_source_repo import DataSourceRepository, AgentDataSourceRepository, DocumentRepository
 from app.services.secret_store import encrypt_api_key
 from app.services.rag_service import RAGService
 from app.api.v1.schemas import (
@@ -27,6 +21,10 @@ from app.api.v1.schemas import (
 router = APIRouter()
 agent_data_sources_router = APIRouter()
 
+ds_repo = DataSourceRepository()
+agent_ds_repo = AgentDataSourceRepository()
+doc_repo = DocumentRepository()
+agent_repo = AgentRepository()
 _rag_service = RAGService()
 ALLOWED_EXTENSIONS = {"pdf", "txt", "md", "docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -36,7 +34,6 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 async def create_data_source(
     body: DataSourceCreateRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
@@ -47,50 +44,35 @@ async def create_data_source(
     if body.credentials:
         credentials_encrypted = encrypt_api_key(body.credentials)
 
-    data_source = DataSource(
-        name=body.name,
-        description=body.description,
-        source_type=body.source_type,
-        config=body.config,
-        credentials_encrypted=credentials_encrypted,
-        tenant_id=tenant_id,
-    )
-    db.add(data_source)
-    await db.flush()
-    await db.refresh(data_source)
+    ds_data = {
+        "name": body.name,
+        "description": body.description,
+        "source_type": body.source_type,
+        "config": body.config,
+        "credentials_encrypted": credentials_encrypted,
+    }
+    data_source = await ds_repo.create(tenant_id, ds_data)
     return data_source
 
 
 @router.get("/", response_model=DataSourceListResponse)
 async def list_data_sources(
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(DataSource)
-        .where(DataSource.tenant_id == tenant_id)
-        .order_by(DataSource.created_at.desc())
-    )
-    data_sources = list(result.scalars().all())
+    data_sources = await ds_repo.list_all(tenant_id)
     return DataSourceListResponse(data_sources=data_sources, total=len(data_sources))
 
 
 @router.get("/{data_source_id}", response_model=DataSourceResponse)
 async def get_data_source(
-    data_source_id: UUID,
+    data_source_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    data_source = result.scalar_one_or_none()
+    data_source = await ds_repo.get(tenant_id, data_source_id)
     if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
     return data_source
@@ -98,19 +80,13 @@ async def get_data_source(
 
 @router.put("/{data_source_id}", response_model=DataSourceResponse)
 async def update_data_source(
-    data_source_id: UUID,
+    data_source_id: str,
     body: DataSourceUpdateRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    data_source = result.scalar_one_or_none()
+    data_source = await ds_repo.get(tenant_id, data_source_id)
     if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
 
@@ -118,32 +94,22 @@ async def update_data_source(
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    for field, value in update_data.items():
-        setattr(data_source, field, value)
-
-    await db.flush()
-    await db.refresh(data_source)
-    return data_source
+    data_source.update(update_data)
+    updated = await ds_repo.update(tenant_id, data_source_id, data_source)
+    return updated
 
 
 @router.delete("/{data_source_id}", status_code=204)
 async def delete_data_source(
-    data_source_id: UUID,
+    data_source_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    data_source = result.scalar_one_or_none()
+    data_source = await ds_repo.get(tenant_id, data_source_id)
     if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
-    await db.delete(data_source)
-    await db.flush()
+    await ds_repo.delete(tenant_id, data_source_id)
 
 
 # --- Document management endpoints ---
@@ -151,24 +117,17 @@ async def delete_data_source(
 
 @router.post("/{data_source_id}/documents", response_model=DocumentResponse, status_code=201)
 async def upload_document(
-    data_source_id: UUID,
+    data_source_id: str,
     request: Request,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Upload and ingest a document into a data source."""
-    # Verify data source ownership
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    if not result.scalar_one_or_none():
+    data_source = await ds_repo.get(tenant_id, data_source_id)
+    if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
 
-    # Validate file extension
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
@@ -179,7 +138,6 @@ async def upload_document(
             detail=f"Unsupported file type: .{ext}. Allowed: {ALLOWED_EXTENSIONS}",
         )
 
-    # Read and validate file size
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
@@ -189,75 +147,51 @@ async def upload_document(
 
     doc = await _rag_service.ingest_file(
         data_source_id=data_source_id,
-        tenant_id=UUID(tenant_id),
+        tenant_id=tenant_id,
         filename=file.filename,
         file_content=content,
-        db=db,
     )
-    await db.commit()
-    await db.refresh(doc)
     return doc
 
 
 @router.post("/{data_source_id}/ingest-url", response_model=DocumentResponse, status_code=201)
 async def ingest_url(
-    data_source_id: UUID,
+    data_source_id: str,
     body: IngestURLRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Ingest a URL's content into a data source."""
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    if not result.scalar_one_or_none():
+    data_source = await ds_repo.get(tenant_id, data_source_id)
+    if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
 
     try:
         doc = await _rag_service.ingest_url(
             data_source_id=data_source_id,
-            tenant_id=UUID(tenant_id),
+            tenant_id=tenant_id,
             url=body.url,
-            db=db,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to ingest URL: {str(e)}")
 
-    await db.commit()
-    await db.refresh(doc)
     return doc
 
 
 @router.get("/{data_source_id}/documents", response_model=DocumentListResponse)
 async def list_documents(
-    data_source_id: UUID,
+    data_source_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all documents in a data source."""
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    if not result.scalar_one_or_none():
+    data_source = await ds_repo.get(tenant_id, data_source_id)
+    if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
 
-    result = await db.execute(
-        select(Document)
-        .where(
-            Document.data_source_id == data_source_id,
-            Document.tenant_id == tenant_id,
-        )
-        .order_by(Document.created_at.desc())
-    )
-    documents = list(result.scalars().all())
+    documents = await doc_repo.list_by_data_source(tenant_id, data_source_id)
     return DocumentListResponse(documents=documents, total=len(documents))
 
 
@@ -268,93 +202,79 @@ async def list_documents(
     "/{agent_id}/data-sources", response_model=AgentDataSourceResponse, status_code=201
 )
 async def attach_data_source(
-    agent_id: UUID,
+    agent_id: str,
     body: AgentDataSourceAttachRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    # Verify agent belongs to tenant
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-    )
-    if not result.scalar_one_or_none():
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Verify data source belongs to tenant
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.id == body.data_source_id, DataSource.tenant_id == tenant_id
-        )
-    )
-    if not result.scalar_one_or_none():
+    data_source = await ds_repo.get(tenant_id, str(body.data_source_id))
+    if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
 
-    # Check for existing attachment
-    result = await db.execute(
-        select(AgentDataSource).where(
-            AgentDataSource.agent_id == agent_id,
-            AgentDataSource.data_source_id == body.data_source_id,
-        )
+    existing = await agent_ds_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid AND c.data_source_id = @dsid",
+        [
+            {"name": "@tid", "value": tenant_id},
+            {"name": "@aid", "value": agent_id},
+            {"name": "@dsid", "value": str(body.data_source_id)},
+        ],
     )
-    if result.scalar_one_or_none():
+    if existing:
         raise HTTPException(status_code=409, detail="Data source already attached to agent")
 
-    agent_ds = AgentDataSource(agent_id=agent_id, data_source_id=body.data_source_id)
-    db.add(agent_ds)
-    await db.flush()
-    await db.refresh(agent_ds)
+    attachment_data = {"agent_id": agent_id, "data_source_id": str(body.data_source_id)}
+    agent_ds = await agent_ds_repo.create(tenant_id, attachment_data)
     return agent_ds
 
 
 @agent_data_sources_router.delete("/{agent_id}/data-sources/{data_source_id}", status_code=204)
 async def detach_data_source(
-    agent_id: UUID,
-    data_source_id: UUID,
+    agent_id: str,
+    data_source_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    # Verify agent belongs to tenant
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-    )
-    if not result.scalar_one_or_none():
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    result = await db.execute(
-        select(AgentDataSource).where(
-            AgentDataSource.agent_id == agent_id,
-            AgentDataSource.data_source_id == data_source_id,
-        )
+    existing = await agent_ds_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid AND c.data_source_id = @dsid",
+        [
+            {"name": "@tid", "value": tenant_id},
+            {"name": "@aid", "value": agent_id},
+            {"name": "@dsid", "value": data_source_id},
+        ],
     )
-    agent_ds = result.scalar_one_or_none()
-    if not agent_ds:
+    if not existing:
         raise HTTPException(status_code=404, detail="Data source not attached to agent")
-    await db.delete(agent_ds)
-    await db.flush()
+    await agent_ds_repo.delete(tenant_id, existing[0]["id"])
 
 
 @agent_data_sources_router.get(
     "/{agent_id}/data-sources", response_model=list[AgentDataSourceResponse]
 )
 async def list_agent_data_sources(
-    agent_id: UUID,
+    agent_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    # Verify agent belongs to tenant
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-    )
-    if not result.scalar_one_or_none():
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    result = await db.execute(
-        select(AgentDataSource).where(AgentDataSource.agent_id == agent_id)
+    attachments = await agent_ds_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid",
+        [{"name": "@tid", "value": tenant_id}, {"name": "@aid", "value": agent_id}],
     )
-    return list(result.scalars().all())
+    return attachments
