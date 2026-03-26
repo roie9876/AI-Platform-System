@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import { AnalyticsToolbar } from "@/components/observability/analytics-toolbar";
 import { ChartCard } from "@/components/observability/chart-card";
 
@@ -35,6 +36,7 @@ interface CostAlert {
 }
 
 export default function CostsPage() {
+  const { selectedTenantId } = useTenant();
   const [timeRange, setTimeRange] = useState("24h");
   const [loading, setLoading] = useState(false);
   const [byAgent, setByAgent] = useState<CostBreakdown | null>(null);
@@ -56,7 +58,7 @@ export default function CostsPage() {
       setAlerts(al);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [timeRange]);
+  }, [timeRange, selectedTenantId]);
 
   useEffect(() => {
     fetchData();

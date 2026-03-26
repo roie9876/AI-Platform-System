@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import { AnalyticsToolbar } from "@/components/observability/analytics-toolbar";
 
 interface LogEntry {
@@ -28,6 +29,7 @@ const EVENT_COLORS: Record<string, string> = {
 };
 
 export default function LogsPage() {
+  const { selectedTenantId } = useTenant();
   const [timeRange, setTimeRange] = useState("24h");
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -49,7 +51,7 @@ export default function LogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [timeRange, offset]);
+  }, [timeRange, offset, selectedTenantId]);
 
   useEffect(() => {
     fetchData();

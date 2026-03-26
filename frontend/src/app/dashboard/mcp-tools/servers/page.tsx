@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -36,6 +37,7 @@ interface MCPServerListResponse {
 }
 
 export default function MCPServersPage() {
+  const { selectedTenantId } = useTenant();
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -61,7 +63,7 @@ export default function MCPServersPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedTenantId]);
 
   useEffect(() => {
     fetchServers();

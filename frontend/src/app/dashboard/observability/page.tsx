@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import { KpiTile, KpiTileGrid } from "@/components/observability/kpi-tiles";
 import { AnalyticsToolbar } from "@/components/observability/analytics-toolbar";
 import { ChartCard } from "@/components/observability/chart-card";
@@ -49,6 +50,7 @@ interface CostBreakdown {
 }
 
 export default function ObservabilityPage() {
+  const { selectedTenantId } = useTenant();
   const [timeRange, setTimeRange] = useState("24h");
   const [granularity, setGranularity] = useState("auto");
   const [loading, setLoading] = useState(false);
@@ -72,7 +74,7 @@ export default function ObservabilityPage() {
       setCostData(c);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [timeRange, granularity]);
+  }, [timeRange, granularity, selectedTenantId]);
 
   useEffect(() => {
     fetchData();

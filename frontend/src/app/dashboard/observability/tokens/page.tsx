@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import { AnalyticsToolbar } from "@/components/observability/analytics-toolbar";
 import { ChartCard } from "@/components/observability/chart-card";
 
@@ -29,6 +30,7 @@ interface AgentTokens {
 }
 
 export default function TokensPage() {
+  const { selectedTenantId } = useTenant();
   const [timeRange, setTimeRange] = useState("24h");
   const [granularity, setGranularity] = useState("auto");
   const [loading, setLoading] = useState(false);
@@ -47,7 +49,7 @@ export default function TokensPage() {
       setByAgent(a);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [timeRange, granularity]);
+  }, [timeRange, granularity, selectedTenantId]);
 
   useEffect(() => {
     fetchData();
