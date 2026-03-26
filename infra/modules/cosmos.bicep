@@ -43,9 +43,21 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15
   }
 }
 
-// All container names mapped from existing SQLAlchemy __tablename__ values
-var containerNames = [
-  'agents'
+// Containers requiring uniqueKeyPolicy for business uniqueness within a partition.
+// NOTE: Cosmos DB uniqueKeyPolicy is immutable after container creation.
+// Existing containers require recreation to add unique keys.
+var containersWithUniqueKeys = [
+  { name: 'agents', uniqueKeyPaths: ['/slug'] }
+  { name: 'data_sources', uniqueKeyPaths: ['/name'] }
+  { name: 'mcp_servers', uniqueKeyPaths: ['/name'] }
+  { name: 'model_endpoints', uniqueKeyPaths: ['/name'] }
+  { name: 'tenants', uniqueKeyPaths: ['/slug'] }
+  { name: 'tools', uniqueKeyPaths: ['/name'] }
+  { name: 'users', uniqueKeyPaths: ['/email'] }
+]
+
+// All remaining containers without unique key constraints
+var simpleContainerNames = [
   'agent_config_versions'
   'agent_data_sources'
   'agent_mcp_tools'
@@ -56,25 +68,19 @@ var containerNames = [
   'azure_subscriptions'
   'catalog_entries'
   'cost_alerts'
-  'data_sources'
   'documents'
   'document_chunks'
   'evaluation_results'
   'evaluation_runs'
   'execution_logs'
   'mcp_discovered_tools'
-  'mcp_servers'
-  'model_endpoints'
   'model_pricing'
   'refresh_tokens'
-  'tenants'
   'test_cases'
   'test_suites'
   'thread_messages'
   'threads'
   'tool_templates'
-  'tools'
-  'users'
   'workflow_edges'
   'workflow_executions'
   'workflow_node_executions'
@@ -82,8 +88,32 @@ var containerNames = [
   'workflows'
 ]
 
-// Create all containers with /tenant_id partition key
-resource containers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = [for name in containerNames: {
+// Create containers with uniqueKeyPolicy
+resource uniqueContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = [for container in containersWithUniqueKeys: {
+  parent: database
+  name: container.name
+  properties: {
+    resource: {
+      id: container.name
+      partitionKey: {
+        paths: [
+          '/tenant_id'
+        ]
+        kind: 'Hash'
+      }
+      uniqueKeyPolicy: {
+        uniqueKeys: [
+          {
+            paths: container.uniqueKeyPaths
+          }
+        ]
+      }
+    }
+  }
+}]
+
+// Create remaining containers with /tenant_id partition key (no unique keys)
+resource simpleContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = [for name in simpleContainerNames: {
   parent: database
   name: name
   properties: {
