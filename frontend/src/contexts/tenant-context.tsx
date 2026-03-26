@@ -9,7 +9,7 @@ import {
   ReactNode,
 } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, setCurrentTenantId } from "@/lib/api";
 
 export interface Tenant {
   id: string;
@@ -64,6 +64,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       setSelectedTenantId(user.tenant_id);
     }
   }, [user?.tenant_id, selectedTenantId]);
+
+  useEffect(() => {
+    setCurrentTenantId(selectedTenantId);
+  }, [selectedTenantId]);
 
   const selectedTenant =
     tenants.find((t) => t.id === selectedTenantId) ?? null;

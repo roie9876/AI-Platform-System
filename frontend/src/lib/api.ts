@@ -5,6 +5,12 @@ import { msalInstance, loginScopes } from "@/lib/msal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+let _currentTenantId: string | null = null;
+
+export function setCurrentTenantId(id: string | null) {
+  _currentTenantId = id;
+}
+
 async function getAccessToken(): Promise<string | null> {
   const account = msalInstance.getActiveAccount();
   if (!account) return null;
@@ -38,6 +44,10 @@ export async function apiFetch<T>(
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (_currentTenantId) {
+    headers["X-Tenant-Id"] = _currentTenantId;
   }
 
   const response = await fetch(url, {
