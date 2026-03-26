@@ -175,74 +175,74 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TENANT-01 | — | Pending |
-| TENANT-02 | — | Pending |
-| TENANT-03 | — | Pending |
-| TENANT-04 | — | Pending |
-| TENANT-05 | — | Pending |
-| TENANT-06 | — | Pending |
-| TENANT-07 | — | Pending |
-| TENANT-08 | — | Pending |
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| INFRA-05 | — | Pending |
-| INFRA-06 | — | Pending |
-| INFRA-07 | — | Pending |
-| INFRA-08 | — | Pending |
-| INFRA-09 | — | Pending |
-| DATA-01 | — | Pending |
-| DATA-02 | — | Pending |
-| DATA-03 | — | Pending |
-| DATA-04 | — | Pending |
-| DATA-05 | — | Pending |
-| DATA-06 | — | Pending |
-| DATA-07 | — | Pending |
-| DATA-08 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| AUTH-06 | — | Pending |
-| AUTH-07 | — | Pending |
-| COMPUTE-01 | — | Pending |
-| COMPUTE-02 | — | Pending |
-| COMPUTE-03 | — | Pending |
-| COMPUTE-04 | — | Pending |
-| COMPUTE-05 | — | Pending |
-| COMPUTE-06 | — | Pending |
-| COMPUTE-07 | — | Pending |
-| COMPUTE-08 | — | Pending |
-| COMPUTE-09 | — | Pending |
-| DEPLOY-01 | — | Pending |
-| DEPLOY-02 | — | Pending |
-| DEPLOY-03 | — | Pending |
-| DEPLOY-04 | — | Pending |
-| DEPLOY-05 | — | Pending |
-| DEPLOY-06 | — | Pending |
-| DEPLOY-07 | — | Pending |
-| DEPLOY-08 | — | Pending |
-| OBS-01 | — | Pending |
-| OBS-02 | — | Pending |
-| OBS-03 | — | Pending |
-| OBS-04 | — | Pending |
-| OBS-05 | — | Pending |
-| OBS-06 | — | Pending |
-| OBS-07 | — | Pending |
-| OBS-08 | — | Pending |
-| UI-01 | — | Pending |
-| UI-02 | — | Pending |
-| UI-03 | — | Pending |
-| UI-04 | — | Pending |
-| UI-05 | — | Pending |
-| UI-06 | — | Pending |
+| TENANT-01 | Phase 21 | Pending |
+| TENANT-02 | Phase 21 | Pending |
+| TENANT-03 | Phase 21 | Pending |
+| TENANT-04 | Phase 21 | Pending |
+| TENANT-05 | Phase 21 | Pending |
+| TENANT-06 | Phase 21 | Pending |
+| TENANT-07 | Phase 21 | Pending |
+| TENANT-08 | Phase 24 | Pending |
+| INFRA-01 | Phase 17 | Pending |
+| INFRA-02 | Phase 17 | Pending |
+| INFRA-03 | Phase 17 | Pending |
+| INFRA-04 | Phase 17 | Pending |
+| INFRA-05 | Phase 17 | Pending |
+| INFRA-06 | Phase 17 | Pending |
+| INFRA-07 | Phase 17 | Pending |
+| INFRA-08 | Phase 17 | Pending |
+| INFRA-09 | Phase 17 | Pending |
+| DATA-01 | Phase 19 | Pending |
+| DATA-02 | Phase 19 | Pending |
+| DATA-03 | Phase 19 | Pending |
+| DATA-04 | Phase 19 | Pending |
+| DATA-05 | Phase 19 | Pending |
+| DATA-06 | Phase 19 | Pending |
+| DATA-07 | Phase 19 | Pending |
+| DATA-08 | Phase 19 | Pending |
+| AUTH-01 | Phase 18 | Pending |
+| AUTH-02 | Phase 18 | Pending |
+| AUTH-03 | Phase 18 | Pending |
+| AUTH-04 | Phase 18 | Pending |
+| AUTH-05 | Phase 18 | Pending |
+| AUTH-06 | Phase 18 | Pending |
+| AUTH-07 | Phase 18 | Pending |
+| COMPUTE-01 | Phase 20 | Pending |
+| COMPUTE-02 | Phase 20 | Pending |
+| COMPUTE-03 | Phase 20 | Pending |
+| COMPUTE-04 | Phase 20 | Pending |
+| COMPUTE-05 | Phase 20 | Pending |
+| COMPUTE-06 | Phase 20 | Pending |
+| COMPUTE-07 | Phase 20 | Pending |
+| COMPUTE-08 | Phase 20 | Pending |
+| COMPUTE-09 | Phase 20 | Pending |
+| DEPLOY-01 | Phase 22 | Pending |
+| DEPLOY-02 | Phase 22 | Pending |
+| DEPLOY-03 | Phase 22 | Pending |
+| DEPLOY-04 | Phase 22 | Pending |
+| DEPLOY-05 | Phase 22 | Pending |
+| DEPLOY-06 | Phase 22 | Pending |
+| DEPLOY-07 | Phase 22 | Pending |
+| DEPLOY-08 | Phase 22 | Pending |
+| OBS-01 | Phase 23 | Pending |
+| OBS-02 | Phase 23 | Pending |
+| OBS-03 | Phase 23 | Pending |
+| OBS-04 | Phase 23 | Pending |
+| OBS-05 | Phase 23 | Pending |
+| OBS-06 | Phase 23 | Pending |
+| OBS-07 | Phase 23 | Pending |
+| OBS-08 | Phase 23 | Pending |
+| UI-01 | Phase 24 | Pending |
+| UI-02 | Phase 24 | Pending |
+| UI-03 | Phase 24 | Pending |
+| UI-04 | Phase 24 | Pending |
+| UI-05 | Phase 24 | Pending |
+| UI-06 | Phase 24 | Pending |
 
 **Coverage:**
-- v3.0 requirements: 64 total
-- Mapped to phases: 0
-- Unmapped: 64
+- v3.0 requirements: 63 total
+- Mapped to phases: 63
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-26*

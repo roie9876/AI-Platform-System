@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Production Multi-Tenant Infrastructure
-status: Defining Requirements
+status: Ready to plan
 last_updated: "2026-03-26"
 progress:
-  total_phases: 0
+  total_phases: 8
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,25 +18,48 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
-**Current focus:** Milestone v3.0 — Production Multi-Tenant Infrastructure — Defining Requirements
+**Current focus:** Phase 17 — Infrastructure Foundation (Bicep IaC)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-26 — Milestone v3.0 started
+Phase: 17 of 24 (Infrastructure Foundation)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-03-26 — v3.0 roadmap created (8 phases, 63 requirements)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Phase Status
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 11 | MCP Client Library | ✅ Complete |
-| 12 | MCP Server Registry | ✅ Complete |
-| 13 | MCP Tool Discovery | ✅ Complete |
-| 14 | Agent Execution Integration | ✅ Complete |
-| 15 | MCP Tool Catalog UI | ✅ Complete |
-| 16 | Agent-Level MCP Management | ✅ Complete |
+| 17 | Infrastructure Foundation (Bicep IaC) | ⏳ Ready to plan |
+| 18 | Authentication Migration (Entra ID) | Not started |
+| 19 | Data Layer Migration (Cosmos DB) | Not started |
+| 20 | Microservice Extraction & AKS Deployment | Not started |
+| 21 | Tenant Lifecycle & Provisioning | Not started |
+| 22 | CI/CD Pipelines (GitHub Actions) | Not started |
+| 23 | Observability & Monitoring | Not started |
+| 24 | Tenant Admin UI | Not started |
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0
+- Average duration: —
+- Total execution time: 0 hours
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
+
+**Recent Trend:**
+- Last 5 plans: —
+- Trend: —
+
+*Updated after each plan completion*
 
 ## Decisions
 
@@ -45,9 +68,12 @@ Last activity: 2026-03-26 — Milestone v3.0 started
 | Python/FastAPI backend | AI ecosystem is Python-native; async performance + auto OpenAPI | 2026-03-23 |
 | React/Next.js frontend | Industry standard for complex UIs; SSR for performance | 2026-03-23 |
 | Model-agnostic via customer endpoints | Avoids vendor lock-in; platform focuses on orchestration | 2026-03-23 |
-| PostgreSQL + pgvector | Reduces infra complexity; pgvector sufficient for PoC scale | 2026-03-23 |
-| Semantic Kernel agent framework | Microsoft-native, stable API, plugin model maps to tools | 2026-03-23 |
-| Multi-tenancy from day one | Avoids costly retrofit; demonstrates production thinking | 2026-03-23 |
+| Bicep for IaC | Microsoft-native, first-class Azure support, type-safe, no state file management | 2026-03-26 |
+| Cosmos DB NoSQL replacing PostgreSQL | Globally distributed, auto-scaling, native partitioning by tenant_id | 2026-03-26 |
+| AKS namespace-per-tenant isolation | Balance of isolation vs ops overhead for 2-5 tenants | 2026-03-26 |
+| Microsoft Entra ID for auth | Enterprise SSO, Managed Identity, RBAC scoping per tenant | 2026-03-26 |
+| GitHub Actions CI/CD | Native to repo, integrated ACR/AKS deployment actions | 2026-03-26 |
+| Shared Cosmos DB with partition isolation | Cost-effective for 2-5 tenants; tenant_id as partition key | 2026-03-26 |
 | YOLO mode | Fast execution, auto-approve steps | 2026-03-23 |
 
 ## Pending Todos
@@ -59,20 +85,24 @@ Last activity: 2026-03-26 — Milestone v3.0 started
 ### Milestone History
 
 - v1.0 AI Agent Platform PoC shipped 2026-03-24 (9/10 phases, 33 plans — Phase 7 Policy Engine deferred)
+- v2.0 MCP Tool Integration shipped 2026-03-25 (6 phases, 8 plans — full MCP client support)
 
 ### Roadmap Evolution
 
-- Milestone v2.0 (MCP Tool Integration) phases 11-16 defined
-- Phase 11: MCP Client Library
-- Phase 12: MCP Server Registry
-- Phase 13: MCP Tool Discovery
-- Phase 14: Agent Execution Integration
-- Phase 15: MCP Tool Catalog UI
-- Phase 16: Agent-Level MCP Management
+- v3.0 roadmap created 2026-03-26 — 8 phases (17-24), 63 requirements
+- Critical path: IaC → Auth → Data → Microservices → Tenant → CI/CD → Observability → UI
+- Highest risk: Cosmos DB migration (replacing SQLAlchemy across 15+ models)
+- Auth must migrate BEFORE microservice split (cross-cutting concern)
+
+### Research Flags
+
+- Phase 18 (Auth): Entra ID app registration, dual-auth transition, tid → tenant_id mapping
+- Phase 19 (Data): Cosmos DB denormalization, RU cost modeling, TransactionalBatch boundaries
+- Phase 20 (AKS): NetworkPolicy rules, Workload Identity federation, tenant provisioning
 
 ## Blockers
 
 (None)
 
 ---
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-26*

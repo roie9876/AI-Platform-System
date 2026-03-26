@@ -1,12 +1,13 @@
 # Roadmap: AI Agent Platform as a Service
 
 **Created:** 2026-03-23
-**Active Milestone:** v2.0 — MCP Tool Integration
+**Active Milestone:** v3.0 — Production Multi-Tenant Infrastructure
 
 ## Milestones
 
 - ✅ **v1.0 AI Agent Platform PoC** — Phases 1-10 (shipped 2026-03-24) — [archive](milestones/v1.0-ROADMAP.md)
-- ✅ **v2.0 MCP Tool Integration** — Phases 11-16 (shipped)
+- ✅ **v2.0 MCP Tool Integration** — Phases 11-16 (shipped 2026-03-25)
+- 🔄 **v3.0 Production Multi-Tenant Infrastructure** — Phases 17-24 (active)
 
 <details>
 <summary>✅ v1.0 AI Agent Platform PoC (Phases 1-10) — SHIPPED 2026-03-24</summary>
@@ -27,93 +28,176 @@
 
 </details>
 
-## Milestone 2: v2.0 — MCP Tool Integration
+<details>
+<summary>✅ v2.0 MCP Tool Integration (Phases 11-16) — SHIPPED 2026-03-25</summary>
 
-**Goal:** Add Model Context Protocol (MCP) client support to unlock 1500+ Remote MCP tool servers, bringing Foundry-style tool catalog capabilities to the platform.
+- [x] Phase 11: MCP Client Library (1 plan)
+- [x] Phase 12: MCP Server Registry (1 plan)
+- [x] Phase 13: MCP Tool Discovery (1 plan)
+- [x] Phase 14: Agent Execution Integration (1 plan)
+- [x] Phase 15: MCP Tool Catalog UI (1 plan)
+- [x] Phase 16: Agent-Level MCP Management (2 plans)
 
-### Phase 11: MCP Client Library
+</details>
 
-**Goal:** Build a JSON-RPC client implementing initialize, tools/list, tools/call over HTTP (SSE/Streamable HTTP) to communicate with any MCP-compliant server.
-**Requirements:** [MCP-01, MCP-02, MCP-03]
-**Depends on:** Phase 4
-**Plans:** 1 plan
+## Milestone 3: v3.0 — Production Multi-Tenant Infrastructure
 
-Plans:
-- [x] 11-01-PLAN.md — MCP types, MCPClient class (Streamable HTTP transport), unit tests
+**Goal:** Transform the AI Agent Platform from a single-instance PoC into a production-ready, multi-tenant SaaS deployed on Azure with per-tenant compute isolation on AKS and shared Cosmos DB.
 
-### Phase 12: MCP Server Registry
+### Overview
 
-**Goal:** Build DB models and CRUD APIs for registering Remote MCP server connections (URL, auth, metadata) so users can manage their MCP server fleet.
-**Requirements:** [MCP-04, MCP-05, MCP-06]
-**Depends on:** Phase 11
-**Plans:** 1 plan
+v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authentication (Entra ID), data (Cosmos DB), compute (AKS microservices), deployment (GitHub Actions CI/CD), and operations (Azure Monitor). The critical path is IaC → Auth → Data → Microservices → Tenant Provisioning → CI/CD → Observability → UI, dictated by hard dependencies: Azure resources must exist before code targets them, auth must migrate while the codebase is still a monolith, and SQLAlchemy must be replaced before microservice extraction.
 
-Plans:
-- [x] 12-01-PLAN.md — MCP server CRUD + Alembic migration + tests
+### Phases
 
-### Phase 13: MCP Tool Discovery
+**Phase Numbering:** Continues from v2.0 (Phases 11-16).
 
-**Goal:** Implement automatic tool discovery from registered MCP servers via tools/list, with health checking and reconnection logic to keep the tool catalog current.
-**Requirements:** [MCP-07, MCP-08, MCP-09]
-**Depends on:** Phase 11, Phase 12
-**Plans:** 1 plan
+- [ ] **Phase 17: Infrastructure Foundation (Bicep IaC)** — Provision all Azure resources via Bicep modules
+- [ ] **Phase 18: Authentication Migration (Entra ID)** — Replace JWT auth with enterprise SSO and Managed Identity
+- [ ] **Phase 19: Data Layer Migration (Cosmos DB)** — Replace SQLAlchemy/PostgreSQL with Cosmos DB NoSQL SDK
+- [ ] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS
+- [ ] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning
+- [ ] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS
+- [ ] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting
+- [ ] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views
 
-Plans:
-- [x] 13-01-PLAN.md — MCP tool discovery service + health checking
+### Phase Details
 
-### Phase 14: Agent Execution Integration
+#### Phase 17: Infrastructure Foundation (Bicep IaC)
+**Goal**: All Azure resources for the platform are provisioned via Bicep and ready for application deployment
+**Depends on**: Nothing (first v3.0 phase)
+**Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05, INFRA-06, INFRA-07, INFRA-08, INFRA-09
+**Success Criteria** (what must be TRUE):
+  1. `az deployment group create` deploys all resources (AKS, ACR, Cosmos DB, VNet, Key Vault, Managed Identities, Log Analytics) from a single orchestrator command
+  2. AKS cluster is accessible via `kubectl` with system and user node pools running
+  3. Cosmos DB account contains the `aiplatform` database with all containers partitioned by `/tenant_id`
+  4. Dev, staging, and prod parameter files deploy different SKUs and throughput settings without code changes
+  5. Rerunning the deployment is idempotent — no errors, no duplicate resources
+**Plans**: TBD
 
-**Goal:** Wire MCP tools/call into the existing agent tool-calling loop alongside platform adapters and sandbox tools, making MCP a third execution path.
-**Requirements:** [MCP-10, MCP-11, MCP-12]
-**Depends on:** Phase 11, Phase 13
-**Plans:** 1 plan
-
-Plans:
-- [x] 14-01-PLAN.md — AgentMCPTool model, MCP execution path in agent loop, tests
-
-### Phase 15: MCP Tool Catalog UI
-
-**Goal:** Build a Foundry-style catalog UI to browse, search, and filter all available MCP tools across registered servers.
-**Requirements:** [MCP-13, MCP-14, MCP-15]
-**Depends on:** Phase 12, Phase 13
-**Plans:** 1 plan
-
+#### Phase 18: Authentication Migration (Entra ID)
+**Goal**: Users authenticate via Microsoft Entra ID with enterprise SSO, replacing the existing JWT-based auth
+**Depends on**: Phase 17 (Managed Identities, Key Vault)
+**Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07
+**Success Criteria** (what must be TRUE):
+  1. Users log in via Entra ID OIDC flow in the browser and receive a valid access token
+  2. Backend rejects requests with expired, invalid, or missing Entra ID tokens
+  3. Users are mapped to their tenant based on Entra ID claims and can only access their own tenant's data
+  4. Platform Admin, Tenant Admin, Member, and Viewer roles restrict API access at endpoint level
+  5. Service-to-service calls authenticate via Managed Identity without any stored credentials
+**Plans**: TBD
 **UI hint**: yes
 
-Plans:
-- [x] 15-01-PLAN.md — Sidebar nav, tool detail panel, Foundry-style catalog enhancements
+#### Phase 19: Data Layer Migration (Cosmos DB)
+**Goal**: All platform data is stored in Cosmos DB with tenant isolation enforced at the partition key level
+**Depends on**: Phase 17 (Cosmos DB account), Phase 18 (tenant context from auth)
+**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06, DATA-07, DATA-08
+**Success Criteria** (what must be TRUE):
+  1. All API endpoints read and write data via Cosmos DB repository layer — no SQLAlchemy calls remain
+  2. Every data operation includes `tenant_id` in the partition key — no cross-partition queries exist
+  3. All 13+ existing data models have been migrated to Cosmos DB document schemas with preserved data
+  4. Concurrent document updates are safely handled via ETag-based optimistic concurrency
+  5. Cosmos DB throughput is configured with autoscale appropriate to dev/staging workload
+**Plans**: TBD
 
-### Phase 16: Agent-Level MCP Management
+#### Phase 20: Microservice Extraction & AKS Deployment
+**Goal**: The monolith is split into 5 microservices running as isolated workloads on AKS with per-tenant compute boundaries
+**Depends on**: Phase 19 (data layer must be migrated before decomposition)
+**Requirements**: COMPUTE-01, COMPUTE-02, COMPUTE-03, COMPUTE-04, COMPUTE-05, COMPUTE-06, COMPUTE-07, COMPUTE-08, COMPUTE-09
+**Success Criteria** (what must be TRUE):
+  1. Five separate container images (api-gateway, agent-executor, workflow-engine, tool-executor, mcp-proxy) build and run independently
+  2. Each tenant's workloads run in a dedicated K8s namespace with enforced NetworkPolicy, ResourceQuota, and LimitRange
+  3. Pods cannot reach other tenant namespaces — cross-namespace traffic is blocked by NetworkPolicy
+  4. Workloads auto-scale via HPA based on CPU/memory utilization
+  5. All microservices pass liveness, readiness, and startup health checks
+**Plans**: TBD
 
-**Goal:** Enable attach/detach of MCP tools to agents with per-agent MCP server configuration, completing the agent-MCP integration.
-**Requirements:** [MCP-16, MCP-17, MCP-18]
-**Depends on:** Phase 14, Phase 15
-**Plans:** 2 plans
+#### Phase 21: Tenant Lifecycle & Provisioning
+**Goal**: Platform admins can create, configure, and manage tenants through an API that automatically provisions isolated infrastructure
+**Depends on**: Phase 18 (Entra ID for admin user), Phase 19 (Cosmos DB for tenant data), Phase 20 (AKS namespaces)
+**Requirements**: TENANT-01, TENANT-02, TENANT-03, TENANT-04, TENANT-05, TENANT-06, TENANT-07
+**Success Criteria** (what must be TRUE):
+  1. Platform admin creates a tenant via API and a K8s namespace with NetworkPolicy, ResourceQuota, and LimitRange is automatically provisioned
+  2. Tenants transition through provisioning → active → suspended → deactivated → deleted lifecycle states
+  3. Suspended tenant API requests are blocked at middleware — no data access while suspended
+  4. New tenants are seeded with default catalog entries, tools, policies, and an admin user mapped to Entra ID
+  5. Platform admin can configure per-tenant settings (display name, allowed providers, quotas, feature flags)
+**Plans**: TBD
 
+#### Phase 22: CI/CD Pipelines (GitHub Actions)
+**Goal**: Code changes are automatically built, tested, and deployed to AKS via GitHub Actions with zero-downtime deployments
+**Depends on**: Phase 20 (microservice images + AKS target), Phase 17 (ACR)
+**Requirements**: DEPLOY-01, DEPLOY-02, DEPLOY-03, DEPLOY-04, DEPLOY-05, DEPLOY-06, DEPLOY-07, DEPLOY-08
+**Success Criteria** (what must be TRUE):
+  1. Push to main triggers automated build of all microservice Docker images, tagged with git SHA and pushed to ACR
+  2. GitHub Actions deploys to AKS using Helm/Kustomize with rolling updates — no downtime during deployment
+  3. Post-deploy smoke tests automatically verify service health before marking deployment complete
+  4. Secrets are injected from Key Vault via CSI driver — no hardcoded credentials in manifests or environment variables
+  5. A single tenant namespace can be deployed independently without affecting other tenants
+**Plans**: TBD
+
+#### Phase 23: Observability & Monitoring
+**Goal**: All microservices are instrumented with distributed tracing, per-tenant metrics, and alerting via Azure Monitor
+**Depends on**: Phase 20 (microservices deployed), Phase 22 (CI/CD for deployment)
+**Requirements**: OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07, OBS-08
+**Success Criteria** (what must be TRUE):
+  1. Requests produce distributed traces spanning all microservices with correlated trace IDs visible in Application Insights
+  2. All telemetry and logs include `tenant_id` — per-tenant KQL queries return only that tenant's data
+  3. AKS node/pod CPU, memory, and network metrics are visible in Container Insights
+  4. Alerts fire when health checks fail, pods restart excessively, 5xx rates exceed threshold, or Cosmos DB RU consumption exceeds 80%
+  5. Central Log Analytics workspace receives and correlates logs from App Insights, AKS, Cosmos DB diagnostics, and Key Vault audit
+**Plans**: TBD
+
+#### Phase 24: Tenant Admin UI
+**Goal**: Platform admins can manage tenants and tenant admins can manage their team through the web UI
+**Depends on**: Phase 18 (auth), Phase 19 (data), Phase 21 (tenant API), Phase 23 (observability data for usage)
+**Requirements**: UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, TENANT-08
+**Success Criteria** (what must be TRUE):
+  1. Platform admin can switch between tenants via a global selector — all pages automatically filter to the selected tenant
+  2. Platform admin dashboard shows all tenants with status, resource usage, agent counts, and active users
+  3. Platform admin can onboard a new tenant through a multi-step wizard (org name → Entra ID → model endpoint → first agent → review)
+  4. Tenant admins can configure settings, view users, assign roles, and invite users via Entra ID groups
+  5. Per-tenant usage summary displays API calls, agent executions, token consumption, and cost estimates
+**Plans**: TBD
 **UI hint**: yes
 
-Plans:
-- [x] 16-01-PLAN.md — Backend API for agent MCP tool attach/detach/list + tests
-- [x] 16-02-PLAN.md — Agent detail page MCP Tools section with attach/detach UI
-
-## Phase Dependencies
+### Phase Dependencies
 
 ```
-Phase 11 (MCP Client Library)
+Phase 17 (Infrastructure Foundation)
     │
-    ├──► Phase 12 (MCP Server Registry)
+    ├──► Phase 18 (Authentication Migration)
     │         │
-    │         └──► Phase 13 (MCP Tool Discovery)
+    │         └──► Phase 19 (Data Layer Migration)
     │                   │
-    │                   ├──► Phase 14 (Agent Execution Integration)
-    │                   │         │
-    │                   │         └──► Phase 16 (Agent-Level MCP Management)
-    │                   │
-    │                   └──► Phase 15 (MCP Tool Catalog UI)
+    │                   └──► Phase 20 (Microservice Extraction & AKS)
     │                             │
-    │                             └──► Phase 16 (Agent-Level MCP Management)
+    │                             ├──► Phase 21 (Tenant Lifecycle & Provisioning)
+    │                             │         │
+    │                             │         └──► Phase 24 (Tenant Admin UI)
+    │                             │
+    │                             ├──► Phase 22 (CI/CD Pipelines)
+    │                             │
+    │                             └──► Phase 23 (Observability & Monitoring)
+    │                                       │
+    │                                       └──► Phase 24 (Tenant Admin UI)
 ```
+
+### Progress
+
+**Execution Order:** 17 → 18 → 19 → 20 → 21 → 22 → 23 → 24
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 17. Infrastructure Foundation | 0/? | Not started | - |
+| 18. Authentication Migration | 0/? | Not started | - |
+| 19. Data Layer Migration | 0/? | Not started | - |
+| 20. Microservice Extraction & AKS | 0/? | Not started | - |
+| 21. Tenant Lifecycle & Provisioning | 0/? | Not started | - |
+| 22. CI/CD Pipelines | 0/? | Not started | - |
+| 23. Observability & Monitoring | 0/? | Not started | - |
+| 24. Tenant Admin UI | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-23*
-*Last updated: 2026-03-24 after v1.0 milestone completion*
+*Last updated: 2026-03-26 after v3.0 roadmap creation*
