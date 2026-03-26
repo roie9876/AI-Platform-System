@@ -12,7 +12,23 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = "change-me-in-production-use-fernet-key"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # Entra ID configuration
+    AZURE_TENANT_ID: str = ""
+    AZURE_CLIENT_ID: str = ""
+    AZURE_AUTHORITY: str = ""
+    AZURE_JWKS_URI: str = ""
+    AZURE_ISSUER: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    def model_post_init(self, __context: object) -> None:
+        if self.AZURE_TENANT_ID:
+            if not self.AZURE_AUTHORITY:
+                self.AZURE_AUTHORITY = f"https://login.microsoftonline.com/{self.AZURE_TENANT_ID}"
+            if not self.AZURE_JWKS_URI:
+                self.AZURE_JWKS_URI = f"https://login.microsoftonline.com/{self.AZURE_TENANT_ID}/discovery/v2.0/keys"
+            if not self.AZURE_ISSUER:
+                self.AZURE_ISSUER = f"https://login.microsoftonline.com/{self.AZURE_TENANT_ID}/v2.0"
 
 
 settings = Settings()
