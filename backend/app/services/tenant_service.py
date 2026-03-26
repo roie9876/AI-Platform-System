@@ -1,5 +1,7 @@
 """Tenant service with lifecycle state machine and settings management."""
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
 from uuid import uuid4
