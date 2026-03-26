@@ -4,13 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.telemetry import init_telemetry
+from app.core.logging_config import configure_logging
 from app.api.v1.router import api_router
 from app.middleware.tenant import TenantMiddleware
+from app.middleware.telemetry import TelemetryMiddleware
 from app.repositories.cosmos_client import close_cosmos_client
 
 
 @asynccontextmanager
 async def lifespan(app):
+    configure_logging(service_name="ai-platform-monolith")
+    init_telemetry(service_name="ai-platform-monolith")
     yield
     await close_cosmos_client()
 
@@ -22,6 +27,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(TelemetryMiddleware)
 app.add_middleware(TenantMiddleware)
 app.add_middleware(
     CORSMiddleware,

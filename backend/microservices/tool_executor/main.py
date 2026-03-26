@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter
 
 from app.core.config import settings
+from app.core.telemetry import init_telemetry
+from app.core.logging_config import configure_logging
 from app.middleware.tenant import TenantMiddleware
+from app.middleware.telemetry import TelemetryMiddleware
 from app.repositories.cosmos_client import close_cosmos_client
 from app.health import health_router
 
@@ -19,11 +22,14 @@ from app.services.tool_executor import ToolExecutor
 
 @asynccontextmanager
 async def lifespan(app):
+    configure_logging(service_name="tool-executor")
+    init_telemetry(service_name="tool-executor")
     yield
     await close_cosmos_client()
 
 
 app = FastAPI(title="AI Platform - Tool Executor", version="0.1.0", lifespan=lifespan)
+app.add_middleware(TelemetryMiddleware)
 app.add_middleware(TenantMiddleware)
 app.add_middleware(
     CORSMiddleware,

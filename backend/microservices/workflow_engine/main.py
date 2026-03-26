@@ -6,7 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.telemetry import init_telemetry
+from app.core.logging_config import configure_logging
 from app.middleware.tenant import TenantMiddleware
+from app.middleware.telemetry import TelemetryMiddleware
 from app.repositories.cosmos_client import close_cosmos_client
 from app.health import health_router
 
@@ -15,11 +18,14 @@ from app.api.v1.workflows import router as workflows_router
 
 @asynccontextmanager
 async def lifespan(app):
+    configure_logging(service_name="workflow-engine")
+    init_telemetry(service_name="workflow-engine")
     yield
     await close_cosmos_client()
 
 
 app = FastAPI(title="AI Platform - Workflow Engine", version="0.1.0", lifespan=lifespan)
+app.add_middleware(TelemetryMiddleware)
 app.add_middleware(TenantMiddleware)
 app.add_middleware(
     CORSMiddleware,
