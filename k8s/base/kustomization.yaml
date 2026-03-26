@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - configmap.yaml
   - ingress.yaml
+  - secrets/secret-provider-class.yaml
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
   - agent-executor/deployment.yaml
