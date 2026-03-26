@@ -53,7 +53,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 **Phase Numbering:** Continues from v2.0 (Phases 11-16).
 
 - [x] **Phase 17: Infrastructure Foundation (Bicep IaC)** — Provision all Azure resources via Bicep modules (completed 2026-03-26)
-- [ ] **Phase 18: Authentication Migration (Entra ID)** — Replace JWT auth with enterprise SSO and Managed Identity
+- [ ] **Phase 18: Authentication Migration (Entra ID)** — Replace JWT auth with enterprise SSO and Managed Identity (3 plans)
 - [ ] **Phase 19: Data Layer Migration (Cosmos DB)** — Replace SQLAlchemy/PostgreSQL with Cosmos DB NoSQL SDK
 - [ ] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS
 - [ ] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning
@@ -89,7 +89,11 @@ Plans:
   3. Users are mapped to their tenant based on Entra ID claims and can only access their own tenant's data
   4. Platform Admin, Tenant Admin, Member, and Viewer roles restrict API access at endpoint level
   5. Service-to-service calls authenticate via Managed Identity without any stored credentials
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 18-01-PLAN.md — Backend Entra ID token validation, RBAC dependencies, migrate all API routes
+- [ ] 18-02-PLAN.md — Frontend MSAL React integration, login page, Bearer token API layer
+- [ ] 18-03-PLAN.md — Managed Identity (DefaultAzureCredential) for service-to-service auth
 **UI hint**: yes
 
 #### Phase 19: Data Layer Migration (Cosmos DB)
@@ -194,7 +198,7 @@ Phase 17 (Infrastructure Foundation)
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 17. Infrastructure Foundation | 3/3 | Complete    | 2026-03-26 |
-| 18. Authentication Migration | 0/? | Not started | - |
+| 18. Authentication Migration | 0/3 | Not started | - |
 | 19. Data Layer Migration | 0/? | Not started | - |
 | 20. Microservice Extraction & AKS | 0/? | Not started | - |
 | 21. Tenant Lifecycle & Provisioning | 0/? | Not started | - |
