@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = "change-me-in-production-use-fernet-key"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # Cosmos DB configuration
+    COSMOS_ENDPOINT: str = ""
+    COSMOS_DATABASE: str = "aiplatform"
+
     # Entra ID configuration
     AZURE_TENANT_ID: str = ""
     AZURE_CLIENT_ID: str = ""
