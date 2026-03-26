@@ -137,6 +137,15 @@ module alerts './modules/alerts.bicep' = {
   }
 }
 
+module agc './modules/agc.bicep' = {
+  name: 'agc-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    agcSubnetId: vnet.outputs.agcSubnetId
+  }
+}
+
 // ============================================================================
 // Wave 3.5: Workload Identity Federation — depends on identity + AKS OIDC issuer
 // ============================================================================
@@ -196,3 +205,9 @@ output workloadIdentityClientId string = identity.outputs.workloadIdentityClient
 
 @description('Application Insights connection string')
 output appInsightsConnectionString string = appInsights.outputs.connectionString
+
+@description('Application Gateway for Containers resource ID')
+output agcId string = agc.outputs.agcId
+
+@description('Application Gateway for Containers FQDN')
+output agcFqdn string = agc.outputs.agcFqdn

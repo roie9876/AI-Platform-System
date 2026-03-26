@@ -4,7 +4,7 @@ metadata:
   name: aiplatform-config
 data:
   COSMOS_DATABASE: "aiplatform"
-  CORS_ORIGINS: '["https://aiplatform.stumsft.com","http://localhost:3000","http://4.165.149.111","https://4.165.149.111"]'
+  CORS_ORIGINS: '["https://aiplatform.stumsft.com","http://localhost:3000","https://${AGC_FQDN}","http://${AGC_FQDN}"]'
   TOOL_EXECUTOR_URL: "http://tool-executor:8000"
   MCP_PROXY_URL: "http://mcp-proxy:8000"
   AGENT_EXECUTOR_URL: "http://agent-executor:8000"

@@ -69,6 +69,8 @@ KEY_VAULT_URI=$(echo "${OUTPUTS}" | jq -r '.keyVaultUri.value')
 KEY_VAULT_NAME=$(echo "${OUTPUTS}" | jq -r '.keyVaultName.value // empty')
 WORKLOAD_ID=$(echo "${OUTPUTS}" | jq -r '.workloadIdentityClientId.value')
 APP_INSIGHTS_CS=$(echo "${OUTPUTS}" | jq -r '.appInsightsConnectionString.value')
+AGC_ID=$(echo "${OUTPUTS}" | jq -r '.agcId.value')
+AGC_FQDN=$(echo "${OUTPUTS}" | jq -r '.agcFqdn.value')
 
 # Derive Key Vault name from URI if not in outputs
 if [ -z "${KEY_VAULT_NAME}" ]; then
@@ -84,6 +86,8 @@ echo "  Cosmos Endpoint: ${COSMOS_ENDPOINT}"
 echo "  Key Vault:      ${KEY_VAULT_NAME}"
 echo "  Workload ID:    ${WORKLOAD_ID}"
 echo "  App Insights:   ${APP_INSIGHTS_CS:0:40}..."
+echo "  AGC ID:         ${AGC_ID}"
+echo "  AGC FQDN:       ${AGC_FQDN}"
 echo "  Tenant ID:      ${TENANT_ID}"
 echo ""
 
@@ -149,6 +153,41 @@ else
   echo -e "  ${RED}✗${NC} ${SECRET_FILE} not found"
 fi
 
+# ─── Update K8s Ingress with AGC resource ID ──────────────────────────────────
+
+echo -e "${BLUE}Updating K8s Ingress with AGC values...${NC}"
+
+INGRESS_FILE="k8s/base/ingress.yaml"
+if [ -f "${INGRESS_FILE}" ]; then
+  if grep -q '${AGC_RESOURCE_ID}' "${INGRESS_FILE}"; then
+    TMPFILE=$(mktemp)
+    sed 's|\${AGC_RESOURCE_ID}|'"${AGC_ID}"'|g' "${INGRESS_FILE}" > "${TMPFILE}"
+    mv "${TMPFILE}" "${INGRESS_FILE}"
+    echo -e "  ${GREEN}✓${NC} Updated AGC_RESOURCE_ID → ${AGC_ID}"
+  else
+    echo -e "  ${YELLOW}⚠${NC} AGC_RESOURCE_ID already populated (skipping)"
+  fi
+else
+  echo -e "  ${RED}✗${NC} ${INGRESS_FILE} not found"
+fi
+
+# ─── Update K8s ConfigMap CORS with AGC FQDN ─────────────────────────────────
+
+echo -e "${BLUE}Updating K8s ConfigMap CORS with AGC FQDN...${NC}"
+
+if [ -f "${CONFIGMAP_FILE}" ]; then
+  if grep -q '${AGC_FQDN}' "${CONFIGMAP_FILE}"; then
+    TMPFILE=$(mktemp)
+    sed 's|\${AGC_FQDN}|'"${AGC_FQDN}"'|g' "${CONFIGMAP_FILE}" > "${TMPFILE}"
+    mv "${TMPFILE}" "${CONFIGMAP_FILE}"
+    echo -e "  ${GREEN}✓${NC} Updated AGC_FQDN → ${AGC_FQDN}"
+  else
+    echo -e "  ${YELLOW}⚠${NC} AGC_FQDN already populated (skipping)"
+  fi
+else
+  echo -e "  ${RED}✗${NC} ${CONFIGMAP_FILE} not found"
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""
@@ -157,6 +196,7 @@ echo ""
 echo "  Files updated:"
 echo "    ${CONFIGMAP_FILE}"
 echo "    ${SECRET_FILE}"
+echo "    ${INGRESS_FILE}"
 echo ""
 echo "  Apply to cluster:"
 echo "    kubectl apply -k k8s/base"

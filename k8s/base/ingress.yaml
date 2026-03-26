@@ -3,21 +3,13 @@ kind: Ingress
 metadata:
   name: aiplatform-ingress
   annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    alb.networking.azure.io/alb-id: "${AGC_RESOURCE_ID}"
 spec:
-  ingressClassName: nginx
+  ingressClassName: azure-alb-external
   rules:
     - http:
         paths:
-          # Agent execution (chat, threads, memories) — must be before catch-all /api/v1/agents
-          - path: /api/v1/agents/([^/]+)/chat
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: agent-executor
-                port:
-                  number: 8000
+          # Threads — agent-executor
           - path: /api/v1/threads
             pathType: Prefix
             backend:
@@ -70,7 +62,7 @@ spec:
                 name: mcp-proxy
                 port:
                   number: 8000
-          # API Gateway — catch-all for everything else
+          # API Gateway — catch-all for /api/v1 (agents CRUD + chat + everything else)
           - path: /api/v1
             pathType: Prefix
             backend:
@@ -78,6 +70,14 @@ spec:
                 name: api-gateway
                 port:
                   number: 8000
+          # Frontend — catch-all for everything else (pages, static assets)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
           # Frontend — catch-all for everything else
           - path: /
             pathType: Prefix

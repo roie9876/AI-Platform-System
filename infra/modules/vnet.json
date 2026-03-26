@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "8508070357920250625"
+      "templateHash": "3463637798752113932"
     }
   },
   "parameters": {
@@ -48,6 +48,13 @@
       "defaultValue": "10.0.8.0/24",
       "metadata": {
         "description": "Private endpoints subnet address prefix"
+      }
+    },
+    "agcSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.12.0/22",
+      "metadata": {
+        "description": "Application Gateway for Containers subnet address prefix"
       }
     }
   },
@@ -161,6 +168,55 @@
       }
     },
     {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2024-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-nsg-agc', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowHTTPSInbound",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowHTTPInbound",
+            "properties": {
+              "priority": 110,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "80",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowAllOutbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2024-01-01",
       "name": "[format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))]",
@@ -198,10 +254,28 @@
                 "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
               }
             }
+          },
+          {
+            "name": "agc-subnet",
+            "properties": {
+              "addressPrefix": "[parameters('agcSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-agc', parameters('environmentName')))]"
+              },
+              "delegations": [
+                {
+                  "name": "Microsoft.ServiceNetworking.trafficControllers",
+                  "properties": {
+                    "serviceName": "Microsoft.ServiceNetworking/trafficControllers"
+                  }
+                }
+              ]
+            }
           }
         ]
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-agc', parameters('environmentName')))]",
         "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName')))]",
         "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName')))]",
         "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
@@ -243,6 +317,13 @@
         "description": "Resource ID of the private-endpoints subnet"
       },
       "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[2].id]"
+    },
+    "agcSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the AGC subnet"
+      },
+      "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[3].id]"
     }
   }
 }

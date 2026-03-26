@@ -8,11 +8,11 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow from NGINX ingress controller
+    # Allow from ALB Controller (Application Gateway for Containers)
     - from:
         - namespaceSelector:
             matchLabels:
-              app.kubernetes.io/name: ingress-nginx
+              app.kubernetes.io/name: alb-controller
     # Allow from same namespace (inter-service communication)
     - from:
         - podSelector: {}

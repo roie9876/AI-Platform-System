@@ -166,6 +166,8 @@ KEY_VAULT_URI=$(echo "${OUTPUTS}" | jq -r '.keyVaultUri.value')
 KEY_VAULT_NAME=$(echo "${OUTPUTS}" | jq -r '.keyVaultName.value')
 WORKLOAD_ID=$(echo "${OUTPUTS}" | jq -r '.workloadIdentityClientId.value')
 APP_INSIGHTS_CS=$(echo "${OUTPUTS}" | jq -r '.appInsightsConnectionString.value')
+AGC_ID=$(echo "${OUTPUTS}" | jq -r '.agcId.value')
+AGC_FQDN=$(echo "${OUTPUTS}" | jq -r '.agcFqdn.value')
 
 echo "  ACR Server:     ${ACR_SERVER}"
 echo "  AKS Cluster:    ${AKS_CLUSTER}"
@@ -173,6 +175,8 @@ echo "  Cosmos Endpoint: ${COSMOS_ENDPOINT}"
 echo "  Key Vault:      ${KEY_VAULT_NAME} (${KEY_VAULT_URI})"
 echo "  Workload ID:    ${WORKLOAD_ID}"
 echo "  App Insights:   ${APP_INSIGHTS_CS:0:40}..."
+echo "  AGC ID:         ${AGC_ID}"
+echo "  AGC FQDN:       ${AGC_FQDN}"
 
 TENANT_ID=$(az account show --query tenantId -o tsv)
 echo "  Tenant ID:      ${TENANT_ID}"
@@ -187,6 +191,19 @@ az aks get-credentials \
   --overwrite-existing
 
 echo "  kubectl context set to ${AKS_CLUSTER}"
+
+# ─── Step 3b: Enable ALB Controller ──────────────────────────────────────────
+
+step "Enable ALB Controller (Application Gateway for Containers)"
+
+echo "  Enabling ALB Controller addon on AKS..."
+az aks update \
+  --resource-group "${RESOURCE_GROUP}" \
+  --name "${AKS_CLUSTER}" \
+  --enable-alb-controller \
+  --only-show-errors || echo -e "  ${YELLOW}ALB Controller already enabled or update in progress${NC}"
+
+echo -e "  ${GREEN}✓ ALB Controller enabled${NC}"
 
 # ─── Step 4: ACR Login ───────────────────────────────────────────────────────
 
@@ -241,6 +258,25 @@ if grep -q "REPLACE_WITH_APP_INSIGHTS_CONNECTION_STRING" "${CONFIGMAP_FILE}"; th
   echo "  Updated App Insights connection string in configmap"
 else
   echo "  App Insights connection string already populated (skipping)"
+fi
+
+# ─── Step 6b: Update K8s Ingress & ConfigMap with AGC values ──────────────────
+
+step "Update K8s Ingress & ConfigMap with AGC values"
+
+INGRESS_FILE="k8s/base/ingress.yaml"
+if grep -q '${AGC_RESOURCE_ID}' "${INGRESS_FILE}"; then
+  sed -i '' "s|\${AGC_RESOURCE_ID}|${AGC_ID}|g" "${INGRESS_FILE}"
+  echo "  Updated AGC resource ID in ingress"
+else
+  echo "  AGC resource ID already populated (skipping)"
+fi
+
+if grep -q '${AGC_FQDN}' "${CONFIGMAP_FILE}"; then
+  sed -i '' "s|\${AGC_FQDN}|${AGC_FQDN}|g" "${CONFIGMAP_FILE}"
+  echo "  Updated AGC FQDN in configmap CORS_ORIGINS"
+else
+  echo "  AGC FQDN already populated (skipping)"
 fi
 
 # ─── Step 7: Update K8s Secrets ───────────────────────────────────────────────

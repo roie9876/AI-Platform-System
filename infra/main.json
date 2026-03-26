@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "1421055926839388253"
+      "templateHash": "12687400895208820768"
     }
   },
   "parameters": {
@@ -120,7 +120,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "8508070357920250625"
+              "templateHash": "3463637798752113932"
             }
           },
           "parameters": {
@@ -163,6 +163,13 @@
               "defaultValue": "10.0.8.0/24",
               "metadata": {
                 "description": "Private endpoints subnet address prefix"
+              }
+            },
+            "agcSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.12.0/22",
+              "metadata": {
+                "description": "Application Gateway for Containers subnet address prefix"
               }
             }
           },
@@ -276,6 +283,55 @@
               }
             },
             {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-nsg-agc', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowHTTPSInbound",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "443",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*"
+                    }
+                  },
+                  {
+                    "name": "AllowHTTPInbound",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "80",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*"
+                    }
+                  },
+                  {
+                    "name": "AllowAllOutbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "*",
+                      "destinationAddressPrefix": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
               "type": "Microsoft.Network/virtualNetworks",
               "apiVersion": "2024-01-01",
               "name": "[format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))]",
@@ -313,10 +369,28 @@
                         "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
                       }
                     }
+                  },
+                  {
+                    "name": "agc-subnet",
+                    "properties": {
+                      "addressPrefix": "[parameters('agcSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-agc', parameters('environmentName')))]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "Microsoft.ServiceNetworking.trafficControllers",
+                          "properties": {
+                            "serviceName": "Microsoft.ServiceNetworking/trafficControllers"
+                          }
+                        }
+                      ]
+                    }
                   }
                 ]
               },
               "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-agc', parameters('environmentName')))]",
                 "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-nodes', parameters('environmentName')))]",
                 "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-aks-pods', parameters('environmentName')))]",
                 "[resourceId('Microsoft.Network/networkSecurityGroups', format('stumsft-aiplatform-{0}-nsg-private-endpoints', parameters('environmentName')))]"
@@ -358,6 +432,13 @@
                 "description": "Resource ID of the private-endpoints subnet"
               },
               "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[2].id]"
+            },
+            "agcSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the AGC subnet"
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('stumsft-aiplatform-{0}-vnet', parameters('environmentName'))), '2024-01-01').subnets[3].id]"
             }
           }
         }
@@ -1782,6 +1863,120 @@
         "[resourceId('Microsoft.Resources/deployments', 'appinsights-deployment')]",
         "[resourceId('Microsoft.Resources/deployments', 'cosmos-deployment')]"
       ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "agc-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "agcSubnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'vnet-deployment'), '2025-04-01').outputs.agcSubnetId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "18398684017287517778"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "agcSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the AGC subnet (must have Microsoft.ServiceNetworking delegation)"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ServiceNetworking/trafficControllers",
+              "apiVersion": "2025-01-01",
+              "name": "[format('stumsft-aiplatform-{0}-agc', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {}
+            },
+            {
+              "type": "Microsoft.ServiceNetworking/trafficControllers/associations",
+              "apiVersion": "2025-01-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'agc-subnet-association')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "associationType": "subnets",
+                "subnet": {
+                  "id": "[parameters('agcSubnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.ServiceNetworking/trafficControllers/frontends",
+              "apiVersion": "2025-01-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'agc-frontend')]",
+              "location": "[parameters('location')]",
+              "properties": {},
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "agcId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Application Gateway for Containers"
+              },
+              "value": "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+            },
+            "agcName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Gateway for Containers"
+              },
+              "value": "[format('stumsft-aiplatform-{0}-agc', parameters('environmentName'))]"
+            },
+            "agcFqdn": {
+              "type": "string",
+              "metadata": {
+                "description": "FQDN of the AGC frontend"
+              },
+              "value": "[reference(resourceId('Microsoft.ServiceNetworking/trafficControllers/frontends', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'agc-frontend'), '2025-01-01').fqdn]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'vnet-deployment')]"
+      ]
     }
   ],
   "outputs": {
@@ -1861,6 +2056,20 @@
         "description": "Application Insights connection string"
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'appinsights-deployment'), '2025-04-01').outputs.connectionString.value]"
+    },
+    "agcId": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Gateway for Containers resource ID"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'agc-deployment'), '2025-04-01').outputs.agcId.value]"
+    },
+    "agcFqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Gateway for Containers FQDN"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'agc-deployment'), '2025-04-01').outputs.agcFqdn.value]"
     }
   }
 }

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "18398684017287517778"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment name used in resource naming"
+      }
+    },
+    "agcSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the AGC subnet (must have Microsoft.ServiceNetworking delegation)"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ServiceNetworking/trafficControllers",
+      "apiVersion": "2025-01-01",
+      "name": "[format('stumsft-aiplatform-{0}-agc', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.ServiceNetworking/trafficControllers/associations",
+      "apiVersion": "2025-01-01",
+      "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'agc-subnet-association')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "associationType": "subnets",
+        "subnet": {
+          "id": "[parameters('agcSubnetId')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceNetworking/trafficControllers/frontends",
+      "apiVersion": "2025-01-01",
+      "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'agc-frontend')]",
+      "location": "[parameters('location')]",
+      "properties": {},
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "agcId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Application Gateway for Containers"
+      },
+      "value": "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+    },
+    "agcName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Application Gateway for Containers"
+      },
+      "value": "[format('stumsft-aiplatform-{0}-agc', parameters('environmentName'))]"
+    },
+    "agcFqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "FQDN of the AGC frontend"
+      },
+      "value": "[reference(resourceId('Microsoft.ServiceNetworking/trafficControllers/frontends', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'agc-frontend'), '2025-01-01').fqdn]"
+    }
+  }
+}

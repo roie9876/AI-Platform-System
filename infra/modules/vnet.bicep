@@ -16,6 +16,9 @@ param aksPodsSubnetPrefix string = '10.0.4.0/22'
 @description('Private endpoints subnet address prefix')
 param privateEndpointsSubnetPrefix string = '10.0.8.0/24'
 
+@description('Application Gateway for Containers subnet address prefix')
+param agcSubnetPrefix string = '10.0.12.0/22'
+
 // NSG for aks-nodes subnet
 resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-nsg-aks-nodes'
@@ -124,6 +127,55 @@ resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01
   }
 }
 
+// NSG for Application Gateway for Containers subnet
+resource agcNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: 'stumsft-aiplatform-${environmentName}-nsg-agc'
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowHTTPSInbound'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'AllowHTTPInbound'
+        properties: {
+          priority: 110
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'AllowAllOutbound'
+        properties: {
+          priority: 4096
+          direction: 'Outbound'
+          access: 'Allow'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: '*'
+        }
+      }
+    ]
+  }
+}
+
 // Virtual Network with 3 subnets
 resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-vnet'
@@ -162,6 +214,23 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           }
         }
       }
+      {
+        name: 'agc-subnet'
+        properties: {
+          addressPrefix: agcSubnetPrefix
+          networkSecurityGroup: {
+            id: agcNsg.id
+          }
+          delegations: [
+            {
+              name: 'Microsoft.ServiceNetworking.trafficControllers'
+              properties: {
+                serviceName: 'Microsoft.ServiceNetworking/trafficControllers'
+              }
+            }
+          ]
+        }
+      }
     ]
   }
 }
@@ -180,3 +249,6 @@ output aksPodsSubnetId string = vnet.properties.subnets[1].id
 
 @description('Resource ID of the private-endpoints subnet')
 output privateEndpointsSubnetId string = vnet.properties.subnets[2].id
+
+@description('Resource ID of the AGC subnet')
+output agcSubnetId string = vnet.properties.subnets[3].id
