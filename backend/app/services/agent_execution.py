@@ -17,6 +17,8 @@ from app.services.mcp_discovery import _build_auth_headers
 from app.services.rag_service import RAGService
 from app.services.memory_service import MemoryService
 from app.services.platform_tools import get_adapter_by_name as get_platform_adapter
+from app.core.config import settings
+from app.services.service_client import ServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +41,16 @@ class AgentExecutionService:
 
     def __init__(self) -> None:
         self._model_service = ModelAbstractionService()
-        self._tool_executor = ToolExecutor()
         self._rag_service = RAGService()
         self._memory_service = MemoryService()
+
+        # In microservice mode, use HTTP calls; in monolith mode, use direct imports
+        if settings.SERVICE_NAME == "agent-executor":
+            self._service_client = ServiceClient()
+            self._tool_executor = None
+        else:
+            self._service_client = None
+            self._tool_executor = ToolExecutor()
 
     async def _inject_rag_context(
         self,
@@ -171,11 +180,27 @@ class AgentExecutionService:
         mcp_tool: dict,
         arguments: Dict[str, Any],
         tenant_id: str,
+        auth_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Execute an MCP tool via tools/call on the appropriate server."""
         server = await _mcp_server_repo.get(tenant_id, mcp_tool["server_id"])
         if not server:
             return {"error": f"MCP server not found for tool {mcp_tool['tool_name']}"}
+
+        # In microservice mode, use HTTP call to mcp-proxy
+        if self._service_client and auth_token:
+            try:
+                headers = _build_auth_headers(server)
+                result_data = await self._service_client.call_mcp_tool(
+                    server_url=server["url"],
+                    tool_name=mcp_tool["tool_name"],
+                    arguments=arguments,
+                    auth_headers=headers,
+                    auth_token=auth_token,
+                )
+                return result_data
+            except Exception as e:
+                return {"error": f"MCP tool execution failed: {e}"}
 
         headers = _build_auth_headers(server)
         client = MCPClient(server["url"], timeout=30.0, headers=headers)
@@ -206,6 +231,7 @@ class AgentExecutionService:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         thread_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         start_time = time.monotonic()
 
@@ -391,7 +417,8 @@ class AgentExecutionService:
                                 args = json.loads(tc.function.arguments)
                                 if mcp_tool:
                                     result = await self._execute_mcp_tool(
-                                        mcp_tool, args, tenant_id
+                                        mcp_tool, args, tenant_id,
+                                        auth_token=auth_token,
                                     )
                                 elif tool.get("is_platform_tool"):
                                     adapter = get_platform_adapter(tool["name"])
@@ -399,6 +426,15 @@ class AgentExecutionService:
                                         result = await adapter.execute(args)
                                     else:
                                         result = {"error": f"No adapter for platform tool: {tool['name']}"}
+                                elif self._service_client and auth_token:
+                                    result = await self._service_client.execute_tool(
+                                        tool_name=tool["name"],
+                                        input_data=args,
+                                        input_schema=tool.get("input_schema") or {},
+                                        execution_command=tool.get("execution_command"),
+                                        timeout_seconds=tool.get("timeout_seconds") or 30,
+                                        auth_token=auth_token,
+                                    )
                                 else:
                                     result = await self._tool_executor.execute(
                                         tool_name=tool["name"],
