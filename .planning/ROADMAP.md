@@ -55,7 +55,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 17: Infrastructure Foundation (Bicep IaC)** — Provision all Azure resources via Bicep modules (completed 2026-03-26)
 - [x] **Phase 18: Authentication Migration (Entra ID)** — Replace JWT auth with enterprise SSO and Managed Identity (3 plans) (completed 2026-03-26)
 - [x] **Phase 19: Data Layer Migration (Cosmos DB)** — Replace SQLAlchemy/PostgreSQL with Cosmos DB NoSQL SDK (completed 2026-03-26)
-- [ ] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS
+- [x] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS (completed 2026-03-26)
 - [ ] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning
 - [ ] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS
 - [ ] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting
@@ -122,11 +122,11 @@ Plans:
   3. Pods cannot reach other tenant namespaces — cross-namespace traffic is blocked by NetworkPolicy
   4. Workloads auto-scale via HPA based on CPU/memory utilization
   5. All microservices pass liveness, readiness, and startup health checks
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 Plans:
-- [ ] 20-01-PLAN.md — Microservice scaffolding, health checks, inter-service client
-- [ ] 20-02-PLAN.md — Inter-service communication refactor (AgentExecutionService, WorkflowEngine)
-- [ ] 20-03-PLAN.md — Kustomize manifests and tenant namespace isolation
+- [x] 20-01-PLAN.md — Microservice scaffolding, health checks, inter-service client
+- [x] 20-02-PLAN.md — Inter-service communication refactor (AgentExecutionService, WorkflowEngine)
+- [x] 20-03-PLAN.md — Kustomize manifests and tenant namespace isolation
 
 #### Phase 21: Tenant Lifecycle & Provisioning
 **Goal**: Platform admins can create, configure, and manage tenants through an API that automatically provisions isolated infrastructure
@@ -208,7 +208,7 @@ Phase 17 (Infrastructure Foundation)
 | 17. Infrastructure Foundation | 3/3 | Complete    | 2026-03-26 |
 | 18. Authentication Migration | 3/3 | Complete   | 2026-03-26 |
 | 19. Data Layer Migration | 1/3 | Complete    | 2026-03-26 |
-| 20. Microservice Extraction & AKS | 0/? | Not started | - |
+| 20. Microservice Extraction & AKS | 2/3 | In Progress|  |
 | 21. Tenant Lifecycle & Provisioning | 0/? | Not started | - |
 | 22. CI/CD Pipelines | 0/? | Not started | - |
 | 23. Observability & Monitoring | 0/? | Not started | - |
