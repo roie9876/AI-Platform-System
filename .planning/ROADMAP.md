@@ -138,7 +138,10 @@ Plans:
   3. Suspended tenant API requests are blocked at middleware — no data access while suspended
   4. New tenants are seeded with default catalog entries, tools, policies, and an admin user mapped to Entra ID
   5. Platform admin can configure per-tenant settings (display name, allowed providers, quotas, feature flags)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 21-01-PLAN.md — Tenant model, service with lifecycle state machine, and REST API endpoints
+- [ ] 21-02-PLAN.md — K8s provisioning, data seeding, admin user creation, and middleware suspension blocking
 
 #### Phase 22: CI/CD Pipelines (GitHub Actions)
 **Goal**: Code changes are automatically built, tested, and deployed to AKS via GitHub Actions with zero-downtime deployments
