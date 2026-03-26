@@ -9,14 +9,14 @@ Requirements for production multi-tenant infrastructure. Each maps to roadmap ph
 
 ### Tenant Lifecycle
 
-- [ ] **TENANT-01**: Platform admin can create a tenant with name, slug, and admin contact via API
-- [ ] **TENANT-02**: Platform automatically provisions K8s namespace with NetworkPolicy, ResourceQuota, and LimitRange on tenant creation
-- [ ] **TENANT-03**: Tenant lifecycle states transition through provisioning → active → suspended → deactivated → deleted
-- [ ] **TENANT-04**: Suspended tenant API requests are blocked at middleware layer while data and namespace are retained
-- [ ] **TENANT-05**: Platform admin can configure per-tenant settings (display name, allowed model providers, token quotas, feature flags)
-- [ ] **TENANT-06**: New tenant is seeded with default catalog entries, built-in tools, and default policies on creation
-- [ ] **TENANT-07**: Admin user is auto-created for new tenant with Entra ID mapping
-- [ ] **TENANT-08**: Platform admin can onboard a new tenant through a multi-step UI wizard (org name → Entra ID connection → model endpoint → first agent → review & create)
+- [x] **TENANT-01**: Platform admin can create a tenant with name, slug, and admin contact via API
+- [x] **TENANT-02**: Platform automatically provisions K8s namespace with NetworkPolicy, ResourceQuota, and LimitRange on tenant creation
+- [x] **TENANT-03**: Tenant lifecycle states transition through provisioning → active → suspended → deactivated → deleted
+- [x] **TENANT-04**: Suspended tenant API requests are blocked at middleware layer while data and namespace are retained
+- [x] **TENANT-05**: Platform admin can configure per-tenant settings (display name, allowed model providers, token quotas, feature flags)
+- [x] **TENANT-06**: New tenant is seeded with default catalog entries, built-in tools, and default policies on creation
+- [x] **TENANT-07**: Admin user is auto-created for new tenant with Entra ID mapping
+- [x] **TENANT-08**: Platform admin can onboard a new tenant through a multi-step UI wizard (org name → Entra ID connection → model endpoint → first agent → review & create)
 
 ### Infrastructure Provisioning
 
@@ -32,14 +32,14 @@ Requirements for production multi-tenant infrastructure. Each maps to roadmap ph
 
 ### Data Isolation (Cosmos DB)
 
-- [ ] **DATA-01**: Repository layer replaces SQLAlchemy ORM for all data access with Cosmos DB async SDK
-- [ ] **DATA-02**: All containers use /tenant_id as partition key and every query includes tenant_id in the partition key filter
-- [ ] **DATA-03**: Cross-partition queries are prevented by design — no operation can read data across tenants
-- [ ] **DATA-04**: All 13+ existing data models are migrated to Cosmos DB document schemas
-- [ ] **DATA-05**: Data migration tooling converts existing PostgreSQL data to Cosmos DB documents
-- [ ] **DATA-06**: Unique key constraints enforce business uniqueness rules within tenant partitions
-- [ ] **DATA-07**: Optimistic concurrency is implemented using Cosmos DB ETags on document updates
-- [ ] **DATA-08**: Cosmos DB throughput is configured with autoscale or serverless appropriate to 2-5 tenant workload
+- [x] **DATA-01**: Repository layer replaces SQLAlchemy ORM for all data access with Cosmos DB async SDK
+- [x] **DATA-02**: All containers use /tenant_id as partition key and every query includes tenant_id in the partition key filter
+- [x] **DATA-03**: Cross-partition queries are prevented by design — no operation can read data across tenants
+- [x] **DATA-04**: All 13+ existing data models are migrated to Cosmos DB document schemas
+- [x] **DATA-05**: Data migration tooling converts existing PostgreSQL data to Cosmos DB documents
+- [x] **DATA-06**: Unique key constraints enforce business uniqueness rules within tenant partitions
+- [x] **DATA-07**: Optimistic concurrency is implemented using Cosmos DB ETags on document updates
+- [x] **DATA-08**: Cosmos DB throughput is configured with autoscale or serverless appropriate to 2-5 tenant workload
 
 ### Authentication (Entra ID)
 
@@ -53,46 +53,46 @@ Requirements for production multi-tenant infrastructure. Each maps to roadmap ph
 
 ### Compute Isolation (AKS)
 
-- [ ] **COMPUTE-01**: Each tenant runs workloads in a dedicated K8s namespace (tenant-{slug})
-- [ ] **COMPUTE-02**: NetworkPolicy restricts cross-namespace traffic — tenant pods cannot reach other tenant namespaces
-- [ ] **COMPUTE-03**: ResourceQuota limits per-tenant CPU, memory, and pod count
-- [ ] **COMPUTE-04**: LimitRange enforces default and max resource requests/limits per container
-- [ ] **COMPUTE-05**: Helm charts or Kustomize overlays generate per-tenant deployment manifests
-- [ ] **COMPUTE-06**: HPA scales tenant workloads based on CPU/memory utilization
-- [ ] **COMPUTE-07**: Health check endpoints (liveness, readiness, startup) are implemented for all microservices
-- [ ] **COMPUTE-08**: Backend is split into microservice container images (api-gateway, agent-executor, workflow-engine, tool-executor, mcp-proxy)
-- [ ] **COMPUTE-09**: Ingress controller routes requests to correct tenant namespace based on tenant context
+- [x] **COMPUTE-01**: Each tenant runs workloads in a dedicated K8s namespace (tenant-{slug})
+- [x] **COMPUTE-02**: NetworkPolicy restricts cross-namespace traffic — tenant pods cannot reach other tenant namespaces
+- [x] **COMPUTE-03**: ResourceQuota limits per-tenant CPU, memory, and pod count
+- [x] **COMPUTE-04**: LimitRange enforces default and max resource requests/limits per container
+- [x] **COMPUTE-05**: Helm charts or Kustomize overlays generate per-tenant deployment manifests
+- [x] **COMPUTE-06**: HPA scales tenant workloads based on CPU/memory utilization
+- [x] **COMPUTE-07**: Health check endpoints (liveness, readiness, startup) are implemented for all microservices
+- [x] **COMPUTE-08**: Backend is split into microservice container images (api-gateway, agent-executor, workflow-engine, tool-executor, mcp-proxy)
+- [x] **COMPUTE-09**: Ingress controller routes requests to correct tenant namespace based on tenant context
 
 ### Deployment & CI/CD
 
-- [ ] **DEPLOY-01**: GitHub Actions workflow builds Docker images for all microservices on push to main
-- [ ] **DEPLOY-02**: Docker images are tagged with git SHA and pushed to ACR
-- [ ] **DEPLOY-03**: GitHub Actions workflow deploys to AKS using Helm/Kustomize with environment-specific values
-- [ ] **DEPLOY-04**: Rolling update strategy ensures zero-downtime deployments
-- [ ] **DEPLOY-05**: Deployment pipeline runs smoke tests after deploy to verify service health
-- [ ] **DEPLOY-06**: Secrets and configuration are injected via Key Vault CSI driver, not hardcoded
-- [ ] **DEPLOY-07**: Frontend builds as static export or container image and deploys to AKS or Azure Static Web Apps
-- [ ] **DEPLOY-08**: Pipeline supports deploying to a single tenant namespace without affecting others
+- [x] **DEPLOY-01**: GitHub Actions workflow builds Docker images for all microservices on push to main
+- [x] **DEPLOY-02**: Docker images are tagged with git SHA and pushed to ACR
+- [x] **DEPLOY-03**: GitHub Actions workflow deploys to AKS using Helm/Kustomize with environment-specific values
+- [x] **DEPLOY-04**: Rolling update strategy ensures zero-downtime deployments
+- [x] **DEPLOY-05**: Deployment pipeline runs smoke tests after deploy to verify service health
+- [x] **DEPLOY-06**: Secrets and configuration are injected via Key Vault CSI driver, not hardcoded
+- [x] **DEPLOY-07**: Frontend builds as static export or container image and deploys to AKS or Azure Static Web Apps
+- [x] **DEPLOY-08**: Pipeline supports deploying to a single tenant namespace without affecting others
 
 ### Observability
 
-- [ ] **OBS-01**: FastAPI backend is instrumented with OpenTelemetry exporting to Application Insights
-- [ ] **OBS-02**: Distributed traces span across microservices with correlated trace IDs
-- [ ] **OBS-03**: All telemetry is tagged with tenant_id custom dimension for per-tenant KQL queries
-- [ ] **OBS-04**: Structured JSON logs include tenant_id, agent_id, trace_id, and span_id in every entry
-- [ ] **OBS-05**: AKS Container Insights monitors node and pod CPU, memory, and network metrics
-- [ ] **OBS-06**: Azure Monitor alerts trigger on health check failures and pod restart loops
-- [ ] **OBS-07**: Alert rules fire when 5xx error rate exceeds threshold per tenant or Cosmos DB RU consumption exceeds 80%
-- [ ] **OBS-08**: Central Log Analytics workspace receives App Insights telemetry, AKS container logs, Cosmos DB diagnostics, and Key Vault audit logs
+- [x] **OBS-01**: FastAPI backend is instrumented with OpenTelemetry exporting to Application Insights
+- [x] **OBS-02**: Distributed traces span across microservices with correlated trace IDs
+- [x] **OBS-03**: All telemetry is tagged with tenant_id custom dimension for per-tenant KQL queries
+- [x] **OBS-04**: Structured JSON logs include tenant_id, agent_id, trace_id, and span_id in every entry
+- [x] **OBS-05**: AKS Container Insights monitors node and pod CPU, memory, and network metrics
+- [x] **OBS-06**: Azure Monitor alerts trigger on health check failures and pod restart loops
+- [x] **OBS-07**: Alert rules fire when 5xx error rate exceeds threshold per tenant or Cosmos DB RU consumption exceeds 80%
+- [x] **OBS-08**: Central Log Analytics workspace receives App Insights telemetry, AKS container logs, Cosmos DB diagnostics, and Key Vault audit logs
 
 ### Tenant Admin UI
 
-- [ ] **UI-01**: Global tenant selector in navigation allows platform admins to switch tenant context
-- [ ] **UI-02**: All existing UI pages automatically filter by selected tenant with no cross-tenant data leakage
-- [ ] **UI-03**: Platform admin dashboard lists all tenants with status, resource usage, agent counts, and active user counts
-- [ ] **UI-04**: Tenant settings page allows tenant admins to configure display name, allowed features, and token quotas
-- [ ] **UI-05**: Tenant admins can view users, assign roles, and invite new users via Entra ID group membership
-- [ ] **UI-06**: Per-tenant usage summary shows API call volume, agent execution count, token consumption, and cost estimate
+- [x] **UI-01**: Global tenant selector in navigation allows platform admins to switch tenant context
+- [x] **UI-02**: All existing UI pages automatically filter by selected tenant with no cross-tenant data leakage
+- [x] **UI-03**: Platform admin dashboard lists all tenants with status, resource usage, agent counts, and active user counts
+- [x] **UI-04**: Tenant settings page allows tenant admins to configure display name, allowed features, and token quotas
+- [x] **UI-05**: Tenant admins can view users, assign roles, and invite new users via Entra ID group membership
+- [x] **UI-06**: Per-tenant usage summary shows API call volume, agent execution count, token consumption, and cost estimate
 
 ## Future Requirements
 
@@ -175,14 +175,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TENANT-01 | Phase 21 | Pending |
-| TENANT-02 | Phase 21 | Pending |
-| TENANT-03 | Phase 21 | Pending |
-| TENANT-04 | Phase 21 | Pending |
-| TENANT-05 | Phase 21 | Pending |
-| TENANT-06 | Phase 21 | Pending |
-| TENANT-07 | Phase 21 | Pending |
-| TENANT-08 | Phase 24, **27** | Pending |
+| TENANT-01 | Phase 21 | Satisfied |
+| TENANT-02 | Phase 21 | Satisfied |
+| TENANT-03 | Phase 21 | Satisfied |
+| TENANT-04 | Phase 21 | Satisfied |
+| TENANT-05 | Phase 21 | Satisfied |
+| TENANT-06 | Phase 21 | Satisfied |
+| TENANT-07 | Phase 21 | Satisfied |
+| TENANT-08 | Phase 24, **27** | Satisfied |
 | INFRA-01 | Phase 17 | Satisfied |
 | INFRA-02 | Phase 17 | Satisfied |
 | INFRA-03 | Phase 17 | Satisfied |
@@ -192,14 +192,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-07 | Phase 17 | Satisfied |
 | INFRA-08 | Phase 17 | Satisfied |
 | INFRA-09 | Phase 17 | Satisfied |
-| DATA-01 | Phase 19 | Pending |
-| DATA-02 | Phase 19 | Pending |
-| DATA-03 | Phase 19, **27** | Pending |
-| DATA-04 | Phase 19, **27** | Pending |
-| DATA-05 | Phase 19, **27** | Pending |
-| DATA-06 | Phase 19, **25** | Pending |
-| DATA-07 | Phase 19 | Pending |
-| DATA-08 | Phase 19 | Pending |
+| DATA-01 | Phase 19 | Satisfied |
+| DATA-02 | Phase 19 | Satisfied |
+| DATA-03 | Phase 19, **27** | Satisfied |
+| DATA-04 | Phase 19, **27** | Satisfied |
+| DATA-05 | Phase 19, **27** | Satisfied |
+| DATA-06 | Phase 19, **25** | Satisfied |
+| DATA-07 | Phase 19 | Satisfied |
+| DATA-08 | Phase 19 | Satisfied |
 | AUTH-01 | Phase 18 | Satisfied |
 | AUTH-02 | Phase 18 | Satisfied |
 | AUTH-03 | Phase 18 | Satisfied |
@@ -207,37 +207,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-05 | Phase 18 | Satisfied |
 | AUTH-06 | Phase 18 | Satisfied |
 | AUTH-07 | Phase 18 | Satisfied |
-| COMPUTE-01 | Phase 20, **27** | Pending |
-| COMPUTE-02 | Phase 20, **27** | Pending |
-| COMPUTE-03 | Phase 20, **27** | Pending |
-| COMPUTE-04 | Phase 20, **27** | Pending |
-| COMPUTE-05 | Phase 20, **27** | Pending |
-| COMPUTE-06 | Phase 20, **27** | Pending |
-| COMPUTE-07 | Phase 20 | Pending |
-| COMPUTE-08 | Phase 20 | Pending |
-| COMPUTE-09 | Phase 20, **27** | Pending |
-| DEPLOY-01 | Phase 22 | Pending |
-| DEPLOY-02 | Phase 22 | Pending |
-| DEPLOY-03 | Phase 22 | Pending |
-| DEPLOY-04 | Phase 22 | Pending |
-| DEPLOY-05 | Phase 22 | Pending |
-| DEPLOY-06 | Phase 22 | Pending |
-| DEPLOY-07 | Phase 22 | Pending |
-| DEPLOY-08 | Phase 22 | Pending |
-| OBS-01 | Phase 23 | Pending |
-| OBS-02 | Phase 23 | Pending |
-| OBS-03 | Phase 23 | Pending |
-| OBS-04 | Phase 23 | Pending |
-| OBS-05 | Phase 23, **27** | Pending |
-| OBS-06 | Phase 23, **27** | Pending |
-| OBS-07 | Phase 23, **27** | Pending |
-| OBS-08 | Phase 23, **27** | Pending |
-| UI-01 | Phase 24, **27** | Pending |
-| UI-02 | Phase 24, **26** | Pending |
-| UI-03 | Phase 24, **27** | Pending |
-| UI-04 | Phase 24, **27** | Pending |
-| UI-05 | Phase 24, **27** | Pending |
-| UI-06 | Phase 24, **27** | Pending |
+| COMPUTE-01 | Phase 20, **27** | Satisfied |
+| COMPUTE-02 | Phase 20, **27** | Satisfied |
+| COMPUTE-03 | Phase 20, **27** | Satisfied |
+| COMPUTE-04 | Phase 20, **27** | Satisfied |
+| COMPUTE-05 | Phase 20, **27** | Satisfied |
+| COMPUTE-06 | Phase 20, **27** | Satisfied |
+| COMPUTE-07 | Phase 20 | Satisfied |
+| COMPUTE-08 | Phase 20 | Satisfied |
+| COMPUTE-09 | Phase 20, **27** | Satisfied |
+| DEPLOY-01 | Phase 22 | Satisfied |
+| DEPLOY-02 | Phase 22 | Satisfied |
+| DEPLOY-03 | Phase 22 | Satisfied |
+| DEPLOY-04 | Phase 22 | Satisfied |
+| DEPLOY-05 | Phase 22 | Satisfied |
+| DEPLOY-06 | Phase 22 | Satisfied |
+| DEPLOY-07 | Phase 22 | Satisfied |
+| DEPLOY-08 | Phase 22 | Satisfied |
+| OBS-01 | Phase 23 | Satisfied |
+| OBS-02 | Phase 23 | Satisfied |
+| OBS-03 | Phase 23 | Satisfied |
+| OBS-04 | Phase 23 | Satisfied |
+| OBS-05 | Phase 23, **27** | Satisfied |
+| OBS-06 | Phase 23, **27** | Satisfied |
+| OBS-07 | Phase 23, **27** | Satisfied |
+| OBS-08 | Phase 23, **27** | Satisfied |
+| UI-01 | Phase 24, **27** | Satisfied |
+| UI-02 | Phase 24, **26** | Satisfied |
+| UI-03 | Phase 24, **27** | Satisfied |
+| UI-04 | Phase 24, **27** | Satisfied |
+| UI-05 | Phase 24, **27** | Satisfied |
+| UI-06 | Phase 24, **27** | Satisfied |
 
 **Coverage:**
 - v3.0 requirements: 63 total
