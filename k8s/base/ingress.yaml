@@ -1,0 +1,80 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aiplatform-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # Agent execution (chat, threads, memories) — must be before catch-all /api/v1/agents
+          - path: /api/v1/agents/([^/]+)/chat
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: agent-executor
+                port:
+                  number: 8000
+          - path: /api/v1/threads
+            pathType: Prefix
+            backend:
+              service:
+                name: agent-executor
+                port:
+                  number: 8000
+          # Workflows
+          - path: /api/v1/workflows
+            pathType: Prefix
+            backend:
+              service:
+                name: workflow-engine
+                port:
+                  number: 8000
+          # Tools and data sources
+          - path: /api/v1/tools
+            pathType: Prefix
+            backend:
+              service:
+                name: tool-executor
+                port:
+                  number: 8000
+          - path: /api/v1/data-sources
+            pathType: Prefix
+            backend:
+              service:
+                name: tool-executor
+                port:
+                  number: 8000
+          - path: /api/v1/knowledge
+            pathType: Prefix
+            backend:
+              service:
+                name: tool-executor
+                port:
+                  number: 8000
+          # MCP
+          - path: /api/v1/mcp-servers
+            pathType: Prefix
+            backend:
+              service:
+                name: mcp-proxy
+                port:
+                  number: 8000
+          - path: /api/v1/mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: mcp-proxy
+                port:
+                  number: 8000
+          # API Gateway — catch-all for everything else
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8000
