@@ -56,7 +56,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 18: Authentication Migration (Entra ID)** — Replace JWT auth with enterprise SSO and Managed Identity (3 plans) (completed 2026-03-26)
 - [x] **Phase 19: Data Layer Migration (Cosmos DB)** — Replace SQLAlchemy/PostgreSQL with Cosmos DB NoSQL SDK (completed 2026-03-26)
 - [x] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS (completed 2026-03-26)
-- [ ] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning
+- [x] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning (completed 2026-03-26)
 - [ ] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS
 - [ ] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting
 - [ ] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views
@@ -140,8 +140,8 @@ Plans:
   5. Platform admin can configure per-tenant settings (display name, allowed providers, quotas, feature flags)
 **Plans**: 2 plans
 Plans:
-- [ ] 21-01-PLAN.md — Tenant model, service with lifecycle state machine, and REST API endpoints
-- [ ] 21-02-PLAN.md — K8s provisioning, data seeding, admin user creation, and middleware suspension blocking
+- [x] 21-01-PLAN.md — Tenant model, service with lifecycle state machine, and REST API endpoints
+- [x] 21-02-PLAN.md — K8s provisioning, data seeding, admin user creation, and middleware suspension blocking
 
 #### Phase 22: CI/CD Pipelines (GitHub Actions)
 **Goal**: Code changes are automatically built, tested, and deployed to AKS via GitHub Actions with zero-downtime deployments
