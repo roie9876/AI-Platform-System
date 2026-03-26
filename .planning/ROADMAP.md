@@ -73,7 +73,11 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
   3. Cosmos DB account contains the `aiplatform` database with all containers partitioned by `/tenant_id`
   4. Dev, staging, and prod parameter files deploy different SKUs and throughput settings without code changes
   5. Rerunning the deployment is idempotent — no errors, no duplicate resources
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 17-01-PLAN.md — Foundation modules (VNet, Log Analytics, Managed Identities, ACR)
+- [ ] 17-02-PLAN.md — Cosmos DB module with all containers
+- [ ] 17-03-PLAN.md — AKS, Key Vault, main.bicep orchestrator + prod.bicepparam
 
 #### Phase 18: Authentication Migration (Entra ID)
 **Goal**: Users authenticate via Microsoft Entra ID with enterprise SSO, replacing the existing JWT-based auth
