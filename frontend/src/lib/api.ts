@@ -1,17 +1,48 @@
+import {
+  InteractionRequiredAuthError,
+} from "@azure/msal-browser";
+import { msalInstance, loginScopes } from "@/lib/msal";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+async function getAccessToken(): Promise<string | null> {
+  const account = msalInstance.getActiveAccount();
+  if (!account) return null;
+
+  try {
+    const response = await msalInstance.acquireTokenSilent({
+      scopes: loginScopes,
+      account,
+    });
+    return response.accessToken;
+  } catch (error) {
+    if (error instanceof InteractionRequiredAuthError) {
+      await msalInstance.acquireTokenRedirect({ scopes: loginScopes });
+      return null;
+    }
+    throw error;
+  }
+}
 
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const token = await getAccessToken();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers,
   });
   if (!response.ok) {
     const error = await response

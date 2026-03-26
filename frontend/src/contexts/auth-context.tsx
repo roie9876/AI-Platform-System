@@ -7,75 +7,64 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import { apiFetch } from "@/lib/api";
+import { useMsal, useIsAuthenticated } from "@azure/msal-react";
+import { InteractionStatus } from "@azure/msal-browser";
+import { loginScopes } from "@/lib/msal";
 
 interface User {
   id: string;
   email: string;
   full_name: string;
   tenant_id: string;
-  is_active: boolean;
+  roles: string[];
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (
-    email: string,
-    password: string,
-    fullName: string,
-    tenantSlug: string
-  ) => Promise<void>;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { instance, accounts, inProgress } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const loading = inProgress !== InteractionStatus.None;
 
   useEffect(() => {
-    apiFetch<User>("/api/v1/auth/me")
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
-  }, []);
+    if (isAuthenticated && accounts.length > 0) {
+      const account = accounts[0];
+      instance.setActiveAccount(account);
+      const claims = account.idTokenClaims as Record<string, unknown> | undefined;
+      if (claims) {
+        setUser({
+          id: (claims.oid as string) || "",
+          email: (claims.preferred_username as string) || "",
+          full_name: (claims.name as string) || "",
+          tenant_id: (claims.tid as string) || "",
+          roles: (claims.roles as string[]) || [],
+        });
+      }
+    } else if (!loading) {
+      setUser(null);
+    }
+  }, [isAuthenticated, accounts, loading, instance]);
 
-  const login = async (email: string, password: string) => {
-    await apiFetch("/api/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    const me = await apiFetch<User>("/api/v1/auth/me");
-    setUser(me);
-  };
-
-  const register = async (
-    email: string,
-    password: string,
-    fullName: string,
-    tenantSlug: string
-  ) => {
-    await apiFetch("/api/v1/auth/register", {
-      method: "POST",
-      body: JSON.stringify({
-        email,
-        password,
-        full_name: fullName,
-        tenant_slug: tenantSlug,
-      }),
-    });
+  const login = async () => {
+    await instance.loginRedirect({ scopes: loginScopes });
   };
 
   const logout = async () => {
-    await apiFetch("/api/v1/auth/logout", { method: "POST" });
+    await instance.logoutRedirect();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

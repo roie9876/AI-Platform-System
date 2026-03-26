@@ -1,18 +1,20 @@
 "use client";
 
+import { useIsAuthenticated } from "@azure/msal-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const isAuthenticated = useIsAuthenticated();
+  const { loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !isAuthenticated) {
       router.push("/login");
     }
-  }, [user, loading, router]);
+  }, [isAuthenticated, loading, router]);
 
   if (loading)
     return (
@@ -20,6 +22,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         Loading...
       </div>
     );
-  if (!user) return null;
+  if (!isAuthenticated) return null;
   return <>{children}</>;
 }

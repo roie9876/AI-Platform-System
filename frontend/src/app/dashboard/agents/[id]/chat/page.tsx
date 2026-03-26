@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { msalInstance, loginScopes } from "@/lib/msal";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
@@ -117,12 +118,20 @@ export default function ChatPage() {
           }
         }
 
+        const account = msalInstance.getActiveAccount();
+        let authHeaders: Record<string, string> = {};
+        if (account) {
+          try {
+            const tokenResponse = await msalInstance.acquireTokenSilent({ scopes: loginScopes, account });
+            authHeaders["Authorization"] = `Bearer ${tokenResponse.accessToken}`;
+          } catch { /* will get 401 */ }
+        }
+
         const response = await fetch(
           `${API_BASE}/api/v1/agents/${agentId}/chat`,
           {
             method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeaders },
             body: JSON.stringify(body),
             signal: controller.signal,
           }
