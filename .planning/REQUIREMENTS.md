@@ -20,15 +20,15 @@ Requirements for production multi-tenant infrastructure. Each maps to roadmap ph
 
 ### Infrastructure Provisioning
 
-- [ ] **INFRA-01**: Bicep modules provision AKS cluster, ACR, Cosmos DB, VNet + subnets, Managed Identities, Key Vault, and Log Analytics workspace
-- [ ] **INFRA-02**: VNet deploys with subnets for AKS nodes, AKS pods, and private endpoints with NSGs per subnet
-- [ ] **INFRA-03**: AKS cluster provisions with system + user node pools, Azure CNI Overlay, K8s RBAC, Entra ID integration, and Azure Monitor addon
-- [ ] **INFRA-04**: ACR provisions with admin disabled and Managed Identity pull from AKS via AcrPull role assignment
-- [ ] **INFRA-05**: Cosmos DB NoSQL account provisions with aiplatform database and containers using /tenant_id partition key
-- [ ] **INFRA-06**: Key Vault provisions with RBAC-based access for secrets (model API keys, connection strings)
-- [ ] **INFRA-07**: Managed Identities are configured for AKS (system-assigned) and workloads (user-assigned) with Workload Identity federation
-- [ ] **INFRA-08**: Environment parameter files exist for dev, staging, and prod with appropriate SKUs and throughput settings
-- [ ] **INFRA-09**: Orchestrator main.bicep deploys all resources in correct dependency order and is idempotent
+- [x] **INFRA-01**: Bicep modules provision AKS cluster, ACR, Cosmos DB, VNet + subnets, Managed Identities, Key Vault, and Log Analytics workspace
+- [x] **INFRA-02**: VNet deploys with subnets for AKS nodes, AKS pods, and private endpoints with NSGs per subnet
+- [x] **INFRA-03**: AKS cluster provisions with system + user node pools, Azure CNI Overlay, K8s RBAC, Entra ID integration, and Azure Monitor addon
+- [x] **INFRA-04**: ACR provisions with admin disabled and Managed Identity pull from AKS via AcrPull role assignment
+- [x] **INFRA-05**: Cosmos DB NoSQL account provisions with aiplatform database and containers using /tenant_id partition key
+- [x] **INFRA-06**: Key Vault provisions with RBAC-based access for secrets (model API keys, connection strings)
+- [x] **INFRA-07**: Managed Identities are configured for AKS (system-assigned) and workloads (user-assigned) with Workload Identity federation
+- [x] **INFRA-08**: Environment parameter files exist for dev, staging, and prod with appropriate SKUs and throughput settings
+- [x] **INFRA-09**: Orchestrator main.bicep deploys all resources in correct dependency order and is idempotent
 
 ### Data Isolation (Cosmos DB)
 
@@ -43,13 +43,13 @@ Requirements for production multi-tenant infrastructure. Each maps to roadmap ph
 
 ### Authentication (Entra ID)
 
-- [ ] **AUTH-01**: Entra ID app registration is configured with OIDC authorization code flow for frontend login
-- [ ] **AUTH-02**: Backend validates Entra ID JWT tokens (issuer, audience, signature, expiry) on every API request
-- [ ] **AUTH-03**: Token claims map to tenant_id via Entra ID group or custom claim, replacing current cookie-based JWT
-- [ ] **AUTH-04**: RBAC roles (Platform Admin, Tenant Admin, Member, Viewer) are enforced at API endpoint level
-- [ ] **AUTH-05**: Frontend uses MSAL React for login, token acquisition, and silent refresh
-- [ ] **AUTH-06**: Service-to-service authentication uses Managed Identity with DefaultAzureCredential
-- [ ] **AUTH-07**: Existing API endpoints are migrated from cookie JWT auth to Entra ID token validation
+- [x] **AUTH-01**: Entra ID app registration is configured with OIDC authorization code flow for frontend login
+- [x] **AUTH-02**: Backend validates Entra ID JWT tokens (issuer, audience, signature, expiry) on every API request
+- [x] **AUTH-03**: Token claims map to tenant_id via Entra ID group or custom claim, replacing current cookie-based JWT
+- [x] **AUTH-04**: RBAC roles (Platform Admin, Tenant Admin, Member, Viewer) are enforced at API endpoint level
+- [x] **AUTH-05**: Frontend uses MSAL React for login, token acquisition, and silent refresh
+- [x] **AUTH-06**: Service-to-service authentication uses Managed Identity with DefaultAzureCredential
+- [x] **AUTH-07**: Existing API endpoints are migrated from cookie JWT auth to Entra ID token validation
 
 ### Compute Isolation (AKS)
 
@@ -182,40 +182,40 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TENANT-05 | Phase 21 | Pending |
 | TENANT-06 | Phase 21 | Pending |
 | TENANT-07 | Phase 21 | Pending |
-| TENANT-08 | Phase 24 | Pending |
-| INFRA-01 | Phase 17 | Pending |
-| INFRA-02 | Phase 17 | Pending |
-| INFRA-03 | Phase 17 | Pending |
-| INFRA-04 | Phase 17 | Pending |
-| INFRA-05 | Phase 17 | Pending |
-| INFRA-06 | Phase 17 | Pending |
-| INFRA-07 | Phase 17 | Pending |
-| INFRA-08 | Phase 17 | Pending |
-| INFRA-09 | Phase 17 | Pending |
+| TENANT-08 | Phase 24, **27** | Pending |
+| INFRA-01 | Phase 17 | Satisfied |
+| INFRA-02 | Phase 17 | Satisfied |
+| INFRA-03 | Phase 17 | Satisfied |
+| INFRA-04 | Phase 17 | Satisfied |
+| INFRA-05 | Phase 17 | Satisfied |
+| INFRA-06 | Phase 17 | Satisfied |
+| INFRA-07 | Phase 17 | Satisfied |
+| INFRA-08 | Phase 17 | Satisfied |
+| INFRA-09 | Phase 17 | Satisfied |
 | DATA-01 | Phase 19 | Pending |
 | DATA-02 | Phase 19 | Pending |
-| DATA-03 | Phase 19 | Pending |
-| DATA-04 | Phase 19 | Pending |
-| DATA-05 | Phase 19 | Pending |
-| DATA-06 | Phase 19 | Pending |
+| DATA-03 | Phase 19, **27** | Pending |
+| DATA-04 | Phase 19, **27** | Pending |
+| DATA-05 | Phase 19, **27** | Pending |
+| DATA-06 | Phase 19, **25** | Pending |
 | DATA-07 | Phase 19 | Pending |
 | DATA-08 | Phase 19 | Pending |
-| AUTH-01 | Phase 18 | Pending |
-| AUTH-02 | Phase 18 | Pending |
-| AUTH-03 | Phase 18 | Pending |
-| AUTH-04 | Phase 18 | Pending |
-| AUTH-05 | Phase 18 | Pending |
-| AUTH-06 | Phase 18 | Pending |
-| AUTH-07 | Phase 18 | Pending |
-| COMPUTE-01 | Phase 20 | Pending |
-| COMPUTE-02 | Phase 20 | Pending |
-| COMPUTE-03 | Phase 20 | Pending |
-| COMPUTE-04 | Phase 20 | Pending |
-| COMPUTE-05 | Phase 20 | Pending |
-| COMPUTE-06 | Phase 20 | Pending |
+| AUTH-01 | Phase 18 | Satisfied |
+| AUTH-02 | Phase 18 | Satisfied |
+| AUTH-03 | Phase 18 | Satisfied |
+| AUTH-04 | Phase 18 | Satisfied |
+| AUTH-05 | Phase 18 | Satisfied |
+| AUTH-06 | Phase 18 | Satisfied |
+| AUTH-07 | Phase 18 | Satisfied |
+| COMPUTE-01 | Phase 20, **27** | Pending |
+| COMPUTE-02 | Phase 20, **27** | Pending |
+| COMPUTE-03 | Phase 20, **27** | Pending |
+| COMPUTE-04 | Phase 20, **27** | Pending |
+| COMPUTE-05 | Phase 20, **27** | Pending |
+| COMPUTE-06 | Phase 20, **27** | Pending |
 | COMPUTE-07 | Phase 20 | Pending |
 | COMPUTE-08 | Phase 20 | Pending |
-| COMPUTE-09 | Phase 20 | Pending |
+| COMPUTE-09 | Phase 20, **27** | Pending |
 | DEPLOY-01 | Phase 22 | Pending |
 | DEPLOY-02 | Phase 22 | Pending |
 | DEPLOY-03 | Phase 22 | Pending |
@@ -228,16 +228,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OBS-02 | Phase 23 | Pending |
 | OBS-03 | Phase 23 | Pending |
 | OBS-04 | Phase 23 | Pending |
-| OBS-05 | Phase 23 | Pending |
-| OBS-06 | Phase 23 | Pending |
-| OBS-07 | Phase 23 | Pending |
-| OBS-08 | Phase 23 | Pending |
-| UI-01 | Phase 24 | Pending |
-| UI-02 | Phase 24 | Pending |
-| UI-03 | Phase 24 | Pending |
-| UI-04 | Phase 24 | Pending |
-| UI-05 | Phase 24 | Pending |
-| UI-06 | Phase 24 | Pending |
+| OBS-05 | Phase 23, **27** | Pending |
+| OBS-06 | Phase 23, **27** | Pending |
+| OBS-07 | Phase 23, **27** | Pending |
+| OBS-08 | Phase 23, **27** | Pending |
+| UI-01 | Phase 24, **27** | Pending |
+| UI-02 | Phase 24, **26** | Pending |
+| UI-03 | Phase 24, **27** | Pending |
+| UI-04 | Phase 24, **27** | Pending |
+| UI-05 | Phase 24, **27** | Pending |
+| UI-06 | Phase 24, **27** | Pending |
 
 **Coverage:**
 - v3.0 requirements: 63 total

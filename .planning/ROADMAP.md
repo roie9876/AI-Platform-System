@@ -61,6 +61,8 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting (completed 2026-03-26)
 - [x] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views (completed 2026-03-26)
 - [ ] **Phase 25: Milestone Validation** — Fix DATA-06 gap, automated tests for data layer, tenant lifecycle, and health endpoints
+- [ ] **Phase 26: Tenant Context Wiring** — Wire useTenant() into all dashboard pages so tenant selector filters data (UI-02 critical fix)
+- [ ] **Phase 27: Verification & Traceability Closure** — Create VERIFICATION.md for Phases 19-24, update SUMMARY frontmatter, check off REQUIREMENTS.md
 
 ### Phase Details
 
@@ -211,6 +213,29 @@ Plans:
 - [ ] 25-02-PLAN.md — Data layer & repository tests (DATA-01 through DATA-07)
 - [ ] 25-03-PLAN.md — Tenant lifecycle, middleware, and health endpoint tests
 
+#### Phase 26: Tenant Context Wiring
+**Goal**: All dashboard pages filter data by the selected tenant — switching tenants in the selector changes what every page displays
+**Depends on**: Phase 24 (TenantContext, TenantSelector exist)
+**Requirements**: UI-02
+**Gap Closure:** Closes critical gap from v3.0 audit — useTenant() hook exists but is not consumed by any dashboard page
+**Success Criteria** (what must be TRUE):
+  1. Every dashboard page that fetches data calls `useTenant()` and passes `tenantId` to API requests
+  2. Switching tenants in the TenantSelector immediately updates all page data
+  3. No cross-tenant data leakage — pages only show data for the selected tenant
+**Plans:** TBD
+
+#### Phase 27: Verification & Traceability Closure
+**Goal**: All v3.0 requirements have formal verification evidence; REQUIREMENTS.md accurately reflects completion status
+**Depends on**: Phase 25, Phase 26 (all implementation gaps must be fixed first)
+**Requirements**: DATA-03, DATA-04, DATA-05, COMPUTE-01, COMPUTE-02, COMPUTE-03, COMPUTE-04, COMPUTE-05, COMPUTE-06, COMPUTE-09, UI-01, UI-03, UI-04, UI-05, UI-06, TENANT-08, OBS-05, OBS-06, OBS-07, OBS-08
+**Gap Closure:** Closes 20 orphaned requirements from v3.0 audit — code exists but lacks formal verification and traceability
+**Success Criteria** (what must be TRUE):
+  1. VERIFICATION.md exists for Phases 19, 20, 21, 22, 23, 24 with requirement-level pass/fail evidence
+  2. All SUMMARY frontmatter includes correct `requirements_completed` fields
+  3. REQUIREMENTS.md checkboxes are checked for all satisfied requirements
+  4. Audit re-run shows 0 unsatisfied must-have requirements
+**Plans:** TBD
+
 ### Phase Dependencies
 
 ```
@@ -225,12 +250,17 @@ Phase 17 (Infrastructure Foundation)
     │                             ├──► Phase 21 (Tenant Lifecycle & Provisioning)
     │                             │         │
     │                             │         └──► Phase 24 (Tenant Admin UI)
+    │                             │                   │
+    │                             │                   └──► Phase 26 (Tenant Context Wiring)
     │                             │
     │                             ├──► Phase 22 (CI/CD Pipelines)
     │                             │
     │                             └──► Phase 23 (Observability & Monitoring)
     │                                       │
     │                                       └──► Phase 24 (Tenant Admin UI)
+    │
+    Phase 25 (Milestone Validation) ──► Phase 27 (Verification & Traceability)
+    Phase 26 (Tenant Context Wiring) ──► Phase 27
 ```
 
 ### Progress
@@ -247,6 +277,9 @@ Phase 17 (Infrastructure Foundation)
 | 22. CI/CD Pipelines | 2/2 | Complete | 2026-03-26 |
 | 23. Observability & Monitoring | 2/2 | Complete    | 2026-03-26 |
 | 24. Tenant Admin UI | 0/? | Not started | - |
+| 25. Milestone Validation | 0/3 | Not started | - |
+| 26. Tenant Context Wiring | 0/? | Not started | - |
+| 27. Verification & Traceability | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-23*
