@@ -1,14 +1,8 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
-from app.models.azure_connection import AzureConnection
-from app.models.azure_subscription import AzureSubscription
+from app.repositories.config_repo import AzureConnectionRepository, AzureSubscriptionRepository
 from app.services.azure_arm import AzureARMService
 from app.services.secret_store import decrypt_api_key, encrypt_api_key
 from app.api.v1.schemas import (
@@ -21,6 +15,8 @@ from app.api.v1.schemas import (
 )
 
 router = APIRouter()
+conn_repo = AzureConnectionRepository()
+sub_repo = AzureSubscriptionRepository()
 arm_service = AzureARMService()
 
 
@@ -29,53 +25,39 @@ arm_service = AzureARMService()
     response_model=SearchIndexListResponse,
 )
 async def list_search_indexes(
-    connection_id: UUID,
+    connection_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List AI Search indexes for a connected search service."""
-    result = await db.execute(
-        select(AzureConnection).where(
-            AzureConnection.id == connection_id,
-            AzureConnection.tenant_id == tenant_id,
-        )
-    )
-    connection = result.scalar_one_or_none()
+    connection = await conn_repo.get(tenant_id, connection_id)
     if not connection:
         raise HTTPException(status_code=404, detail="Connection not found")
 
-    if connection.resource_type != "Microsoft.Search/searchServices":
+    if connection.get("resource_type") != "Microsoft.Search/searchServices":
         raise HTTPException(
             status_code=400,
             detail="Connection is not an Azure AI Search service",
         )
 
-    # Get access token from the subscription
-    sub_result = await db.execute(
-        select(AzureSubscription).where(
-            AzureSubscription.id == connection.azure_subscription_id
-        )
-    )
-    subscription = sub_result.scalar_one_or_none()
-    if not subscription or not subscription.access_token_encrypted:
+    subscription = await sub_repo.get(tenant_id, connection.get("azure_subscription_id", ""))
+    if not subscription or not subscription.get("access_token_encrypted"):
         raise HTTPException(status_code=400, detail="Subscription token not available")
 
-    access_token = decrypt_api_key(subscription.access_token_encrypted)
-    indexes = await arm_service.list_search_indexes(access_token, connection.resource_id)
+    access_token = decrypt_api_key(subscription["access_token_encrypted"])
+    indexes = await arm_service.list_search_indexes(access_token, connection["resource_id"])
 
-    # Cache the admin key so RAG retrieval works even after token expires
-    admin_key = await arm_service._get_search_admin_key(access_token, connection.resource_id)
+    admin_key = await arm_service._get_search_admin_key(access_token, connection["resource_id"])
     if admin_key:
-        config = connection.config or {}
+        config = connection.get("config") or {}
         config["cached_admin_key"] = encrypt_api_key(admin_key)
-        connection.config = config
-        await db.flush()
+        connection["config"] = config
+        await conn_repo.update(tenant_id, connection_id, connection)
 
     return SearchIndexListResponse(
-        connection_id=connection.id,
-        resource_name=connection.resource_name,
+        connection_id=connection["id"],
+        resource_name=connection["resource_name"],
         indexes=[SearchIndex(name=idx["name"]) for idx in indexes],
         count=len(indexes),
     )
@@ -86,33 +68,25 @@ async def list_search_indexes(
     response_model=AzureConnectionResponse,
 )
 async def select_indexes(
-    connection_id: UUID,
+    connection_id: str,
     body: SelectIndexesRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Select AI Search indexes for RAG retrieval."""
-    result = await db.execute(
-        select(AzureConnection).where(
-            AzureConnection.id == connection_id,
-            AzureConnection.tenant_id == tenant_id,
-        )
-    )
-    connection = result.scalar_one_or_none()
+    connection = await conn_repo.get(tenant_id, connection_id)
     if not connection:
         raise HTTPException(status_code=404, detail="Connection not found")
 
-    config = connection.config or {}
+    config = connection.get("config") or {}
     config["selected_indexes"] = body.index_names
     if body.knowledge_name:
         config["knowledge_name"] = body.knowledge_name
-    connection.config = config
+    connection["config"] = config
 
-    await db.flush()
-    await db.refresh(connection)
-    return connection
+    updated = await conn_repo.update(tenant_id, connection_id, connection)
+    return updated
 
 
 @router.get(
@@ -120,33 +94,28 @@ async def select_indexes(
     response_model=AgentKnowledgeResponse,
 )
 async def list_agent_knowledge(
-    agent_id: UUID,
+    agent_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all selected AI Search indexes available to an agent (agent-specific + platform-level)."""
-    result = await db.execute(
-        select(AzureConnection).where(
-            AzureConnection.tenant_id == tenant_id,
-            AzureConnection.resource_type == "Microsoft.Search/searchServices",
-        ).where(
-            (AzureConnection.agent_id == agent_id) | (AzureConnection.agent_id.is_(None))
-        )
+    all_connections = await conn_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.resource_type = 'Microsoft.Search/searchServices' AND (c.agent_id = @aid OR NOT IS_DEFINED(c.agent_id) OR c.agent_id = null)",
+        [{"name": "@tid", "value": tenant_id}, {"name": "@aid", "value": agent_id}],
     )
-    connections = list(result.scalars().all())
 
     knowledge_connections = []
     total = 0
-    for conn in connections:
-        selected = (conn.config or {}).get("selected_indexes", [])
+    for conn in all_connections:
+        selected = (conn.get("config") or {}).get("selected_indexes", [])
         if selected:
             knowledge_connections.append(
                 AgentKnowledgeIndexInfo(
-                    connection_id=conn.id,
-                    resource_name=conn.resource_name,
-                    knowledge_name=(conn.config or {}).get("knowledge_name"),
+                    connection_id=conn["id"],
+                    resource_name=conn["resource_name"],
+                    knowledge_name=(conn.get("config") or {}).get("knowledge_name"),
                     index_names=selected,
                 )
             )

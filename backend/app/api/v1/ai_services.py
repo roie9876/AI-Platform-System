@@ -1,15 +1,10 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import get_current_user
 from app.api.v1.schemas import PlatformToolListResponse, PlatformToolToggleRequest
-from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.models.agent import Agent
-from app.models.tool import AgentTool, Tool
+from app.repositories.agent_repo import AgentRepository
+from app.repositories.tool_repo import ToolRepository, AgentToolRepository
 from app.services.platform_tools import (
     PLATFORM_ADAPTERS,
     get_adapter_by_name,
@@ -17,42 +12,43 @@ from app.services.platform_tools import (
 )
 
 router = APIRouter()
+agent_repo = AgentRepository()
+tool_repo = ToolRepository()
+agent_tool_repo = AgentToolRepository()
 
 
 @router.get("/", response_model=PlatformToolListResponse)
 async def list_platform_tools(
     request: Request,
-    agent_id: UUID = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    agent_id: str = Query(default=None),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all available platform AI services/tools.
     If agent_id is provided, includes enabled/disabled status for that agent."""
-    await register_platform_tools(db)
+    await register_platform_tools(tenant_id)
 
-    result = await db.execute(
-        select(Tool).where(Tool.is_platform_tool == True)
+    platform_tools = await tool_repo.query(
+        tenant_id,
+        "SELECT * FROM c WHERE c.is_platform_tool = true",
+        [],
     )
-    platform_tools = list(result.scalars().all())
 
     enabled_tool_ids = set()
     if agent_id:
-        at_result = await db.execute(
-            select(AgentTool.tool_id).where(AgentTool.agent_id == agent_id)
-        )
-        enabled_tool_ids = {row[0] for row in at_result.fetchall()}
+        agent_tools = await agent_tool_repo.list_by_agent(tenant_id, agent_id)
+        enabled_tool_ids = {at["tool_id"] for at in agent_tools}
 
     tools_response = []
     for tool in platform_tools:
-        adapter = get_adapter_by_name(tool.name)
+        adapter = get_adapter_by_name(tool["name"])
         tools_response.append({
-            "id": tool.id,
-            "name": tool.name,
-            "description": tool.description,
-            "input_schema": tool.input_schema,
-            "service_name": adapter.service_name() if adapter else tool.name,
-            "is_enabled": tool.id in enabled_tool_ids,
+            "id": tool["id"],
+            "name": tool["name"],
+            "description": tool.get("description"),
+            "input_schema": tool.get("input_schema"),
+            "service_name": adapter.service_name() if adapter else tool["name"],
+            "is_enabled": tool["id"] in enabled_tool_ids,
         })
 
     return {"tools": tools_response, "total": len(tools_response)}
@@ -62,44 +58,32 @@ async def list_platform_tools(
 async def toggle_platform_tool(
     body: PlatformToolToggleRequest,
     request: Request,
-    agent_id: UUID = Query(...),
-    db: AsyncSession = Depends(get_db),
+    agent_id: str = Query(...),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Enable or disable a platform tool for an agent."""
-    agent_result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.tenant_id == tenant_id)
-    )
-    agent = agent_result.scalar_one_or_none()
+    agent = await agent_repo.get(tenant_id, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    tool_result = await db.execute(
-        select(Tool).where(Tool.id == body.tool_id, Tool.is_platform_tool == True)
-    )
-    tool = tool_result.scalar_one_or_none()
-    if not tool:
+    tool = await tool_repo.get(tenant_id, body.tool_id)
+    if not tool or not tool.get("is_platform_tool"):
         raise HTTPException(status_code=404, detail="Platform tool not found")
 
     if body.enabled:
-        existing = await db.execute(
-            select(AgentTool).where(
-                AgentTool.agent_id == agent_id, AgentTool.tool_id == body.tool_id
-            )
-        )
-        if not existing.scalar_one_or_none():
-            db.add(AgentTool(agent_id=agent_id, tool_id=body.tool_id))
-            await db.commit()
-        return {"status": "enabled", "tool_id": str(body.tool_id), "agent_id": str(agent_id)}
+        existing = await agent_tool_repo.get_by_agent_and_tool(tenant_id, agent_id, body.tool_id)
+        if not existing:
+            from uuid import uuid4
+            await agent_tool_repo.create(tenant_id, {
+                "id": str(uuid4()),
+                "agent_id": agent_id,
+                "tool_id": body.tool_id,
+                "tenant_id": tenant_id,
+            })
+        return {"status": "enabled", "tool_id": body.tool_id, "agent_id": agent_id}
     else:
-        existing = await db.execute(
-            select(AgentTool).where(
-                AgentTool.agent_id == agent_id, AgentTool.tool_id == body.tool_id
-            )
-        )
-        record = existing.scalar_one_or_none()
-        if record:
-            await db.delete(record)
-            await db.commit()
-        return {"status": "disabled", "tool_id": str(body.tool_id), "agent_id": str(agent_id)}
+        existing = await agent_tool_repo.get_by_agent_and_tool(tenant_id, agent_id, body.tool_id)
+        if existing:
+            await agent_tool_repo.delete(tenant_id, existing["id"])
+        return {"status": "disabled", "tool_id": body.tool_id, "agent_id": agent_id}
