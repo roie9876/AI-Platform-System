@@ -1,5 +1,7 @@
 """Cosmos DB client singleton with DefaultAzureCredential."""
 
+from __future__ import annotations
+
 from azure.cosmos.aio import CosmosClient, ContainerProxy, DatabaseProxy
 from azure.identity.aio import DefaultAzureCredential
 

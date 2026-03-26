@@ -1,5 +1,7 @@
 """Base Cosmos DB repository with CRUD operations and ETag optimistic concurrency."""
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from uuid import uuid4
 

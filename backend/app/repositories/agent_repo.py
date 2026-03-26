@@ -1,5 +1,7 @@
 """Agent and AgentConfigVersion repositories for Cosmos DB."""
 
+from __future__ import annotations
+
 from app.repositories.base import CosmosRepository
 
 

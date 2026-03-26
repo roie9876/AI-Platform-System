@@ -41,6 +41,20 @@ class MockCosmosContainer:
         return dict(self._store[key])
 
     async def query_items(self, query: str, parameters: list = None, partition_key: str = None, **kwargs):
+        # Handle COUNT queries
+        if "COUNT(" in query.upper():
+            count = 0
+            for key, doc in self._store.items():
+                if partition_key is not None and key[0] != partition_key:
+                    continue
+                if parameters:
+                    tid_param = next((p["value"] for p in parameters if p["name"] == "@tid"), None)
+                    if tid_param and doc.get("tenant_id") != tid_param:
+                        continue
+                count += 1
+            yield count
+            return
+
         for key, doc in self._store.items():
             if partition_key is not None and key[0] != partition_key:
                 continue
@@ -122,6 +136,7 @@ def mock_cosmos_client(mock_container):
     async def _get_container(name: str):
         return mock_container
 
-    with patch("app.repositories.cosmos_client.get_cosmos_container", side_effect=_get_container):
-        yield mock_container
+    with patch("app.repositories.base.get_cosmos_container", side_effect=_get_container):
+        with patch("app.repositories.cosmos_client.get_cosmos_container", side_effect=_get_container):
+            yield mock_container
     mock_container.clear()
