@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 
 interface ModelEndpoint {
   id: string;
@@ -34,6 +35,7 @@ const authLabels: Record<string, { label: string; color: string }> = {
 };
 
 export default function ModelsPage() {
+  const { selectedTenantId } = useTenant();
   const [endpoints, setEndpoints] = useState<ModelEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,7 +55,7 @@ export default function ModelsPage() {
 
   useEffect(() => {
     loadEndpoints();
-  }, []);
+  }, [selectedTenantId]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete model endpoint "${name}"? This cannot be undone.`)) {

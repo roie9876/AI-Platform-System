@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 
 interface TestSuite {
   id: string;
@@ -22,6 +23,7 @@ interface Agent {
 
 export default function EvaluationsPage() {
   const router = useRouter();
+  const { selectedTenantId } = useTenant();
   const [suites, setSuites] = useState<TestSuite[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export default function EvaluationsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedTenantId]);
 
   useEffect(() => {
     fetchData();

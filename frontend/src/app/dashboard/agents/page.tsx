@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 
 interface Agent {
   id: string;
@@ -29,6 +30,7 @@ const statusColors: Record<string, string> = {
 
 export default function AgentsPage() {
   const router = useRouter();
+  const { selectedTenantId } = useTenant();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,7 +52,7 @@ export default function AgentsPage() {
       .then((data) => setAgents(data.agents))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedTenantId]);
 
   if (loading) {
     return (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import { Search, Server, RefreshCw, Wrench, Puzzle } from "lucide-react";
 
 interface Tool {
@@ -50,6 +51,7 @@ interface MCPServerListResponse {
 type ActiveTab = "all" | "platform" | "mcp";
 
 export default function ToolsPage() {
+  const { selectedTenantId } = useTenant();
   const [tools, setTools] = useState<Tool[]>([]);
   const [mcpTools, setMcpTools] = useState<MCPDiscoveredTool[]>([]);
   const [servers, setServers] = useState<MCPServer[]>([]);
@@ -76,7 +78,7 @@ export default function ToolsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedTenantId]);
 
   useEffect(() => {
     fetchData();

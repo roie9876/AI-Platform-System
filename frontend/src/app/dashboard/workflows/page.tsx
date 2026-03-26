@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { GitBranch, Play } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 
 interface WorkflowResponse {
   id: string;
@@ -28,6 +29,7 @@ const typeColors: Record<string, string> = {
 };
 
 export default function WorkflowsPage() {
+  const { selectedTenantId } = useTenant();
   const [workflows, setWorkflows] = useState<WorkflowResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,7 +39,7 @@ export default function WorkflowsPage() {
       .then((data) => setWorkflows(data.workflows))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedTenantId]);
 
   if (loading) {
     return (

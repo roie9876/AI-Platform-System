@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useTenant } from "@/contexts/tenant-context";
 import {
   FolderOpen,
   Cloud,
@@ -159,6 +160,7 @@ const typeColors: Record<string, string> = {
 };
 
 export default function DataSourcesPage() {
+  const { selectedTenantId } = useTenant();
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -174,7 +176,7 @@ export default function DataSourcesPage() {
       .then((data) => setDataSources(data.data_sources))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedTenantId]);
 
   const handleEdit = (ds: DataSource) => {
     setEditing(ds.id);
