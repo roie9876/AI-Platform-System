@@ -57,7 +57,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 19: Data Layer Migration (Cosmos DB)** — Replace SQLAlchemy/PostgreSQL with Cosmos DB NoSQL SDK (completed 2026-03-26)
 - [x] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS (completed 2026-03-26)
 - [x] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning (completed 2026-03-26)
-- [ ] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS
+- [x] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS (completed 2026-03-26)
 - [ ] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting
 - [ ] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views
 
@@ -153,7 +153,10 @@ Plans:
   3. Post-deploy smoke tests automatically verify service health before marking deployment complete
   4. Secrets are injected from Key Vault via CSI driver — no hardcoded credentials in manifests or environment variables
   5. A single tenant namespace can be deployed independently without affecting other tenants
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [x] 22-01-PLAN.md — Build-push workflow (matrix build, OIDC auth, ACR push) and Key Vault CSI SecretProviderClass
+- [x] 22-02-PLAN.md — Deploy workflow (Kustomize, rolling updates, smoke tests), frontend deploy, and tenant deploy
 
 #### Phase 23: Observability & Monitoring
 **Goal**: All microservices are instrumented with distributed tracing, per-tenant metrics, and alerting via Azure Monitor
@@ -211,9 +214,9 @@ Phase 17 (Infrastructure Foundation)
 | 17. Infrastructure Foundation | 3/3 | Complete    | 2026-03-26 |
 | 18. Authentication Migration | 3/3 | Complete   | 2026-03-26 |
 | 19. Data Layer Migration | 1/3 | Complete    | 2026-03-26 |
-| 20. Microservice Extraction & AKS | 2/3 | In Progress|  |
-| 21. Tenant Lifecycle & Provisioning | 0/? | Not started | - |
-| 22. CI/CD Pipelines | 0/? | Not started | - |
+| 20. Microservice Extraction & AKS | 2/3 | Complete |  2026-03-26 |
+| 21. Tenant Lifecycle & Provisioning | 2/2 | Complete | 2026-03-26 |
+| 22. CI/CD Pipelines | 2/2 | Complete | 2026-03-26 |
 | 23. Observability & Monitoring | 0/? | Not started | - |
 | 24. Tenant Admin UI | 0/? | Not started | - |
 
