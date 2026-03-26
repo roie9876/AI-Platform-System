@@ -122,7 +122,11 @@ Plans:
   3. Pods cannot reach other tenant namespaces — cross-namespace traffic is blocked by NetworkPolicy
   4. Workloads auto-scale via HPA based on CPU/memory utilization
   5. All microservices pass liveness, readiness, and startup health checks
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 20-01-PLAN.md — Microservice scaffolding, health checks, inter-service client
+- [ ] 20-02-PLAN.md — Inter-service communication refactor (AgentExecutionService, WorkflowEngine)
+- [ ] 20-03-PLAN.md — Kustomize manifests and tenant namespace isolation
 
 #### Phase 21: Tenant Lifecycle & Provisioning
 **Goal**: Platform admins can create, configure, and manage tenants through an API that automatically provisions isolated infrastructure
