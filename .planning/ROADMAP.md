@@ -59,7 +59,8 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 21: Tenant Lifecycle & Provisioning** — Tenant creation API with automated namespace provisioning (completed 2026-03-26)
 - [x] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS (completed 2026-03-26)
 - [x] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting (completed 2026-03-26)
-- [ ] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views
+- [x] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views (completed 2026-03-26)
+- [ ] **Phase 25: Milestone Validation** — Fix DATA-06 gap, automated tests for data layer, tenant lifecycle, and health endpoints
 
 ### Phase Details
 
@@ -191,6 +192,24 @@ Plans:
 - [ ] 24-03-PLAN.md — Multi-step onboarding wizard (Organization → Entra ID → Model Endpoint → Agent → Review)
 
 **UI hint**: yes
+
+#### Phase 25: Milestone Validation
+**Goal**: All testable v3.0 requirements have automated verification; artifact gap DATA-06 is fixed
+**Depends on**: Phase 19 (repos to test), Phase 20 (health endpoints to test), Phase 21 (tenant service to test)
+**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06, DATA-07, TENANT-01, TENANT-03, TENANT-04, TENANT-05, TENANT-06, TENANT-07, COMPUTE-07
+**Success Criteria** (what must be TRUE):
+  1. `pytest tests/` passes with all new validation tests green
+  2. Cosmos DB containers have uniqueKeyPolicy defined in Bicep (DATA-06)
+  3. Repository CRUD, tenant isolation, and ETag concurrency are tested
+  4. Tenant lifecycle state machine transitions are tested
+  5. Middleware blocks suspended/deactivated tenants
+  6. Health endpoints return 200
+**Plans:** 3 plans
+
+Plans:
+- [ ] 25-01-PLAN.md — Fix DATA-06 (uniqueKeyPolicy in cosmos.bicep) + test fixtures
+- [ ] 25-02-PLAN.md — Data layer & repository tests (DATA-01 through DATA-07)
+- [ ] 25-03-PLAN.md — Tenant lifecycle, middleware, and health endpoint tests
 
 ### Phase Dependencies
 
