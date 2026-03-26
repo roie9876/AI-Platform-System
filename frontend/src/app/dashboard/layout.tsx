@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/protected-route";
 import { FoundrySidebar } from "@/components/layout/foundry-sidebar";
+import { TenantProvider } from "@/contexts/tenant-context";
+import { TenantSelector } from "@/components/layout/tenant-selector";
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -17,7 +19,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       {/* Top bar */}
-      <header className="flex h-12 shrink-0 items-center justify-end border-b border-gray-200 bg-white px-6">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
+        <div className="flex items-center">
+          <TenantSelector />
+        </div>
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -55,7 +60,9 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      <TenantProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </TenantProvider>
     </ProtectedRoute>
   );
 }

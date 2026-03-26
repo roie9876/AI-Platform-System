@@ -16,6 +16,7 @@ import {
   PanelLeft,
   BarChart3,
   Store,
+  Building2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/observability", label: "Observability", icon: BarChart3, enabled: true },
   { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck, enabled: true },
   { href: "/dashboard/marketplace", label: "Marketplace", icon: Store, enabled: true },
+  { href: "/dashboard/tenants", label: "Tenants", icon: Building2, enabled: true },
   { href: "/dashboard/guardrails", label: "Guardrails", icon: Shield, enabled: true },
 ];
 
