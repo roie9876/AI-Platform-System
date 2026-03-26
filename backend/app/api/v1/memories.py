@@ -4,13 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.auth import get_current_user
+from app.api.v1.dependencies import get_current_user
 from app.api.v1.schemas import AgentMemoryListResponse, AgentMemoryResponse
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.models.agent import Agent
 from app.models.agent_memory import AgentMemory
-from app.models.user import User
 
 router = APIRouter()
 
@@ -21,7 +20,7 @@ router = APIRouter()
 )
 async def list_agent_memories(
     agent_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -36,7 +35,7 @@ async def list_agent_memories(
     count_result = await db.execute(
         select(func.count()).where(
             AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user.id,
+            AgentMemory.user_id == current_user["user_id"],
             AgentMemory.tenant_id == tenant_id,
         )
     )
@@ -46,7 +45,7 @@ async def list_agent_memories(
         select(AgentMemory)
         .where(
             AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user.id,
+            AgentMemory.user_id == current_user["user_id"],
             AgentMemory.tenant_id == tenant_id,
         )
         .order_by(AgentMemory.created_at.desc())
@@ -77,7 +76,7 @@ async def list_agent_memories(
 async def delete_agent_memory(
     agent_id: UUID,
     memory_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,7 +85,7 @@ async def delete_agent_memory(
         select(AgentMemory).where(
             AgentMemory.id == memory_id,
             AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user.id,
+            AgentMemory.user_id == current_user["user_id"],
             AgentMemory.tenant_id == tenant_id,
         )
     )
@@ -106,7 +105,7 @@ async def delete_agent_memory(
 )
 async def clear_agent_memories(
     agent_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -120,7 +119,7 @@ async def clear_agent_memories(
     await db.execute(
         delete(AgentMemory).where(
             AgentMemory.agent_id == agent_id,
-            AgentMemory.user_id == current_user.id,
+            AgentMemory.user_id == current_user["user_id"],
             AgentMemory.tenant_id == tenant_id,
         )
     )

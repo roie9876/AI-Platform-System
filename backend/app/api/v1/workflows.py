@@ -6,8 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.agent import Agent
 from app.models.workflow import Workflow, WorkflowNode, WorkflowEdge
 from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution
@@ -36,7 +35,7 @@ async def create_workflow(
     body: WorkflowCreateRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     workflow = Workflow(
@@ -44,7 +43,7 @@ async def create_workflow(
         description=body.description,
         workflow_type=body.workflow_type,
         tenant_id=tenant_id,
-        created_by=current_user.id,
+        created_by=current_user["user_id"],
     )
     db.add(workflow)
     await db.flush()
@@ -111,7 +110,7 @@ async def create_workflow(
 async def list_workflows(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -126,7 +125,7 @@ async def get_workflow(
     workflow_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -169,7 +168,7 @@ async def update_workflow(
     body: WorkflowUpdateRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -196,7 +195,7 @@ async def delete_workflow(
     workflow_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -215,7 +214,7 @@ async def add_node(
     body: WorkflowNodeCreateRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow exists and belongs to tenant
@@ -254,7 +253,7 @@ async def delete_node(
     node_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow belongs to tenant
@@ -280,7 +279,7 @@ async def add_edge(
     body: WorkflowEdgeCreateRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow belongs to tenant
@@ -318,7 +317,7 @@ async def delete_edge(
     edge_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow belongs to tenant
@@ -343,7 +342,7 @@ async def list_executions(
     workflow_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow belongs to tenant
@@ -368,7 +367,7 @@ async def execute_workflow(
     body: WorkflowExecuteRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow exists and belongs to tenant
@@ -392,7 +391,7 @@ async def execute_workflow(
     execution = await engine.run(
         workflow_id=workflow_id,
         input_data=input_data,
-        user_id=current_user.id,
+        user_id=current_user["user_id"],
         tenant_id=tenant_id,
         db=db,
     )
@@ -405,7 +404,7 @@ async def get_execution_detail(
     execution_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate workflow belongs to tenant
@@ -457,7 +456,7 @@ async def cancel_execution(
     execution_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     from datetime import datetime, timezone

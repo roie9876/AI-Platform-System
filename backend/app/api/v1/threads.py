@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.auth import get_current_user
+from app.api.v1.dependencies import get_current_user
 from app.api.v1.schemas import (
     ThreadCreateRequest,
     ThreadListResponse,
@@ -18,7 +18,6 @@ from app.middleware.tenant import get_tenant_id
 from app.models.agent import Agent
 from app.models.thread import Thread
 from app.models.thread_message import ThreadMessage
-from app.models.user import User
 
 router = APIRouter()
 
@@ -26,7 +25,7 @@ router = APIRouter()
 @router.post("", response_model=ThreadResponse, status_code=201)
 async def create_thread(
     body: ThreadCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -44,7 +43,7 @@ async def create_thread(
     thread = Thread(
         title=body.title,
         agent_id=body.agent_id,
-        user_id=current_user.id,
+        user_id=current_user["user_id"],
         tenant_id=tenant_id,
     )
     db.add(thread)
@@ -68,14 +67,14 @@ async def create_thread(
 @router.get("", response_model=ThreadListResponse)
 async def list_threads(
     agent_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     # Base query: user's threads for this agent in this tenant
     base_filter = [
         Thread.agent_id == agent_id,
-        Thread.user_id == current_user.id,
+        Thread.user_id == current_user["user_id"],
         Thread.tenant_id == tenant_id,
         Thread.is_active == True,  # noqa: E712
     ]
@@ -137,14 +136,14 @@ async def list_threads(
 @router.get("/{thread_id}", response_model=ThreadResponse)
 async def get_thread(
     thread_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Thread).where(
             Thread.id == thread_id,
-            Thread.user_id == current_user.id,
+            Thread.user_id == current_user["user_id"],
             Thread.tenant_id == tenant_id,
         )
     )
@@ -177,7 +176,7 @@ async def get_thread(
 @router.get("/{thread_id}/messages", response_model=ThreadMessagesResponse)
 async def get_thread_messages(
     thread_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -185,7 +184,7 @@ async def get_thread_messages(
     thread_result = await db.execute(
         select(Thread).where(
             Thread.id == thread_id,
-            Thread.user_id == current_user.id,
+            Thread.user_id == current_user["user_id"],
             Thread.tenant_id == tenant_id,
         )
     )
@@ -222,14 +221,14 @@ async def get_thread_messages(
 async def update_thread(
     thread_id: UUID,
     body: ThreadUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Thread).where(
             Thread.id == thread_id,
-            Thread.user_id == current_user.id,
+            Thread.user_id == current_user["user_id"],
             Thread.tenant_id == tenant_id,
         )
     )
@@ -258,14 +257,14 @@ async def update_thread(
 @router.delete("/{thread_id}", status_code=204)
 async def delete_thread(
     thread_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Thread).where(
             Thread.id == thread_id,
-            Thread.user_id == current_user.id,
+            Thread.user_id == current_user["user_id"],
             Thread.tenant_id == tenant_id,
         )
     )
@@ -280,14 +279,14 @@ async def delete_thread(
 @router.delete("", status_code=204)
 async def delete_all_threads(
     agent_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Thread).where(
             Thread.agent_id == agent_id,
-            Thread.user_id == current_user.id,
+            Thread.user_id == current_user["user_id"],
             Thread.tenant_id == tenant_id,
         )
     )

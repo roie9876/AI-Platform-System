@@ -7,8 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.cost_config import ModelPricing, CostAlert
 from app.services.observability_service import ObservabilityService
 from app.api.v1.schemas import (
@@ -30,7 +29,7 @@ async def get_dashboard(
     time_range: str = Query(default="7d", pattern=r"^(1h|24h|7d|30d)$"),
     agent_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     data = await ObservabilityService.get_dashboard_summary(
@@ -46,7 +45,7 @@ async def get_token_usage(
     agent_id: Optional[UUID] = None,
     model_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     data = await ObservabilityService.get_token_usage_over_time(
@@ -60,7 +59,7 @@ async def get_cost_breakdown(
     time_range: str = Query(default="7d", pattern=r"^(1h|24h|7d|30d)$"),
     group_by: str = Query(default="agent", pattern=r"^(agent|model)$"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     data = await ObservabilityService.get_cost_breakdown(
@@ -74,7 +73,7 @@ async def get_top_agents(
     time_range: str = Query(default="7d", pattern=r"^(1h|24h|7d|30d)$"),
     limit: int = Query(default=10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     data = await ObservabilityService.get_top_agents(
@@ -90,7 +89,7 @@ async def get_execution_logs(
     offset: int = Query(default=0, ge=0),
     time_range: Optional[str] = Query(default=None, pattern=r"^(1h|24h|7d|30d)$"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     return await ObservabilityService.get_execution_logs(
@@ -101,7 +100,7 @@ async def get_execution_logs(
 @router.get("/alerts")
 async def get_triggered_alerts(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     data = await ObservabilityService.check_cost_alerts(db, UUID(tenant_id))
@@ -111,7 +110,7 @@ async def get_triggered_alerts(
 @router.get("/pricing", response_model=list[ModelPricingResponse])
 async def list_pricing(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -127,7 +126,7 @@ async def list_pricing(
 async def create_pricing(
     body: ModelPricingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     pricing = ModelPricing(
@@ -149,7 +148,7 @@ async def update_pricing(
     pricing_id: UUID,
     body: ModelPricingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -172,7 +171,7 @@ async def update_pricing(
 async def delete_pricing(
     pricing_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     await db.execute(delete(ModelPricing).where(ModelPricing.id == pricing_id))
@@ -182,7 +181,7 @@ async def delete_pricing(
 @router.get("/cost-alerts", response_model=list[CostAlertResponse])
 async def list_cost_alerts(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -195,7 +194,7 @@ async def list_cost_alerts(
 async def create_cost_alert(
     body: CostAlertCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     alert = CostAlert(
@@ -218,7 +217,7 @@ async def update_cost_alert(
     alert_id: UUID,
     body: CostAlertCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -245,7 +244,7 @@ async def update_cost_alert(
 async def delete_cost_alert(
     alert_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     await db.execute(

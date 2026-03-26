@@ -7,8 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.mcp_server import MCPServer
 from app.services.mcp_discovery import MCPDiscoveryService
 from app.api.v1.schemas import (
@@ -26,7 +25,7 @@ async def list_discovered_tools(
     request: Request,
     server_id: Optional[PyUUID] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all discovered MCP tools, optionally filtered by server."""
@@ -40,7 +39,7 @@ async def list_discovered_tools(
 async def discover_all_tools(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Trigger tool discovery across all active MCP servers for the tenant."""
@@ -59,7 +58,7 @@ async def discover_tools_from_server(
     server_id: PyUUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Trigger tool discovery from a specific MCP server."""
@@ -84,7 +83,7 @@ async def health_check_server(
     server_id: PyUUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Check MCP server health and update its status."""

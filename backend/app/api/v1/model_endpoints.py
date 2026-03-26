@@ -7,8 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.config import settings
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.model_endpoint import ModelEndpoint
 from app.api.v1.schemas import (
     ModelEndpointCreateRequest,
@@ -41,7 +40,7 @@ async def create_model_endpoint(
     body: ModelEndpointCreateRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     if body.provider_type not in VALID_PROVIDER_TYPES:
@@ -81,7 +80,7 @@ async def create_model_endpoint(
 async def list_model_endpoints(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -98,7 +97,7 @@ async def get_model_endpoint(
     endpoint_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -118,7 +117,7 @@ async def update_model_endpoint(
     body: ModelEndpointUpdateRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -157,7 +156,7 @@ async def delete_model_endpoint(
     endpoint_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(

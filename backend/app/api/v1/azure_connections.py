@@ -7,8 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.agent import Agent
 from app.models.azure_connection import AzureConnection
 from app.services.secret_store import encrypt_api_key
@@ -25,7 +24,7 @@ router = APIRouter()
 async def list_connections(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all Azure connections for the tenant."""
@@ -42,7 +41,7 @@ async def create_connection(
     body: AzureConnectionCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Create a connection between an agent and an Azure resource."""
@@ -78,7 +77,7 @@ async def list_agent_connections(
     agent_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all Azure connections for an agent."""
@@ -95,7 +94,7 @@ async def delete_connection(
     connection_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Delete an Azure connection."""
@@ -118,7 +117,7 @@ async def update_connection(
     body: AzureConnectionUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Update connection auth type, credentials, or config."""
@@ -149,7 +148,7 @@ async def health_check(
     connection_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Run a health check on a connection."""

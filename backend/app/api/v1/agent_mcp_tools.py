@@ -6,8 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.agent import Agent
 from app.models.agent_mcp_tool import AgentMCPTool
 from app.models.mcp_discovered_tool import MCPDiscoveredTool
@@ -28,7 +27,7 @@ async def attach_mcp_tool(
     body: AgentMCPToolAttachRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Verify agent belongs to tenant
@@ -93,7 +92,7 @@ async def detach_mcp_tool(
     mcp_tool_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Verify agent belongs to tenant
@@ -125,7 +124,7 @@ async def list_agent_mcp_tools(
     agent_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Verify agent belongs to tenant

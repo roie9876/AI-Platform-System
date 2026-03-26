@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.api.v1.auth import get_current_user
+from app.api.v1.dependencies import get_current_user
 from app.middleware.tenant import get_tenant_id
 from app.services.marketplace_service import MarketplaceService
 from app.api.v1.schemas import (

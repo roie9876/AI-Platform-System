@@ -1,13 +1,10 @@
-import jwt
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core.config import settings
+from app.core.security import validate_entra_token, extract_user_context
 
 PUBLIC_PATHS = {
     "/api/v1/health",
-    "/api/v1/auth/login",
-    "/api/v1/auth/register",
     "/docs",
     "/openapi.json",
     "/redoc",
@@ -21,16 +18,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
         ):
             return await call_next(request)
 
-        access_token = request.cookies.get("access_token")
-        if access_token:
-            try:
-                payload = jwt.decode(
-                    access_token, settings.SECRET_KEY, algorithms=["HS256"]
-                )
-                request.state.user_id = payload.get("sub")
-                request.state.tenant_id = payload.get("tenant_id")
-            except jwt.InvalidTokenError:
-                pass
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            claims = await validate_entra_token(token)
+            if claims:
+                user_context = extract_user_context(claims)
+                request.state.user_context = user_context
+                # Backward compat
+                request.state.user_id = user_context["user_id"]
+                request.state.tenant_id = user_context["tenant_id"]
 
         return await call_next(request)
 

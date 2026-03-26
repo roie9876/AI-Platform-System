@@ -4,13 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.auth import get_current_user
+from app.api.v1.dependencies import get_current_user
 from app.api.v1.schemas import PlatformToolListResponse, PlatformToolToggleRequest
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
 from app.models.agent import Agent
 from app.models.tool import AgentTool, Tool
-from app.models.user import User
 from app.services.platform_tools import (
     PLATFORM_ADAPTERS,
     get_adapter_by_name,
@@ -25,7 +24,7 @@ async def list_platform_tools(
     request: Request,
     agent_id: UUID = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all available platform AI services/tools.
@@ -65,7 +64,7 @@ async def toggle_platform_tool(
     request: Request,
     agent_id: UUID = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Enable or disable a platform tool for an agent."""

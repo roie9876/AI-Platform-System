@@ -8,8 +8,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.evaluation import TestSuite, TestCase, EvaluationRun, EvaluationResult
 from app.services.evaluation_service import EvaluationService
 from app.api.v1.schemas import (
@@ -30,7 +29,7 @@ router = APIRouter()
 async def list_test_suites(
     agent_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     query = select(TestSuite).where(TestSuite.tenant_id == UUID(tenant_id))
@@ -45,7 +44,7 @@ async def list_test_suites(
 async def create_test_suite(
     body: TestSuiteCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     suite = TestSuite(
@@ -64,7 +63,7 @@ async def create_test_suite(
 async def get_test_suite(
     suite_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -84,7 +83,7 @@ async def update_test_suite(
     suite_id: UUID,
     body: TestSuiteCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -108,7 +107,7 @@ async def update_test_suite(
 async def delete_test_suite(
     suite_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     await db.execute(
@@ -127,7 +126,7 @@ async def add_test_case(
     suite_id: UUID,
     body: TestCaseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Verify suite exists and belongs to tenant
@@ -160,7 +159,7 @@ async def update_test_case(
     case_id: UUID,
     body: TestCaseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -184,7 +183,7 @@ async def delete_test_case(
     suite_id: UUID,
     case_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     await db.execute(
@@ -199,7 +198,7 @@ async def delete_test_case(
 async def trigger_evaluation_run(
     suite_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     try:
@@ -218,7 +217,7 @@ async def list_runs(
     agent_id: Optional[UUID] = None,
     suite_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     query = select(EvaluationRun).where(EvaluationRun.tenant_id == UUID(tenant_id))
@@ -234,7 +233,7 @@ async def list_runs(
 async def get_run(
     run_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     result = await db.execute(
@@ -253,7 +252,7 @@ async def get_run(
 async def get_run_results(
     run_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     results = await EvaluationService.get_run_results(db, run_id)
@@ -270,7 +269,7 @@ class CompareRequest(BaseModel):
 async def compare_runs(
     body: CompareRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     if len(body.run_ids) < 2:

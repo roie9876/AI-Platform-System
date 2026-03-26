@@ -6,8 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.azure_subscription import AzureSubscription
 from app.services.azure_arm import AzureARMService
 from app.services.secret_store import encrypt_api_key, decrypt_api_key
@@ -27,7 +26,7 @@ async def connect_subscription(
     body: AzureSubscriptionCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Connect an Azure subscription to the platform (upserts if already connected)."""
@@ -68,7 +67,7 @@ async def connect_subscription(
 async def list_subscriptions(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List connected Azure subscriptions for the current tenant."""
@@ -85,7 +84,7 @@ async def disconnect_subscription(
     subscription_db_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Disconnect an Azure subscription (cascades to connections)."""
@@ -111,7 +110,7 @@ async def discover_resources(
     resource_type: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Discover Azure resources of a given type within a connected subscription."""
@@ -153,7 +152,7 @@ async def discover_resources(
 async def discover_subscriptions(
     request: Request,
     x_azure_token: str = Header(..., alias="X-Azure-Token"),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Discover Azure subscriptions using an OAuth access token."""
     subscriptions = await arm_service.list_subscriptions(x_azure_token)

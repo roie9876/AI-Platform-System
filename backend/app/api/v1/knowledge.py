@@ -6,8 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.azure_connection import AzureConnection
 from app.models.azure_subscription import AzureSubscription
 from app.services.azure_arm import AzureARMService
@@ -33,7 +32,7 @@ async def list_search_indexes(
     connection_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List AI Search indexes for a connected search service."""
@@ -91,7 +90,7 @@ async def select_indexes(
     body: SelectIndexesRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Select AI Search indexes for RAG retrieval."""
@@ -124,7 +123,7 @@ async def list_agent_knowledge(
     agent_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all selected AI Search indexes available to an agent (agent-specific + platform-level)."""

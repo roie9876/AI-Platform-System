@@ -7,8 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_tenant_id
-from app.api.v1.auth import get_current_user
-from app.models.user import User
+from app.api.v1.dependencies import get_current_user
 from app.models.agent import Agent
 from app.models.thread import Thread
 from app.models.thread_message import ThreadMessage
@@ -24,7 +23,7 @@ async def chat_with_agent(
     body: ChatRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     # Validate agent exists and belongs to tenant
@@ -48,7 +47,7 @@ async def chat_with_agent(
         thread_result = await db.execute(
             select(Thread).where(
                 Thread.id == body.thread_id,
-                Thread.user_id == current_user.id,
+                Thread.user_id == current_user["user_id"],
                 Thread.tenant_id == tenant_id,
             )
         )
@@ -81,7 +80,7 @@ async def chat_with_agent(
             db=db,
             conversation_history=conversation_history,
             thread_id=body.thread_id,
-            user_id=current_user.id,
+            user_id=current_user["user_id"],
         ):
             yield event
 
