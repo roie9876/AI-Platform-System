@@ -81,14 +81,9 @@ dry_run_cmd() {
 
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
-# Service name mapping: image-name → directory-name
-declare -A SVC_MAP=(
-  ["api-gateway"]="api_gateway"
-  ["agent-executor"]="agent_executor"
-  ["workflow-engine"]="workflow_engine"
-  ["tool-executor"]="tool_executor"
-  ["mcp-proxy"]="mcp_proxy"
-)
+# Service name mapping: image-name → directory-name (bash 3.2 compatible)
+SVC_IMAGES=("api-gateway" "agent-executor" "workflow-engine" "tool-executor" "mcp-proxy")
+SVC_DIRS=("api_gateway" "agent_executor" "workflow_engine" "tool_executor" "mcp_proxy")
 
 # ─── Dry-run mode ────────────────────────────────────────────────────────────
 
@@ -218,8 +213,9 @@ fi
 if [ "${SKIP_BUILD}" = false ]; then
   step "Build and Push Docker Images"
 
-  for SVC_IMAGE in "${!SVC_MAP[@]}"; do
-    SVC_DIR="${SVC_MAP[$SVC_IMAGE]}"
+  for i in "${!SVC_IMAGES[@]}"; do
+    SVC_IMAGE="${SVC_IMAGES[$i]}"
+    SVC_DIR="${SVC_DIRS[$i]}"
     echo ""
     echo -e "  ${BLUE}Building ${SVC_IMAGE}...${NC}"
     docker build \
