@@ -19,7 +19,7 @@ param aksUserNodeCount int = 1
 param aksUserNodeVmSize string = 'Standard_D4s_v5'
 
 @description('Kubernetes version')
-param aksKubernetesVersion string = '1.29'
+param aksKubernetesVersion string = '1.33'
 
 @description('ACR SKU tier')
 param acrSku string = 'Standard'

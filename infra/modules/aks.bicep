@@ -29,7 +29,7 @@ param userNodeCount int = 1
 param userNodeVmSize string = 'Standard_D4s_v5'
 
 @description('Kubernetes version')
-param kubernetesVersion string = '1.29'
+param kubernetesVersion string = '1.33'
 
 resource cluster 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
   name: 'stumsft-aiplatform-${environmentName}-aks'
