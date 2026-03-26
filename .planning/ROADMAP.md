@@ -52,7 +52,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 
 **Phase Numbering:** Continues from v2.0 (Phases 11-16).
 
-- [ ] **Phase 17: Infrastructure Foundation (Bicep IaC)** — Provision all Azure resources via Bicep modules
+- [x] **Phase 17: Infrastructure Foundation (Bicep IaC)** — Provision all Azure resources via Bicep modules (completed 2026-03-26)
 - [ ] **Phase 18: Authentication Migration (Entra ID)** — Replace JWT auth with enterprise SSO and Managed Identity
 - [ ] **Phase 19: Data Layer Migration (Cosmos DB)** — Replace SQLAlchemy/PostgreSQL with Cosmos DB NoSQL SDK
 - [ ] **Phase 20: Microservice Extraction & AKS Deployment** — Split monolith into 5 microservices and deploy to AKS
@@ -73,11 +73,11 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
   3. Cosmos DB account contains the `aiplatform` database with all containers partitioned by `/tenant_id`
   4. Dev, staging, and prod parameter files deploy different SKUs and throughput settings without code changes
   5. Rerunning the deployment is idempotent — no errors, no duplicate resources
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 Plans:
-- [ ] 17-01-PLAN.md — Foundation modules (VNet, Log Analytics, Managed Identities, ACR)
-- [ ] 17-02-PLAN.md — Cosmos DB module with all containers
-- [ ] 17-03-PLAN.md — AKS, Key Vault, main.bicep orchestrator + prod.bicepparam
+- [x] 17-01-PLAN.md — Foundation modules (VNet, Log Analytics, Managed Identities, ACR)
+- [x] 17-02-PLAN.md — Cosmos DB module with all containers
+- [x] 17-03-PLAN.md — AKS, Key Vault, main.bicep orchestrator + prod.bicepparam
 
 #### Phase 18: Authentication Migration (Entra ID)
 **Goal**: Users authenticate via Microsoft Entra ID with enterprise SSO, replacing the existing JWT-based auth
@@ -193,7 +193,7 @@ Phase 17 (Infrastructure Foundation)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 17. Infrastructure Foundation | 0/? | Not started | - |
+| 17. Infrastructure Foundation | 3/3 | Complete    | 2026-03-26 |
 | 18. Authentication Migration | 0/? | Not started | - |
 | 19. Data Layer Migration | 0/? | Not started | - |
 | 20. Microservice Extraction & AKS | 0/? | Not started | - |
