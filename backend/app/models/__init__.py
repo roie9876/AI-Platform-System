@@ -1,3 +1,7 @@
+# DEPRECATED: SQLAlchemy models — data access now uses Cosmos DB repositories (app.repositories).
+# These models are retained for the PostgreSQL → Cosmos DB migration script (scripts/migrate_to_cosmos.py)
+# and as schema documentation. They will be removed once migration is verified.
+
 from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.user import User
