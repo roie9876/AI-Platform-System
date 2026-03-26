@@ -289,6 +289,17 @@ Phase 17 (Infrastructure Foundation)
 | 26. Tenant Context Wiring | 2/2 | Complete   | 2026-03-26 |
 | 27. Verification & Traceability | 3/3 | Complete    | 2026-03-26 |
 
+### Phase 28: Cloud Deployment & Smoke Test
+
+**Goal:** All deployment artifacts are validated, orchestrated via a single deploy command, and verified with enhanced smoke tests covering health endpoints, API reachability, and inter-service connectivity
+**Requirements**: TBD
+**Depends on:** Phase 27
+**Plans:** 2 plans
+
+Plans:
+- [ ] 28-01-PLAN.md — Pre-deployment validation scripts, deployment orchestration, local microservice docker-compose
+- [ ] 28-02-PLAN.md — Post-deploy config bridge, enhanced smoke tests, deployment readiness checkpoint
+
 ---
 *Roadmap created: 2026-03-23*
 *Last updated: 2026-03-26 after v3.0 roadmap creation*
