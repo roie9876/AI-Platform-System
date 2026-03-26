@@ -5,6 +5,9 @@ from app.core.security import validate_entra_token, extract_user_context
 
 PUBLIC_PATHS = {
     "/api/v1/health",
+    "/healthz",
+    "/readyz",
+    "/startupz",
     "/docs",
     "/openapi.json",
     "/redoc",

@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     AZURE_JWKS_URI: str = ""
     AZURE_ISSUER: str = ""
 
+    # Inter-service URLs (K8s DNS defaults)
+    TOOL_EXECUTOR_URL: str = "http://tool-executor:8000"
+    MCP_PROXY_URL: str = "http://mcp-proxy:8000"
+    AGENT_EXECUTOR_URL: str = "http://agent-executor:8000"
+    API_GATEWAY_URL: str = "http://api-gateway:8000"
+    WORKFLOW_ENGINE_URL: str = "http://workflow-engine:8000"
+    SERVICE_NAME: str = "monolith"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     def model_post_init(self, __context: object) -> None:
