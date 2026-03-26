@@ -222,7 +222,10 @@ Plans:
   1. Every dashboard page that fetches data calls `useTenant()` and passes `tenantId` to API requests
   2. Switching tenants in the TenantSelector immediately updates all page data
   3. No cross-tenant data leakage — pages only show data for the selected tenant
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 26-01-PLAN.md — API tenant header injection + core entity pages (agents, tools, data-sources, models, workflows, evaluations)
+- [ ] 26-02-PLAN.md — Observability + MCP tools pages + human verification
 
 #### Phase 27: Verification & Traceability Closure
 **Goal**: All v3.0 requirements have formal verification evidence; REQUIREMENTS.md accurately reflects completion status
