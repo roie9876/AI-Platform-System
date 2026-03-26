@@ -1,0 +1,78 @@
+name: Deploy Tenant Namespace
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_slug:
+        description: "Tenant slug (e.g., contoso)"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-tenant:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+
+      - name: Verify tenant namespace exists
+        run: |
+          TENANT_NS="tenant-${{ github.event.inputs.tenant_slug }}"
+          echo "TENANT_NS=${TENANT_NS}" >> $GITHUB_ENV
+          kubectl get namespace "${TENANT_NS}" || {
+            echo "ERROR: Namespace ${TENANT_NS} does not exist. Provision the tenant first."
+            exit 1
+          }
+
+      - name: Deploy to tenant namespace
+        run: |
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          ACR="${{ secrets.ACR_LOGIN_SERVER }}"
+          WORK_DIR=$(mktemp -d)
+
+          cp -r k8s/overlays/tenant-template/* "${WORK_DIR}/"
+          find "${WORK_DIR}" -type f -name "*.yaml" -exec sed -i "s/TENANT_NAMESPACE/${TENANT_NS}/g" {} \;
+          find "${WORK_DIR}" -type f -name "*.yaml" -exec sed -i "s/TENANT_SLUG/${{ github.event.inputs.tenant_slug }}/g" {} \;
+
+          cd "${WORK_DIR}"
+          kustomize edit set image \
+            stumsftaiplatformprodacr.azurecr.io/aiplatform-api-gateway=${ACR}/aiplatform-api-gateway:${IMAGE_TAG} \
+            stumsftaiplatformprodacr.azurecr.io/aiplatform-agent-executor=${ACR}/aiplatform-agent-executor:${IMAGE_TAG} \
+            stumsftaiplatformprodacr.azurecr.io/aiplatform-workflow-engine=${ACR}/aiplatform-workflow-engine:${IMAGE_TAG} \
+            stumsftaiplatformprodacr.azurecr.io/aiplatform-tool-executor=${ACR}/aiplatform-tool-executor:${IMAGE_TAG} \
+            stumsftaiplatformprodacr.azurecr.io/aiplatform-mcp-proxy=${ACR}/aiplatform-mcp-proxy:${IMAGE_TAG}
+          kubectl apply -k .
+
+          rm -rf "${WORK_DIR}"
+
+      - name: Wait for tenant rollouts
+        run: |
+          for SVC in api-gateway agent-executor workflow-engine tool-executor mcp-proxy; do
+            echo "Waiting for ${SVC} rollout in ${TENANT_NS}..."
+            kubectl rollout status deployment/${SVC} -n "${TENANT_NS}" --timeout=300s
+          done
+
+      - name: Run smoke tests in tenant namespace
+        run: bash k8s/scripts/smoke-test.sh "${TENANT_NS}"
