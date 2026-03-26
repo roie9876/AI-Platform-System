@@ -60,7 +60,7 @@ v3.0 migrates the platform across every layer: infrastructure (Bicep IaC), authe
 - [x] **Phase 22: CI/CD Pipelines (GitHub Actions)** — Automated build, push, and deploy to AKS (completed 2026-03-26)
 - [x] **Phase 23: Observability & Monitoring** — OpenTelemetry, App Insights, per-tenant metrics, alerting (completed 2026-03-26)
 - [x] **Phase 24: Tenant Admin UI** — Tenant selector, admin dashboard, onboarding wizard, scoped views (completed 2026-03-26)
-- [ ] **Phase 25: Milestone Validation** — Fix DATA-06 gap, automated tests for data layer, tenant lifecycle, and health endpoints
+- [x] **Phase 25: Milestone Validation** — Fix DATA-06 gap, automated tests for data layer, tenant lifecycle, and health endpoints (completed 2026-03-26)
 - [x] **Phase 26: Tenant Context Wiring** — Wire useTenant() into all dashboard pages so tenant selector filters data (UI-02 critical fix) (completed 2026-03-26)
 - [x] **Phase 27: Verification & Traceability Closure** — Create VERIFICATION.md for Phases 19-24, update SUMMARY frontmatter, check off REQUIREMENTS.md (completed 2026-03-26)
 
@@ -206,12 +206,12 @@ Plans:
   4. Tenant lifecycle state machine transitions are tested
   5. Middleware blocks suspended/deactivated tenants
   6. Health endpoints return 200
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 25-01-PLAN.md — Fix DATA-06 (uniqueKeyPolicy in cosmos.bicep) + test fixtures
-- [ ] 25-02-PLAN.md — Data layer & repository tests (DATA-01 through DATA-07)
-- [ ] 25-03-PLAN.md — Tenant lifecycle, middleware, and health endpoint tests
+- [x] 25-01-PLAN.md — Fix DATA-06 (uniqueKeyPolicy in cosmos.bicep) + test fixtures
+- [x] 25-02-PLAN.md — Data layer & repository tests (DATA-01 through DATA-07)
+- [x] 25-03-PLAN.md — Tenant lifecycle, middleware, and health endpoint tests
 
 #### Phase 26: Tenant Context Wiring
 **Goal**: All dashboard pages filter data by the selected tenant — switching tenants in the selector changes what every page displays
@@ -285,7 +285,7 @@ Phase 17 (Infrastructure Foundation)
 | 22. CI/CD Pipelines | 2/2 | Complete | 2026-03-26 |
 | 23. Observability & Monitoring | 2/2 | Complete    | 2026-03-26 |
 | 24. Tenant Admin UI | 0/? | Not started | - |
-| 25. Milestone Validation | 0/3 | Not started | - |
+| 25. Milestone Validation | 3/3 | Complete    | 2026-03-26 |
 | 26. Tenant Context Wiring | 2/2 | Complete   | 2026-03-26 |
 | 27. Verification & Traceability | 3/3 | Complete    | 2026-03-26 |
 
