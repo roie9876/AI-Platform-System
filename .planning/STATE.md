@@ -1,29 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: MCP Tool Integration
-status: Complete
-last_updated: "2026-03-25"
+milestone: v3.0
+milestone_name: Production Multi-Tenant Infrastructure
+status: Defining Requirements
+last_updated: "2026-03-26"
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-24)
+See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
-**Current focus:** Milestone v2.0 — MCP Tool Integration (Phases 11-16) — COMPLETE
+**Current focus:** Milestone v3.0 — Production Multi-Tenant Infrastructure — Defining Requirements
 
 ## Current Position
 
-Phase: All complete
-Plan: All complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-26 — Milestone v3.0 started
 
 ## Phase Status
 
