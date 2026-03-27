@@ -28,7 +28,7 @@ def init_telemetry(service_name: str, service_version: str = "0.1.0") -> None:
 
     connection_string = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
 
-    if connection_string:
+    if connection_string and connection_string.startswith("InstrumentationKey="):
         from azure.monitor.opentelemetry.exporter import (
             AzureMonitorTraceExporter,
             AzureMonitorMetricExporter,

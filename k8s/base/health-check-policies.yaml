@@ -18,7 +18,7 @@ spec:
     unhealthyThreshold: 3
     port: 8000
     http:
-      path: /api/v1/health
+      path: /healthz
       match:
         statusCodes:
           - start: 200
