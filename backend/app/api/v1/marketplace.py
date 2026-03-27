@@ -27,8 +27,10 @@ async def list_agent_templates(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     _user=Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
 ):
     templates = await MarketplaceService.list_agent_templates(
+        tenant_id=tenant_id,
         category=category, search=search, featured_only=featured,
         limit=limit, offset=offset,
     )
@@ -39,8 +41,9 @@ async def list_agent_templates(
 async def get_agent_template(
     template_id: str,
     _user=Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
 ):
-    template = await MarketplaceService.get_agent_template(template_id)
+    template = await MarketplaceService.get_agent_template(tenant_id, template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Agent template not found")
     return template
@@ -71,7 +74,7 @@ async def import_agent_template(
     _user=Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    agent = await MarketplaceService.import_agent_template(template_id, tenant_id)
+    agent = await MarketplaceService.import_agent_template(tenant_id, template_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent template not found")
     return {"agent_id": agent.get("id", str(agent.get("id", ""))), "name": agent.get("name", "")}
@@ -87,8 +90,10 @@ async def list_tool_templates(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     _user=Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
 ):
     templates = await MarketplaceService.list_tool_templates(
+        tenant_id=tenant_id,
         category=category, search=search, limit=limit, offset=offset,
     )
     return templates
@@ -98,8 +103,9 @@ async def list_tool_templates(
 async def get_tool_template(
     template_id: str,
     _user=Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
 ):
-    template = await MarketplaceService.get_tool_template(template_id)
+    template = await MarketplaceService.get_tool_template(tenant_id, template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Tool template not found")
     return template
@@ -130,7 +136,7 @@ async def import_tool_template(
     _user=Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    tool = await MarketplaceService.import_tool_template(template_id, tenant_id)
+    tool = await MarketplaceService.import_tool_template(tenant_id, template_id)
     if not tool:
         raise HTTPException(status_code=404, detail="Tool template not found")
     return {"tool_id": tool.get("id", str(tool.get("id", ""))), "name": tool.get("name", "")}

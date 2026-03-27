@@ -1,6 +1,5 @@
 """Unit tests for MCP integration in Agent Execution Service."""
 
-import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,22 +11,21 @@ from app.services.agent_execution import AgentExecutionService
 from app.services.mcp_client import MCPClientError
 from app.services.mcp_types import ContentBlock, ToolCallResult
 
+TENANT_ID = str(uuid.uuid4())
+
 
 def _make_mcp_tool(**overrides):
     defaults = {
-        "id": uuid.uuid4(),
-        "server_id": uuid.uuid4(),
+        "id": str(uuid.uuid4()),
+        "server_id": str(uuid.uuid4()),
         "tool_name": "get_weather",
         "description": "Get weather for a city",
         "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}},
         "is_available": True,
-        "tenant_id": uuid.uuid4(),
+        "tenant_id": TENANT_ID,
     }
     defaults.update(overrides)
-    mock = MagicMock(spec=MCPDiscoveredTool, **defaults)
-    for k, v in defaults.items():
-        setattr(mock, k, v)
-    return mock
+    return defaults
 
 
 class TestBuildMCPToolSchemas:
@@ -63,7 +61,8 @@ class TestBuildMCPToolSchemas:
 class TestExecuteMCPTool:
     @pytest.mark.asyncio
     @patch("app.services.agent_execution.MCPClient")
-    async def test_successful_execution(self, MockClient):
+    @patch("app.services.agent_execution._mcp_server_repo")
+    async def test_successful_execution(self, mock_server_repo, MockClient):
         mock_client = AsyncMock()
         mock_client.connect.return_value = MagicMock()
         mock_client.call_tool.return_value = ToolCallResult(
@@ -72,21 +71,20 @@ class TestExecuteMCPTool:
         )
         MockClient.return_value = mock_client
 
+        server = {
+            "id": str(uuid.uuid4()),
+            "url": "http://mcp.example.com",
+            "auth_type": "none",
+            "auth_credential_ref": None,
+            "auth_header_name": None,
+        }
+        mock_server_repo.get = AsyncMock(return_value=server)
+
         service = AgentExecutionService()
         mcp_tool = _make_mcp_tool()
 
-        db = AsyncMock()
-        server_mock = MagicMock()
-        server_mock.url = "http://mcp.example.com"
-        server_mock.auth_type = "none"
-        server_mock.auth_credential_ref = None
-        server_mock.auth_header_name = None
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = server_mock
-        db.execute.return_value = mock_result
-
         result = await service._execute_mcp_tool(
-            mcp_tool, {"city": "London"}, db
+            mcp_tool, {"city": "London"}, TENANT_ID
         )
 
         assert result["result"] == "Sunny, 25°C"
@@ -97,48 +95,47 @@ class TestExecuteMCPTool:
 
     @pytest.mark.asyncio
     @patch("app.services.agent_execution.MCPClient")
-    async def test_execution_failure(self, MockClient):
+    @patch("app.services.agent_execution._mcp_server_repo")
+    async def test_execution_failure(self, mock_server_repo, MockClient):
         mock_client = AsyncMock()
         mock_client.connect.side_effect = MCPClientError("Connection refused")
         MockClient.return_value = mock_client
 
+        server = {
+            "id": str(uuid.uuid4()),
+            "url": "http://mcp.example.com",
+            "auth_type": "none",
+            "auth_credential_ref": None,
+            "auth_header_name": None,
+        }
+        mock_server_repo.get = AsyncMock(return_value=server)
+
         service = AgentExecutionService()
         mcp_tool = _make_mcp_tool()
 
-        db = AsyncMock()
-        server_mock = MagicMock()
-        server_mock.url = "http://mcp.example.com"
-        server_mock.auth_type = "none"
-        server_mock.auth_credential_ref = None
-        server_mock.auth_header_name = None
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = server_mock
-        db.execute.return_value = mock_result
-
-        result = await service._execute_mcp_tool(mcp_tool, {}, db)
+        result = await service._execute_mcp_tool(mcp_tool, {}, TENANT_ID)
 
         assert "error" in result
         assert "Connection refused" in result["error"]
         mock_client.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_server_not_found(self):
+    @patch("app.services.agent_execution._mcp_server_repo")
+    async def test_server_not_found(self, mock_server_repo):
+        mock_server_repo.get = AsyncMock(return_value=None)
+
         service = AgentExecutionService()
         mcp_tool = _make_mcp_tool()
 
-        db = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        db.execute.return_value = mock_result
-
-        result = await service._execute_mcp_tool(mcp_tool, {}, db)
+        result = await service._execute_mcp_tool(mcp_tool, {}, TENANT_ID)
 
         assert "error" in result
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
     @patch("app.services.agent_execution.MCPClient")
-    async def test_tool_level_error(self, MockClient):
+    @patch("app.services.agent_execution._mcp_server_repo")
+    async def test_tool_level_error(self, mock_server_repo, MockClient):
         mock_client = AsyncMock()
         mock_client.connect.return_value = MagicMock()
         mock_client.call_tool.return_value = ToolCallResult(
@@ -147,20 +144,19 @@ class TestExecuteMCPTool:
         )
         MockClient.return_value = mock_client
 
+        server = {
+            "id": str(uuid.uuid4()),
+            "url": "http://mcp.example.com",
+            "auth_type": "none",
+            "auth_credential_ref": None,
+            "auth_header_name": None,
+        }
+        mock_server_repo.get = AsyncMock(return_value=server)
+
         service = AgentExecutionService()
         mcp_tool = _make_mcp_tool()
 
-        db = AsyncMock()
-        server_mock = MagicMock()
-        server_mock.url = "http://mcp.example.com"
-        server_mock.auth_type = "none"
-        server_mock.auth_credential_ref = None
-        server_mock.auth_header_name = None
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = server_mock
-        db.execute.return_value = mock_result
-
-        result = await service._execute_mcp_tool(mcp_tool, {"city": "Atlantis"}, db)
+        result = await service._execute_mcp_tool(mcp_tool, {"city": "Atlantis"}, TENANT_ID)
 
         assert result["is_error"] is True
         assert result["result"] == "City not found"
@@ -168,16 +164,23 @@ class TestExecuteMCPTool:
 
 class TestLoadAgentMCPTools:
     @pytest.mark.asyncio
-    async def test_returns_available_tools(self):
+    @patch("app.services.agent_execution._mcp_tool_repo")
+    @patch("app.services.agent_execution._agent_mcp_tool_repo")
+    async def test_returns_available_tools(self, mock_amt_repo, mock_tool_repo):
+        links = [
+            {"agent_id": "a1", "mcp_tool_id": "t1"},
+            {"agent_id": "a1", "mcp_tool_id": "t2"},
+        ]
+        mock_amt_repo.query = AsyncMock(return_value=links)
+
+        tools = [
+            _make_mcp_tool(tool_name="get_weather"),
+            _make_mcp_tool(tool_name="search"),
+        ]
+        mock_tool_repo.get = AsyncMock(side_effect=tools)
+
         service = AgentExecutionService()
-        db = AsyncMock()
-
-        tools = [_make_mcp_tool(), _make_mcp_tool(tool_name="search")]
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = tools
-        db.execute.return_value = mock_result
-
-        result = await service._load_agent_mcp_tools(uuid.uuid4(), db)
+        result = await service._load_agent_mcp_tools("a1", TENANT_ID)
         assert len(result) == 2
 
 

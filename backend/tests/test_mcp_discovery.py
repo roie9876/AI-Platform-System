@@ -1,12 +1,10 @@
 """Unit tests for MCP Tool Discovery Service."""
 
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.mcp_server import MCPServer
 from app.models.mcp_discovered_tool import MCPDiscoveredTool
 from app.services.mcp_discovery import MCPDiscoveryService, _build_auth_headers
 from app.services.mcp_client import MCPClientError, MCPConnectionError
@@ -19,10 +17,12 @@ from app.services.mcp_types import (
     ServerInfo,
 )
 
+TENANT_ID = str(uuid.uuid4())
+
 
 def _make_server(**overrides):
     defaults = {
-        "id": uuid.uuid4(),
+        "id": str(uuid.uuid4()),
         "name": "Test Server",
         "url": "http://mcp.example.com/sse",
         "auth_type": "none",
@@ -31,13 +31,10 @@ def _make_server(**overrides):
         "is_active": True,
         "status": "unknown",
         "status_message": None,
-        "tenant_id": uuid.uuid4(),
+        "tenant_id": TENANT_ID,
     }
     defaults.update(overrides)
-    mock = MagicMock(spec=MCPServer, **defaults)
-    for k, v in defaults.items():
-        setattr(mock, k, v)
-    return mock
+    return defaults
 
 
 def _make_init_result():
@@ -97,7 +94,9 @@ class TestBuildAuthHeaders:
 class TestDiscoverToolsFromServer:
     @pytest.mark.asyncio
     @patch("app.services.mcp_discovery.MCPClient")
-    async def test_discovers_tools_successfully(self, MockClient):
+    @patch("app.services.mcp_discovery._tool_repo")
+    @patch("app.services.mcp_discovery._server_repo")
+    async def test_discovers_tools_successfully(self, mock_server_repo, mock_tool_repo, MockClient):
         mock_client_instance = AsyncMock()
         mock_client_instance.connect.return_value = _make_init_result()
         mock_client_instance.list_tools.return_value = _make_tools_result(
@@ -105,119 +104,115 @@ class TestDiscoverToolsFromServer:
         )
         MockClient.return_value = mock_client_instance
 
-        db = AsyncMock()
-        db.execute.return_value = MagicMock()  # for delete
-        server = _make_server()
+        mock_server_repo.update = AsyncMock()
+        mock_tool_repo.query = AsyncMock(return_value=[])
+        mock_tool_repo.delete = AsyncMock()
+        mock_tool_repo.create = AsyncMock(side_effect=lambda tid, data: data)
 
-        tools = await MCPDiscoveryService.discover_tools_from_server(db, server)
+        server = _make_server()
+        tools = await MCPDiscoveryService.discover_tools_from_server(server, TENANT_ID)
 
         assert len(tools) == 2
-        assert server.status == "connected"
+        assert server["status"] == "connected"
         mock_client_instance.connect.assert_called_once()
         mock_client_instance.list_tools.assert_called_once()
         mock_client_instance.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("app.services.mcp_discovery.MCPClient")
-    async def test_handles_connection_failure(self, MockClient):
+    @patch("app.services.mcp_discovery._tool_repo")
+    @patch("app.services.mcp_discovery._server_repo")
+    async def test_handles_connection_failure(self, mock_server_repo, mock_tool_repo, MockClient):
         mock_client_instance = AsyncMock()
         mock_client_instance.connect.side_effect = MCPConnectionError("refused")
         MockClient.return_value = mock_client_instance
 
-        db = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        db.execute.return_value = mock_result
-        server = _make_server()
+        mock_server_repo.update = AsyncMock()
+        mock_tool_repo.query = AsyncMock(return_value=[])
+        mock_tool_repo.update = AsyncMock()
 
-        tools = await MCPDiscoveryService.discover_tools_from_server(db, server)
+        server = _make_server()
+        tools = await MCPDiscoveryService.discover_tools_from_server(server, TENANT_ID)
 
         assert tools == []
-        assert server.status == "error"
-        assert "refused" in server.status_message
+        assert server["status"] == "error"
+        assert "refused" in server["status_message"]
         mock_client_instance.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("app.services.mcp_discovery.MCPClient")
-    async def test_marks_existing_tools_unavailable_on_failure(self, MockClient):
+    @patch("app.services.mcp_discovery._tool_repo")
+    @patch("app.services.mcp_discovery._server_repo")
+    async def test_marks_existing_tools_unavailable_on_failure(self, mock_server_repo, mock_tool_repo, MockClient):
         mock_client_instance = AsyncMock()
         mock_client_instance.connect.side_effect = MCPConnectionError("timeout")
         MockClient.return_value = mock_client_instance
 
-        existing_tool = MagicMock()
-        existing_tool.is_available = True
+        existing_tool = {"id": "t1", "server_id": "s1", "is_available": True, "tenant_id": TENANT_ID}
+        mock_server_repo.update = AsyncMock()
+        mock_tool_repo.query = AsyncMock(return_value=[existing_tool])
+        mock_tool_repo.update = AsyncMock()
 
-        db = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [existing_tool]
-        db.execute.return_value = mock_result
         server = _make_server()
+        await MCPDiscoveryService.discover_tools_from_server(server, TENANT_ID)
 
-        await MCPDiscoveryService.discover_tools_from_server(db, server)
-
-        assert existing_tool.is_available is False
+        # The service sets is_available = False and calls update
+        assert existing_tool["is_available"] is False
+        mock_tool_repo.update.assert_called_once()
 
 
 class TestHealthCheckServer:
     @pytest.mark.asyncio
     @patch("app.services.mcp_discovery.MCPClient")
-    async def test_healthy_server(self, MockClient):
+    @patch("app.services.mcp_discovery._server_repo")
+    async def test_healthy_server(self, mock_server_repo, MockClient):
         mock_client_instance = AsyncMock()
         mock_client_instance.connect.return_value = _make_init_result()
         MockClient.return_value = mock_client_instance
+        mock_server_repo.update = AsyncMock()
 
-        db = AsyncMock()
         server = _make_server()
-
-        result = await MCPDiscoveryService.health_check_server(db, server)
+        result = await MCPDiscoveryService.health_check_server(server, TENANT_ID)
 
         assert result is True
-        assert server.status == "connected"
-        assert "Healthy" in server.status_message
+        assert server["status"] == "connected"
+        assert "Healthy" in server["status_message"]
 
     @pytest.mark.asyncio
     @patch("app.services.mcp_discovery.MCPClient")
-    async def test_unhealthy_server(self, MockClient):
+    @patch("app.services.mcp_discovery._server_repo")
+    async def test_unhealthy_server(self, mock_server_repo, MockClient):
         mock_client_instance = AsyncMock()
         mock_client_instance.connect.side_effect = MCPConnectionError("refused")
         MockClient.return_value = mock_client_instance
+        mock_server_repo.update = AsyncMock()
 
-        db = AsyncMock()
         server = _make_server()
-
-        result = await MCPDiscoveryService.health_check_server(db, server)
+        result = await MCPDiscoveryService.health_check_server(server, TENANT_ID)
 
         assert result is False
-        assert server.status == "error"
+        assert server["status"] == "error"
 
 
 class TestGetAllDiscoveredTools:
     @pytest.mark.asyncio
-    async def test_returns_tools(self):
-        db = AsyncMock()
-        mock_tools = [MagicMock(), MagicMock()]
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = mock_tools
-        db.execute.return_value = mock_result
+    @patch("app.services.mcp_discovery._tool_repo")
+    async def test_returns_tools(self, mock_tool_repo):
+        mock_tools = [{"id": "1", "tool_name": "a"}, {"id": "2", "tool_name": "b"}]
+        mock_tool_repo.query = AsyncMock(return_value=mock_tools)
 
-        tools = await MCPDiscoveryService.get_all_discovered_tools(
-            db, tenant_id=uuid.uuid4()
-        )
+        tools = await MCPDiscoveryService.get_all_discovered_tools(TENANT_ID)
         assert len(tools) == 2
 
     @pytest.mark.asyncio
-    async def test_filter_by_server(self):
-        db = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        db.execute.return_value = mock_result
+    @patch("app.services.mcp_discovery._tool_repo")
+    async def test_filter_by_server(self, mock_tool_repo):
+        mock_tool_repo.query = AsyncMock(return_value=[])
 
-        server_id = uuid.uuid4()
-        tools = await MCPDiscoveryService.get_all_discovered_tools(
-            db, tenant_id=uuid.uuid4(), server_id=server_id
-        )
+        server_id = str(uuid.uuid4())
+        tools = await MCPDiscoveryService.get_all_discovered_tools(TENANT_ID, server_id=server_id)
         assert tools == []
-        db.execute.assert_called_once()
+        mock_tool_repo.query.assert_called_once()
 
 
 class TestMCPDiscoveredToolModel:
