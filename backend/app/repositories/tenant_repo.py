@@ -18,7 +18,6 @@ class TenantRepository(CosmosRepository):
         async for item in container.query_items(
             query="SELECT * FROM c WHERE c.slug = @slug",
             parameters=[{"name": "@slug", "value": slug}],
-            enable_cross_partition_query=True,
         ):
             items.append(item)
         return items[0] if items else None
@@ -31,7 +30,6 @@ class TenantRepository(CosmosRepository):
         items = []
         async for item in container.query_items(
             query="SELECT * FROM c",
-            enable_cross_partition_query=True,
         ):
             items.append(item)
         return items
@@ -45,7 +43,6 @@ class TenantRepository(CosmosRepository):
         async for item in container.query_items(
             query="SELECT * FROM c WHERE c.status = @status",
             parameters=[{"name": "@status", "value": status}],
-            enable_cross_partition_query=True,
         ):
             items.append(item)
         return items

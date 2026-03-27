@@ -10,3 +10,4 @@ param aksKubernetesVersion = '1.33'
 param acrSku = 'Standard'
 param logRetentionDays = 30
 param alertEmail = 'admin@stumsft.com'
+param entraAppClientId = '33aa4e94-7920-429e-ad78-bf7de0b89440'

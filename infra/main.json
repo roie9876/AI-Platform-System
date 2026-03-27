@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "12687400895208820768"
+      "templateHash": "4470423218208319988"
     }
   },
   "parameters": {
@@ -662,7 +662,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "4754553989326206125"
+              "templateHash": "11324713480761051108"
             }
           },
           "parameters": {
@@ -694,51 +694,8 @@
             }
           },
           "variables": {
-            "containersWithUniqueKeys": [
-              {
-                "name": "agents",
-                "uniqueKeyPaths": [
-                  "/slug"
-                ]
-              },
-              {
-                "name": "data_sources",
-                "uniqueKeyPaths": [
-                  "/name"
-                ]
-              },
-              {
-                "name": "mcp_servers",
-                "uniqueKeyPaths": [
-                  "/name"
-                ]
-              },
-              {
-                "name": "model_endpoints",
-                "uniqueKeyPaths": [
-                  "/name"
-                ]
-              },
-              {
-                "name": "tenants",
-                "uniqueKeyPaths": [
-                  "/slug"
-                ]
-              },
-              {
-                "name": "tools",
-                "uniqueKeyPaths": [
-                  "/name"
-                ]
-              },
-              {
-                "name": "users",
-                "uniqueKeyPaths": [
-                  "/email"
-                ]
-              }
-            ],
-            "simpleContainerNames": [
+            "containerNames": [
+              "agents",
               "agent_config_versions",
               "agent_data_sources",
               "agent_mcp_tools",
@@ -749,19 +706,25 @@
               "azure_subscriptions",
               "catalog_entries",
               "cost_alerts",
+              "data_sources",
               "documents",
               "document_chunks",
               "evaluation_results",
               "evaluation_runs",
               "execution_logs",
               "mcp_discovered_tools",
+              "mcp_servers",
+              "model_endpoints",
               "model_pricing",
               "refresh_tokens",
+              "tenants",
               "test_cases",
               "test_suites",
               "thread_messages",
               "threads",
               "tool_templates",
+              "tools",
+              "users",
               "workflow_edges",
               "workflow_executions",
               "workflow_node_executions",
@@ -810,45 +773,15 @@
             },
             {
               "copy": {
-                "name": "uniqueContainers",
-                "count": "[length(variables('containersWithUniqueKeys'))]"
+                "name": "containers",
+                "count": "[length(variables('containerNames'))]"
               },
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
               "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('containersWithUniqueKeys')[copyIndex()].name)]",
+              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('containerNames')[copyIndex()])]",
               "properties": {
                 "resource": {
-                  "id": "[variables('containersWithUniqueKeys')[copyIndex()].name]",
-                  "partitionKey": {
-                    "paths": [
-                      "/tenant_id"
-                    ],
-                    "kind": "Hash"
-                  },
-                  "uniqueKeyPolicy": {
-                    "uniqueKeys": [
-                      {
-                        "paths": "[variables('containersWithUniqueKeys')[copyIndex()].uniqueKeyPaths]"
-                      }
-                    ]
-                  }
-                }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
-              ]
-            },
-            {
-              "copy": {
-                "name": "simpleContainers",
-                "count": "[length(variables('simpleContainerNames'))]"
-              },
-              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-              "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', variables('simpleContainerNames')[copyIndex()])]",
-              "properties": {
-                "resource": {
-                  "id": "[variables('simpleContainerNames')[copyIndex()]]",
+                  "id": "[variables('containerNames')[copyIndex()]]",
                   "partitionKey": {
                     "paths": [
                       "/tenant_id"

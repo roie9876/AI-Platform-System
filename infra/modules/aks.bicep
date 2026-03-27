@@ -31,9 +31,13 @@ param userNodeVmSize string = 'Standard_D4s_v5'
 @description('Kubernetes version')
 param kubernetesVersion string = '1.33'
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 resource cluster 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
   name: 'stumsft-aiplatform-${environmentName}-aks'
   location: location
+  tags: tags
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

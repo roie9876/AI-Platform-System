@@ -162,7 +162,6 @@ KEY_VAULT_NAME=$(echo "${OUTPUTS}" | jq -r '.keyVaultName.value')
 WORKLOAD_ID=$(echo "${OUTPUTS}" | jq -r '.workloadIdentityClientId.value')
 APP_INSIGHTS_CS=$(echo "${OUTPUTS}" | jq -r '.appInsightsConnectionString.value')
 AGC_ID=$(echo "${OUTPUTS}" | jq -r '.agcId.value')
-AGC_FQDN=$(echo "${OUTPUTS}" | jq -r '.agcFqdn.value')
 
 echo "  ACR Server:     ${ACR_SERVER}"
 echo "  AKS Cluster:    ${AKS_CLUSTER}"
@@ -171,7 +170,6 @@ echo "  Key Vault:      ${KEY_VAULT_NAME} (${KEY_VAULT_URI})"
 echo "  Workload ID:    ${WORKLOAD_ID}"
 echo "  App Insights:   ${APP_INSIGHTS_CS:0:40}..."
 echo "  AGC ID:         ${AGC_ID}"
-echo "  AGC FQDN:       ${AGC_FQDN}"
 
 TENANT_ID=$(az account show --query tenantId -o tsv)
 echo "  Tenant ID:      ${TENANT_ID}"
@@ -191,11 +189,12 @@ echo "  kubectl context set to ${AKS_CLUSTER}"
 
 step "Enable ALB Controller (Application Gateway for Containers)"
 
-echo "  Enabling ALB Controller addon on AKS..."
+echo "  Enabling ALB Controller addon and Gateway API on AKS..."
 az aks update \
   --resource-group "${RESOURCE_GROUP}" \
   --name "${AKS_CLUSTER}" \
-  --enable-alb-controller \
+  --enable-application-load-balancer \
+  --enable-gateway-api \
   --only-show-errors || echo -e "  ${YELLOW}ALB Controller already enabled or update in progress${NC}"
 
 echo -e "  ${GREEN}✓ ALB Controller enabled${NC}"
@@ -268,12 +267,8 @@ else
   echo "  AGC resource ID already populated (skipping)"
 fi
 
-if grep -q '${AGC_FQDN}' "${CONFIGMAP_FILE}"; then
-  sed -i '' "s|\${AGC_FQDN}|${AGC_FQDN}|g" "${CONFIGMAP_FILE}"
-  echo "  Updated AGC FQDN in configmap CORS_ORIGINS"
-else
-  echo "  AGC FQDN already populated (skipping)"
-fi
+# AGC FQDN is managed by the ALB controller — retrieve after ingress is applied
+echo "  AGC FQDN will be resolved from the ingress after deployment"
 
 # ─── Step 7: Update K8s Secrets ───────────────────────────────────────────────
 
@@ -330,6 +325,31 @@ for SVC_IMAGE in api-gateway agent-executor workflow-engine tool-executor mcp-pr
     echo -e "${RED}timeout or error${NC}"
   fi
 done
+
+# ─── Step 9b: Update CORS with AGC FQDN ──────────────────────────────────────
+
+step "Update CORS with AGC FQDN"
+
+echo "  Waiting for AGC to assign FQDN to ingress..."
+AGC_FQDN=""
+for i in $(seq 1 30); do
+  AGC_FQDN=$(kubectl get ingress aiplatform-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+  if [ -n "${AGC_FQDN}" ]; then
+    break
+  fi
+  sleep 10
+done
+
+if [ -n "${AGC_FQDN}" ]; then
+  echo "  AGC FQDN: ${AGC_FQDN}"
+  kubectl patch configmap aiplatform-config --type=merge \
+    -p "{\"data\":{\"CORS_ORIGINS\":\"[\\\"https://aiplatform.stumsft.com\\\",\\\"http://localhost:3000\\\",\\\"https://${AGC_FQDN}\\\",\\\"http://${AGC_FQDN}\\\"]\"}}"
+  echo -e "  ${GREEN}✓ CORS_ORIGINS updated with AGC FQDN${NC}"
+  kubectl rollout restart deployment/api-gateway
+  kubectl rollout status deployment/api-gateway --timeout=120s
+else
+  echo -e "  ${YELLOW}Warning: Could not resolve AGC FQDN from ingress. CORS may need manual update.${NC}"
+fi
 
 # ─── Step 10: Smoke Tests ────────────────────────────────────────────────────
 

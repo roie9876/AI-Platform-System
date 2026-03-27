@@ -10,10 +10,14 @@ param logAnalyticsWorkspaceId string = ''
 @description('Principal ID of workload identity for Cosmos DB data plane RBAC')
 param workloadIdentityPrincipalId string
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 // Cosmos DB Account - Serverless NoSQL
 resource account 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   name: 'stumsft-aiplatform-${environmentName}-cosmos'
   location: location
+  tags: tags
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
@@ -48,19 +52,13 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15
 
 // Containers requiring uniqueKeyPolicy for business uniqueness within a partition.
 // NOTE: Cosmos DB uniqueKeyPolicy is immutable after container creation.
-// Existing containers require recreation to add unique keys.
-var containersWithUniqueKeys = [
-  { name: 'agents', uniqueKeyPaths: ['/slug'] }
-  { name: 'data_sources', uniqueKeyPaths: ['/name'] }
-  { name: 'mcp_servers', uniqueKeyPaths: ['/name'] }
-  { name: 'model_endpoints', uniqueKeyPaths: ['/name'] }
-  { name: 'tenants', uniqueKeyPaths: ['/slug'] }
-  { name: 'tools', uniqueKeyPaths: ['/name'] }
-  { name: 'users', uniqueKeyPaths: ['/email'] }
-]
+// These containers were originally created without unique keys and cannot
+// be modified via Bicep. Unique key enforcement is handled at the application layer.
+// To add unique keys, containers must be manually dropped and recreated.
 
-// All remaining containers without unique key constraints
-var simpleContainerNames = [
+// All containers with /tenant_id partition key
+var containerNames = [
+  'agents'
   'agent_config_versions'
   'agent_data_sources'
   'agent_mcp_tools'
@@ -71,19 +69,25 @@ var simpleContainerNames = [
   'azure_subscriptions'
   'catalog_entries'
   'cost_alerts'
+  'data_sources'
   'documents'
   'document_chunks'
   'evaluation_results'
   'evaluation_runs'
   'execution_logs'
   'mcp_discovered_tools'
+  'mcp_servers'
+  'model_endpoints'
   'model_pricing'
   'refresh_tokens'
+  'tenants'
   'test_cases'
   'test_suites'
   'thread_messages'
   'threads'
   'tool_templates'
+  'tools'
+  'users'
   'workflow_edges'
   'workflow_executions'
   'workflow_node_executions'
@@ -91,32 +95,8 @@ var simpleContainerNames = [
   'workflows'
 ]
 
-// Create containers with uniqueKeyPolicy
-resource uniqueContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = [for container in containersWithUniqueKeys: {
-  parent: database
-  name: container.name
-  properties: {
-    resource: {
-      id: container.name
-      partitionKey: {
-        paths: [
-          '/tenant_id'
-        ]
-        kind: 'Hash'
-      }
-      uniqueKeyPolicy: {
-        uniqueKeys: [
-          {
-            paths: container.uniqueKeyPaths
-          }
-        ]
-      }
-    }
-  }
-}]
-
-// Create remaining containers with /tenant_id partition key (no unique keys)
-resource simpleContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = [for name in simpleContainerNames: {
+// Create all containers with /tenant_id partition key
+resource containers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = [for name in containerNames: {
   parent: database
   name: name
   properties: {

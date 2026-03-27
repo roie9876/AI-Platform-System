@@ -7,9 +7,13 @@ param environmentName string = 'prod'
 @description('Resource ID of Log Analytics workspace')
 param workspaceId string
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: 'stumsft-aiplatform-${environmentName}-appi'
   location: location
+  tags: tags
   kind: 'web'
   properties: {
     Application_Type: 'web'

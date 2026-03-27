@@ -13,16 +13,23 @@ param workloadIdentityClientId string
 @description('Cosmos DB document endpoint (stored as secret for pod consumption)')
 param cosmosEndpoint string
 
+@description('Entra ID SPA application client ID (for user authentication token validation)')
+param entraAppClientId string
+
 @description('Resource ID of Log Analytics workspace for diagnostics (optional)')
 param logAnalyticsWorkspaceId string = ''
 
 @description('Azure AD tenant ID')
 param tenantId string = subscription().tenantId
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 // Key Vault name max 24 chars: stumsft-aiplat-prod-kv = 22 chars
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: 'stumsft-aiplat-${environmentName}-kv'
   location: location
+  tags: tags
   properties: {
     sku: {
       family: 'A'
@@ -63,7 +70,7 @@ resource secretEntraClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: vault
   name: 'entra-client-id'
   properties: {
-    value: workloadIdentityClientId
+    value: entraAppClientId
   }
 }
 

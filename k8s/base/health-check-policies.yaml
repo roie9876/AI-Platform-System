@@ -1,0 +1,117 @@
+# Health check policies for Application Gateway for Containers
+# AGC defaults to probing "/" — these override for services that don't serve "/"
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: api-gateway-health-check
+  namespace: aiplatform
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: api-gateway
+  default:
+    interval: 15s
+    timeout: 10s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    port: 8000
+    http:
+      path: /api/v1/health
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: agent-executor-health-check
+  namespace: aiplatform
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: agent-executor
+  default:
+    interval: 15s
+    timeout: 10s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    port: 8000
+    http:
+      path: /healthz
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: workflow-engine-health-check
+  namespace: aiplatform
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: workflow-engine
+  default:
+    interval: 15s
+    timeout: 10s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    port: 8000
+    http:
+      path: /healthz
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: tool-executor-health-check
+  namespace: aiplatform
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: tool-executor
+  default:
+    interval: 15s
+    timeout: 10s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    port: 8000
+    http:
+      path: /healthz
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: mcp-proxy-health-check
+  namespace: aiplatform
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: mcp-proxy
+  default:
+    interval: 15s
+    timeout: 10s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    port: 8000
+    http:
+      path: /healthz
+      match:
+        statusCodes:
+          - start: 200
+            end: 299

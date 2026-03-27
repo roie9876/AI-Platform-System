@@ -30,6 +30,16 @@ param logRetentionDays int = 30
 @description('Email address for alert notifications')
 param alertEmail string = 'admin@stumsft.com'
 
+@description('Entra ID SPA application client ID (for user authentication)')
+param entraAppClientId string
+
+// Common tags applied to all resources
+var commonTags = {
+  SecurityControl: 'Ignore'
+  Environment: environmentName
+  Project: 'AI-Platform'
+}
+
 // ============================================================================
 // Wave 1: No dependencies — leaf-node resources
 // ============================================================================
@@ -39,6 +49,7 @@ module vnet './modules/vnet.bicep' = {
   params: {
     location: location
     environmentName: environmentName
+    tags: commonTags
   }
 }
 
@@ -48,6 +59,7 @@ module loganalytics './modules/loganalytics.bicep' = {
     location: location
     environmentName: environmentName
     retentionInDays: logRetentionDays
+    tags: commonTags
   }
 }
 
@@ -56,6 +68,7 @@ module identity './modules/identity.bicep' = {
   params: {
     location: location
     environmentName: environmentName
+    tags: commonTags
   }
 }
 
@@ -66,6 +79,7 @@ module cosmos './modules/cosmos.bicep' = {
     environmentName: environmentName
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    tags: commonTags
   }
 }
 
@@ -80,6 +94,7 @@ module acr './modules/acr.bicep' = {
     environmentName: environmentName
     sku: acrSku
     aksIdentityPrincipalId: identity.outputs.aksIdentityPrincipalId
+    tags: commonTags
   }
 }
 
@@ -97,6 +112,7 @@ module aks './modules/aks.bicep' = {
     userNodeCount: aksUserNodeCount
     userNodeVmSize: aksUserNodeVmSize
     kubernetesVersion: aksKubernetesVersion
+    tags: commonTags
   }
 }
 
@@ -107,8 +123,10 @@ module keyvault './modules/keyvault.bicep' = {
     environmentName: environmentName
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
     workloadIdentityClientId: identity.outputs.workloadIdentityClientId
+    entraAppClientId: entraAppClientId
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    tags: commonTags
   }
 }
 
@@ -122,6 +140,7 @@ module appInsights './modules/appinsights.bicep' = {
     location: location
     environmentName: environmentName
     workspaceId: loganalytics.outputs.workspaceId
+    tags: commonTags
   }
 }
 
@@ -134,6 +153,7 @@ module alerts './modules/alerts.bicep' = {
     aksClusterId: aks.outputs.aksClusterId
     cosmosAccountId: cosmos.outputs.cosmosAccountId
     actionGroupEmail: alertEmail
+    tags: commonTags
   }
 }
 
@@ -143,6 +163,7 @@ module agc './modules/agc.bicep' = {
     location: location
     environmentName: environmentName
     agcSubnetId: vnet.outputs.agcSubnetId
+    tags: commonTags
   }
 }
 
@@ -208,6 +229,3 @@ output appInsightsConnectionString string = appInsights.outputs.connectionString
 
 @description('Application Gateway for Containers resource ID')
 output agcId string = agc.outputs.agcId
-
-@description('Application Gateway for Containers FQDN')
-output agcFqdn string = agc.outputs.agcFqdn

@@ -10,13 +10,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const [msalInstance, setMsalInstance] = useState<PublicClientApplication | null>(null);
 
   useEffect(() => {
-    initializeMsal().then((instance) => {
-      // Set active account from cache if available (covers page refresh after login)
-      const accounts = instance.getAllAccounts();
-      if (accounts.length > 0 && !instance.getActiveAccount()) {
-        instance.setActiveAccount(accounts[0]);
-      }
-
+    initializeMsal().then(async (instance) => {
       // Listen for login success and redirect completion to set active account
       instance.addEventCallback((event: EventMessage) => {
         if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
@@ -25,14 +19,25 @@ export function Providers({ children }: { children: ReactNode }) {
             instance.setActiveAccount(result.account);
           }
         }
-        // After MsalProvider processes redirect, set account from cache
-        if (event.eventType === EventType.HANDLE_REDIRECT_END) {
-          const accts = instance.getAllAccounts();
-          if (accts.length > 0 && !instance.getActiveAccount()) {
-            instance.setActiveAccount(accts[0]);
-          }
-        }
       });
+
+      // CRITICAL: handleRedirectPromise must be called to process the auth code
+      // from the URL after login redirect. Without this, acquireTokenSilent has
+      // no cached tokens and all API calls return 401.
+      try {
+        const result = await instance.handleRedirectPromise();
+        if (result?.account) {
+          instance.setActiveAccount(result.account);
+        }
+      } catch (err) {
+        console.error("[Providers] handleRedirectPromise failed:", err);
+      }
+
+      // Set active account from cache if available (covers page refresh after login)
+      const accounts = instance.getAllAccounts();
+      if (accounts.length > 0 && !instance.getActiveAccount()) {
+        instance.setActiveAccount(accounts[0]);
+      }
 
       setMsalInstance(instance);
     });

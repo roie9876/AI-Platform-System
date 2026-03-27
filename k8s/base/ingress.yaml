@@ -4,10 +4,16 @@ metadata:
   name: aiplatform-ingress
   annotations:
     alb.networking.azure.io/alb-id: "${AGC_RESOURCE_ID}"
+    alb.networking.azure.io/ssl-redirect: "true"
 spec:
   ingressClassName: azure-alb-external
+  tls:
+    - hosts:
+        - "${AGC_FQDN}"
+      secretName: agc-tls-secret
   rules:
-    - http:
+    - host: "${AGC_FQDN}"
+      http:
         paths:
           # Threads — agent-executor
           - path: /api/v1/threads
@@ -71,14 +77,6 @@ spec:
                 port:
                   number: 8000
           # Frontend — catch-all for everything else (pages, static assets)
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 3000
-          # Frontend — catch-all for everything else
           - path: /
             pathType: Prefix
             backend:

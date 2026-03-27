@@ -7,9 +7,13 @@ param environmentName string = 'prod'
 @description('Log retention in days')
 param retentionInDays int = 30
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'stumsft-aiplatform-${environmentName}-law'
   location: location
+  tags: tags
   properties: {
     sku: {
       name: 'PerGB2018'

@@ -10,10 +10,14 @@ param sku string = 'Standard'
 @description('Principal ID of AKS identity for AcrPull role assignment')
 param aksIdentityPrincipalId string
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 // Azure Container Registry (names must be alphanumeric)
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: 'stumsftaiplatform${environmentName}acr'
   location: location
+  tags: tags
   sku: {
     name: sku
   }

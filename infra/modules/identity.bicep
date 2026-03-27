@@ -4,16 +4,21 @@ param location string
 @description('Environment name used in resource naming')
 param environmentName string = 'prod'
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 // AKS control plane identity
 resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'stumsft-aiplatform-${environmentName}-aks-id'
   location: location
+  tags: tags
 }
 
 // Workload identity for application pods
 resource workloadIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'stumsft-aiplatform-${environmentName}-workload-id'
   location: location
+  tags: tags
 }
 
 @description('Resource ID of AKS control plane identity')

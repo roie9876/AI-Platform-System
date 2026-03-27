@@ -16,21 +16,25 @@ param aksPodsSubnetPrefix string = '10.0.4.0/22'
 @description('Private endpoints subnet address prefix')
 param privateEndpointsSubnetPrefix string = '10.0.8.0/24'
 
-@description('Application Gateway for Containers subnet address prefix')
-param agcSubnetPrefix string = '10.0.12.0/22'
+@description('Application Gateway for Containers subnet address prefix (must be /24 or smaller for overlay CNI)')
+param agcSubnetPrefix string = '10.0.12.0/24'
+
+@description('Tags to apply to all resources')
+param tags object = {}
 
 // NSG for aks-nodes subnet
 resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-nsg-aks-nodes'
   location: location
+  tags: tags
   properties: {
     securityRules: [
       {
-        name: 'DenyAllInbound'
+        name: 'AllowAllInbound'
         properties: {
-          priority: 4096
+          priority: 100
           direction: 'Inbound'
-          access: 'Deny'
+          access: 'Allow'
           protocol: '*'
           sourcePortRange: '*'
           destinationPortRange: '*'
@@ -59,14 +63,15 @@ resource aksNodesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
 resource aksPodsNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-nsg-aks-pods'
   location: location
+  tags: tags
   properties: {
     securityRules: [
       {
-        name: 'DenyAllInbound'
+        name: 'AllowAllInbound'
         properties: {
-          priority: 4096
+          priority: 100
           direction: 'Inbound'
-          access: 'Deny'
+          access: 'Allow'
           protocol: '*'
           sourcePortRange: '*'
           destinationPortRange: '*'
@@ -95,6 +100,7 @@ resource aksPodsNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
 resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-nsg-private-endpoints'
   location: location
+  tags: tags
   properties: {
     securityRules: [
       {
@@ -131,6 +137,7 @@ resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01
 resource agcNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-nsg-agc'
   location: location
+  tags: tags
   properties: {
     securityRules: [
       {
@@ -180,6 +187,7 @@ resource agcNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
 resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-vnet'
   location: location
+  tags: tags
   properties: {
     addressSpace: {
       addressPrefixes: [

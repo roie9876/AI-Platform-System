@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import logging
+import traceback
 from typing import Any
 
 import httpx
@@ -102,7 +103,7 @@ async def validate_entra_token(token: str) -> dict | None:
         logger.error("Entra ID token validation FAILED: %s", e)
         return None
     except Exception as e:
-        logger.error("Unexpected error validating Entra ID token: %s", e)
+        logger.error("Unexpected error validating Entra ID token: %s (type=%s)\n%s", repr(e), type(e).__name__, traceback.format_exc())
         return None
 
 

@@ -16,10 +16,14 @@ param cosmosAccountId string
 @description('Email address for alert notifications')
 param actionGroupEmail string = 'admin@stumsft.com'
 
+@description('Tags to apply to all resources')
+param tags object = {}
+
 // Action Group
 resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   name: 'stumsft-aiplatform-${environmentName}-ag'
   location: 'global'
+  tags: tags
   properties: {
     groupShortName: 'AIPlatform'
     enabled: true
@@ -37,6 +41,7 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
 resource podRestartAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'stumsft-aiplatform-${environmentName}-aks-pod-restart-alert'
   location: 'global'
+  tags: tags
   properties: {
     description: 'AKS pod restart count exceeds threshold'
     severity: 2
@@ -71,6 +76,7 @@ resource podRestartAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 resource fiveXXAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'stumsft-aiplatform-${environmentName}-app-5xx-rate-alert'
   location: 'global'
+  tags: tags
   properties: {
     description: 'Application 5xx error rate exceeds threshold'
     severity: 2
@@ -105,6 +111,7 @@ resource fiveXXAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 resource cosmosRUAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'stumsft-aiplatform-${environmentName}-cosmos-ru-consumption-alert'
   location: 'global'
+  tags: tags
   properties: {
     description: 'Cosmos DB Normalized RU Consumption exceeds 80%'
     severity: 2
@@ -139,6 +146,7 @@ resource cosmosRUAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 resource nodeCPUAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'stumsft-aiplatform-${environmentName}-aks-node-cpu-alert'
   location: 'global'
+  tags: tags
   properties: {
     description: 'AKS node CPU usage exceeds 80%'
     severity: 2
