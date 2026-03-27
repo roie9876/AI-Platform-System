@@ -22,11 +22,32 @@ from app.services.agent_execution import AgentExecutionService
 
 _agent_repo = AgentRepository()
 
+import logging as _logging
+import os as _os
+_startup_logger = _logging.getLogger(__name__)
+
+def _log_auth_config(svc: str):
+    from app.core.config import settings
+    env_cid = _os.environ.get("AZURE_CLIENT_ID", "")
+    entra_cid = _os.environ.get("ENTRA_APP_CLIENT_ID", "")
+    resolved = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
+    _startup_logger.warning(
+        "[%s] AUTH CONFIG: AZURE_CLIENT_ID(env)=...%s  ENTRA_APP_CLIENT_ID(env)=...%s  "
+        "resolved_jwt_audience=...%s  AZURE_TENANT_ID=...%s  WORKLOAD_CLIENT_ID=...%s",
+        svc,
+        env_cid[-4:] if env_cid else "UNSET",
+        entra_cid[-4:] if entra_cid else "UNSET",
+        resolved[-4:] if resolved else "UNSET",
+        settings.AZURE_TENANT_ID[-4:] if settings.AZURE_TENANT_ID else "UNSET",
+        settings.AZURE_WORKLOAD_CLIENT_ID[-4:] if settings.AZURE_WORKLOAD_CLIENT_ID else "UNSET",
+    )
+
 
 @asynccontextmanager
 async def lifespan(app):
     configure_logging(service_name="agent-executor")
     init_telemetry(service_name="agent-executor")
+    _log_auth_config("agent-executor")
     yield
     await close_cosmos_client()
 

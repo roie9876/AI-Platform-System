@@ -57,10 +57,13 @@ async def validate_entra_token(token: str) -> dict | None:
             logger.error("No signing key found for kid=%s (have %d keys)", kid, len(keys))
             return None
 
-        # Accept both raw client ID and api:// prefixed URI as valid audiences
-        valid_audiences = {settings.AZURE_CLIENT_ID}
-        if not settings.AZURE_CLIENT_ID.startswith("api://"):
-            valid_audiences.add(f"api://{settings.AZURE_CLIENT_ID}")
+        # Accept both raw client ID and api:// prefixed URI as valid audiences.
+        # Use ENTRA_APP_CLIENT_ID (not overridden by workload identity webhook),
+        # falling back to AZURE_CLIENT_ID for backward compatibility.
+        app_client_id = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
+        valid_audiences = {app_client_id}
+        if not app_client_id.startswith("api://"):
+            valid_audiences.add(f"api://{app_client_id}")
 
         # python-jose audience can be a string or set — check token's actual aud
         token_aud = unverified.get("aud")

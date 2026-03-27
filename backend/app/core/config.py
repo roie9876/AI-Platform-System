@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     AZURE_JWKS_URI: str = ""
     AZURE_ISSUER: str = ""
 
+    # SPA app client ID for JWT audience validation — separate from AZURE_CLIENT_ID
+    # because the Azure Workload Identity webhook overrides AZURE_CLIENT_ID with
+    # the managed identity client ID.  Falls back to AZURE_CLIENT_ID if not set.
+    ENTRA_APP_CLIENT_ID: str = ""
+
     # Workload Identity client ID (for Cosmos DB auth via DefaultAzureCredential)
     AZURE_WORKLOAD_CLIENT_ID: str = ""
 
