@@ -21,7 +21,7 @@ spec:
       serviceAccountName: aiplatform-workload
       containers:
         - name: workflow-engine
-          image: stumsftaiplatformprodacr.azurecr.io/aiplatform-workflow-engine:latest
+          image: ${ACR_SERVER}/aiplatform-workflow-engine:latest
           ports:
             - containerPort: 8000
               protocol: TCP

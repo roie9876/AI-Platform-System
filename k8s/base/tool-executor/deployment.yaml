@@ -21,7 +21,7 @@ spec:
       serviceAccountName: aiplatform-workload
       containers:
         - name: tool-executor
-          image: stumsftaiplatformprodacr.azurecr.io/aiplatform-tool-executor:latest
+          image: ${ACR_SERVER}/aiplatform-tool-executor:latest
           ports:
             - containerPort: 8000
               protocol: TCP

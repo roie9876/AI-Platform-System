@@ -20,7 +20,7 @@ spec:
       serviceAccountName: aiplatform-workload
       containers:
         - name: frontend
-          image: stumsftaiplatformprodacr.azurecr.io/aiplatform-frontend:latest
+          image: ${ACR_SERVER}/aiplatform-frontend:latest
           ports:
             - containerPort: 3000
               protocol: TCP

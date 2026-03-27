@@ -21,7 +21,7 @@ spec:
       serviceAccountName: aiplatform-workload
       containers:
         - name: api-gateway
-          image: stumsftaiplatformprodacr.azurecr.io/aiplatform-api-gateway:latest
+          image: ${ACR_SERVER}/aiplatform-api-gateway:latest
           ports:
             - containerPort: 8000
               protocol: TCP
