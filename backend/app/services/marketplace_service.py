@@ -1,8 +1,11 @@
+import logging
 from typing import Optional
 from uuid import uuid4
 
 from app.repositories.marketplace_repo import AgentTemplateRepository, ToolTemplateRepository
 from app.repositories.agent_repo import AgentRepository
+
+logger = logging.getLogger(__name__)
 from app.repositories.tool_repo import ToolRepository
 
 _agent_template_repo = AgentTemplateRepository()
@@ -42,7 +45,11 @@ class MarketplaceService:
             {"name": "@offset", "value": offset},
             {"name": "@limit", "value": limit},
         ])
-        return await _agent_template_repo.query(tenant_id, query, params)
+        try:
+            return await _agent_template_repo.query(tenant_id, query, params)
+        except Exception:
+            logger.exception("Failed to query agent templates from Cosmos DB")
+            return []
 
     @staticmethod
     async def get_agent_template(tenant_id: str, template_id: str):
@@ -132,7 +139,11 @@ class MarketplaceService:
             {"name": "@offset", "value": offset},
             {"name": "@limit", "value": limit},
         ])
-        return await _tool_template_repo.query(tenant_id, query, params)
+        try:
+            return await _tool_template_repo.query(tenant_id, query, params)
+        except Exception:
+            logger.exception("Failed to query tool templates from Cosmos DB")
+            return []
 
     @staticmethod
     async def get_tool_template(tenant_id: str, template_id: str):

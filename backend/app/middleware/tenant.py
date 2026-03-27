@@ -55,6 +55,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 x_tenant_id = request.headers.get("X-Tenant-Id")
                 if x_tenant_id:
                     request.state.tenant_id = x_tenant_id
+            elif not request.url.path.startswith("/api/v1/internal"):
+                # Token was provided but is invalid — reject immediately
+                # (skip for internal inter-service calls that forward tokens)
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or expired bearer token"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
 
         return await call_next(request)
 

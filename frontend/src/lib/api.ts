@@ -11,7 +11,7 @@ export function setCurrentTenantId(id: string | null) {
   _currentTenantId = id;
 }
 
-async function getAccessToken(): Promise<string | null> {
+async function getAccessToken(forceRefresh = false): Promise<string | null> {
   let instance;
   try {
     instance = getMsalInstance();
@@ -30,6 +30,7 @@ async function getAccessToken(): Promise<string | null> {
     const response = await instance.acquireTokenSilent({
       scopes: getLoginScopes(),
       account,
+      forceRefresh,
     });
     return response.accessToken;
   } catch (error) {
@@ -74,6 +75,21 @@ export async function apiFetch<T>(
     console.error("[apiFetch] Network error for", url, networkError);
     throw new Error(`Network error: Unable to reach API at ${url}`);
   }
+
+  // Retry once on 401 with a forced token refresh (handles expired cached tokens)
+  if (response.status === 401 && token) {
+    const freshToken = await getAccessToken(true);
+    if (freshToken && freshToken !== token) {
+      headers["Authorization"] = `Bearer ${freshToken}`;
+      try {
+        response = await fetch(url, { ...options, headers });
+      } catch (networkError) {
+        console.error("[apiFetch] Network error on retry for", url, networkError);
+        throw new Error(`Network error: Unable to reach API at ${url}`);
+      }
+    }
+  }
+
   if (!response.ok) {
     const error = await response
       .json()

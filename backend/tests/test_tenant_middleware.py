@@ -124,3 +124,39 @@ class TestTenantMiddleware:
             response = client.get("/api/v1/tenants", headers={"Authorization": "Bearer fake-token"})
 
         assert response.status_code == 200
+
+    def test_invalid_token_returns_401(self, mock_cosmos_client):
+        """When a Bearer token is provided but invalid, middleware should return 401 immediately."""
+        app = _create_test_app()
+
+        async def mock_validate_returns_none(token: str):
+            return None
+
+        with patch("app.middleware.tenant.validate_entra_token", new=mock_validate_returns_none):
+            client = TestClient(app)
+            response = client.get("/api/v1/test", headers={"Authorization": "Bearer bad-token"})
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or expired bearer token"
+
+    def test_invalid_token_on_internal_path_passes_through(self, mock_cosmos_client):
+        """Internal inter-service paths should not reject forwarded tokens."""
+        app = FastAPI()
+        app.add_middleware(TenantMiddleware)
+
+        @app.post("/api/v1/internal/tools/execute")
+        async def internal_endpoint(request: Request):
+            return {"ok": True}
+
+        async def mock_validate_returns_none(token: str):
+            return None
+
+        with patch("app.middleware.tenant.validate_entra_token", new=mock_validate_returns_none):
+            client = TestClient(app)
+            response = client.post(
+                "/api/v1/internal/tools/execute",
+                headers={"Authorization": "Bearer forwarded-token"},
+                json={"tool_name": "test"},
+            )
+
+        assert response.status_code == 200
