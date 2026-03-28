@@ -35,7 +35,7 @@ class TenantService:
         self.repo = TenantRepository()
 
     async def create_tenant(
-        self, name: str, slug: str, admin_email: str, settings: dict | None = None
+        self, name: str, slug: str, admin_email: str | None = None, settings: dict | None = None
     ) -> dict:
         existing = await self.repo.get_by_slug(slug)
         if existing:
@@ -50,12 +50,14 @@ class TenantService:
                 if key in settings:
                     tenant_settings[key] = settings[key]
 
+        resolved_email = admin_email or f"{slug}-admin@platform.local"
+
         tenant = {
             "id": tenant_id,
             "tenant_id": tenant_id,
             "name": name,
             "slug": slug,
-            "admin_email": admin_email,
+            "admin_email": resolved_email,
             "status": "provisioning",
             "settings": tenant_settings,
             "created_at": now,

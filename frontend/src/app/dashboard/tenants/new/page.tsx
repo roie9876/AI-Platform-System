@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/contexts/auth-context";
 
 // --------------- Step Indicator ---------------
 function StepIndicator({
@@ -71,10 +72,17 @@ const STEPS = [
 
 export default function NewTenantPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
+  const [emailEdited, setEmailEdited] = useState(false);
+
+  // Extract domain from logged-in user's email for auto-generation
+  const adminDomain = user?.email?.includes("@")
+    ? user.email.split("@")[1]
+    : "platform.local";
 
   const [formData, setFormData] = useState({
     // Step 1 — Organization (required)
@@ -100,20 +108,27 @@ export default function NewTenantPage() {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "name" && !slugEdited) {
-        next.slug = value
+        const autoSlug = value
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "");
+        next.slug = autoSlug;
+        if (!emailEdited) {
+          next.admin_email = autoSlug ? `${autoSlug}-admin@${adminDomain}` : "";
+        }
+      }
+      if (field === "slug" && !emailEdited) {
+        next.admin_email = value ? `${value}-admin@${adminDomain}` : "";
       }
       return next;
     });
     if (field === "slug") setSlugEdited(true);
+    if (field === "admin_email") setEmailEdited(true);
   };
 
   const step1Valid =
     formData.name.trim() !== "" &&
-    formData.slug.trim() !== "" &&
-    formData.admin_email.trim() !== "";
+    formData.slug.trim() !== "";
 
   const isOptionalStepFilled = (step: number) => {
     if (step === 1)
@@ -136,7 +151,7 @@ export default function NewTenantPage() {
           body: JSON.stringify({
             name: formData.name,
             slug: formData.slug,
-            admin_email: formData.admin_email,
+            ...(formData.admin_email.trim() && { admin_email: formData.admin_email.trim() }),
           }),
         }
       );
@@ -232,7 +247,7 @@ export default function NewTenantPage() {
           </label>
           <label className="block">
             <span className="text-sm font-medium text-gray-700">
-              Admin Email *
+              Admin Email
             </span>
             <input
               type="email"
@@ -241,6 +256,9 @@ export default function NewTenantPage() {
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               placeholder="admin@acme.com"
             />
+            <p className="text-xs text-gray-400 mt-1">
+              Optional. Auto-generated from slug and your domain.
+            </p>
           </label>
         </div>
       )}

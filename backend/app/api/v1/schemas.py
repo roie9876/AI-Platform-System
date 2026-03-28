@@ -984,7 +984,7 @@ class AgentMCPToolResponse(BaseModel):
 class TenantCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
-    admin_email: EmailStr
+    admin_email: Optional[EmailStr] = None
 
 
 class TenantUpdateRequest(BaseModel):
