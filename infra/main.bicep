@@ -33,6 +33,12 @@ param alertEmail string = 'admin@stumsft.com'
 @description('Entra ID SPA application client ID (for user authentication)')
 param entraAppClientId string
 
+@description('Platform admin email addresses (comma-separated)')
+param platformAdminEmails string = ''
+
+@description('Entra admin group ID for platform admins')
+param entraAdminGroupId string = ''
+
 // Common tags applied to all resources
 var commonTags = {
   SecurityControl: 'Ignore'
@@ -116,20 +122,6 @@ module aks './modules/aks.bicep' = {
   }
 }
 
-module keyvault './modules/keyvault.bicep' = {
-  name: 'keyvault-deployment'
-  params: {
-    location: location
-    environmentName: environmentName
-    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
-    workloadIdentityClientId: identity.outputs.workloadIdentityClientId
-    entraAppClientId: entraAppClientId
-    cosmosEndpoint: cosmos.outputs.cosmosEndpoint
-    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
-    tags: commonTags
-  }
-}
-
 // ============================================================================
 // Wave 3: Observability — depends on Log Analytics, AKS, Cosmos DB
 // ============================================================================
@@ -179,7 +171,29 @@ module agc './modules/agc.bicep' = {
 }
 
 // ============================================================================
-// Wave 3.5: Workload Identity Federation — depends on identity + AKS OIDC issuer
+// Wave 4: Key Vault — depends on Wave 3 outputs (App Insights, Service Bus)
+// ============================================================================
+
+module keyvault './modules/keyvault.bicep' = {
+  name: 'keyvault-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    workloadIdentityClientId: identity.outputs.workloadIdentityClientId
+    entraAppClientId: entraAppClientId
+    cosmosEndpoint: cosmos.outputs.cosmosEndpoint
+    serviceBusNamespace: servicebus.outputs.serviceBusNamespace
+    appInsightsConnectionString: appInsights.outputs.connectionString
+    platformAdminEmails: platformAdminEmails
+    entraAdminGroupId: entraAdminGroupId
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    tags: commonTags
+  }
+}
+
+// ============================================================================
+// Wave 4.5: Workload Identity Federation — depends on identity + AKS OIDC issuer
 // ============================================================================
 
 resource workloadIdentityRef 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
@@ -188,7 +202,7 @@ resource workloadIdentityRef 'Microsoft.ManagedIdentity/userAssignedIdentities@2
 
 resource federatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: workloadIdentityRef
-  name: 'aiplatform-federated-credential'
+  name: 'aiplatform-workload-fed'
   properties: {
     issuer: aks.outputs.aksOidcIssuerUrl
     subject: 'system:serviceaccount:aiplatform:aiplatform-workload'

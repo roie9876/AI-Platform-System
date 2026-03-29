@@ -56,6 +56,35 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: AZURE_WORKLOAD_CLIENT_ID
+            - name: SERVICE_BUS_NAMESPACE
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SERVICE_BUS_NAMESPACE
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: APPLICATIONINSIGHTS_CONNECTION_STRING
+            - name: PLATFORM_ADMIN_EMAILS
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: PLATFORM_ADMIN_EMAILS
+            - name: ENTRA_ADMIN_GROUP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: ENTRA_ADMIN_GROUP_ID
+            - name: ENTRA_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: ENTRA_CLIENT_SECRET
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /healthz
@@ -82,3 +111,10 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: aiplatform-keyvault

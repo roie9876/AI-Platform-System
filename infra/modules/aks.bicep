@@ -66,6 +66,13 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
           logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
         }
       }
+      azureKeyvaultSecretsProvider: {
+        enabled: true
+        config: {
+          enableSecretRotation: 'true'
+          rotationPollInterval: '2m'
+        }
+      }
     }
     oidcIssuerProfile: {
       enabled: true

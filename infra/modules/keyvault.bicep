@@ -16,6 +16,18 @@ param cosmosEndpoint string
 @description('Entra ID SPA application client ID (for user authentication token validation)')
 param entraAppClientId string
 
+@description('Service Bus namespace FQDN')
+param serviceBusNamespace string = ''
+
+@description('Application Insights connection string')
+param appInsightsConnectionString string = ''
+
+@description('Platform admin email addresses (comma-separated)')
+param platformAdminEmails string = ''
+
+@description('Entra admin group ID for platform admins')
+param entraAdminGroupId string = ''
+
 @description('Resource ID of Log Analytics workspace for diagnostics (optional)')
 param logAnalyticsWorkspaceId string = ''
 
@@ -87,6 +99,38 @@ resource secretWorkloadClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' =
   name: 'workload-client-id'
   properties: {
     value: workloadIdentityClientId
+  }
+}
+
+resource secretServiceBusNamespace 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(serviceBusNamespace)) {
+  parent: vault
+  name: 'service-bus-namespace'
+  properties: {
+    value: serviceBusNamespace
+  }
+}
+
+resource secretAppInsightsCs 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(appInsightsConnectionString)) {
+  parent: vault
+  name: 'appinsights-connection-string'
+  properties: {
+    value: appInsightsConnectionString
+  }
+}
+
+resource secretPlatformAdminEmails 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(platformAdminEmails)) {
+  parent: vault
+  name: 'platform-admin-emails'
+  properties: {
+    value: platformAdminEmails
+  }
+}
+
+resource secretEntraAdminGroupId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(entraAdminGroupId)) {
+  parent: vault
+  name: 'entra-admin-group-id'
+  properties: {
+    value: entraAdminGroupId
   }
 }
 

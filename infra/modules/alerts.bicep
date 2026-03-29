@@ -61,6 +61,7 @@ resource podRestartAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
           threshold: 5
           timeAggregation: 'Average'
           criterionType: 'StaticThresholdCriterion'
+          skipMetricValidation: true
         }
       ]
     }
@@ -166,6 +167,7 @@ resource nodeCPUAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
           threshold: 80
           timeAggregation: 'Average'
           criterionType: 'StaticThresholdCriterion'
+          skipMetricValidation: true
         }
       ]
     }
