@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Activity, Cpu, Users, DollarSign } from "lucide-react";
+import { ArrowLeft, Activity, Cpu, Users, DollarSign, Trash2, AlertTriangle, Pause, XCircle, Play } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { TenantStatusBadge } from "@/components/tenant/tenant-status-badge";
 import { KpiTile } from "@/components/observability/kpi-tiles";
@@ -14,6 +14,7 @@ interface Tenant {
   name: string;
   slug: string;
   admin_email: string;
+  entra_group_id?: string;
   status: string;
   settings: Record<string, unknown>;
   created_at: string;
@@ -192,6 +193,13 @@ function UsersTab({ tenant }: { tenant: Tenant }) {
         </table>
       </div>
 
+      {tenant.entra_group_id && (
+        <div className="mt-4 rounded-md bg-gray-50 p-4">
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Entra Group ID</span>
+          <p className="mt-1 text-sm text-gray-900 font-mono">{tenant.entra_group_id}</p>
+        </div>
+      )}
+
       <div className="mt-4 rounded-md bg-blue-50 p-4 text-sm text-blue-700">
         User management is handled through Microsoft Entra ID. Add users by
         assigning them to the tenant&apos;s Entra ID group in the Azure Portal.
@@ -269,11 +277,169 @@ function UsageTab({ tenantId }: { tenantId: string }) {
   );
 }
 
+// --------------- Danger Zone Tab ---------------
+function DangerZoneTab({
+  tenant,
+  onUpdate,
+}: {
+  tenant: Tenant;
+  onUpdate: (t: Tenant) => void;
+}) {
+  const router = useRouter();
+  const [transitioning, setTransitioning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+
+  const transitionState = async (newState: string) => {
+    setTransitioning(true);
+    setError("");
+    try {
+      const updated = await apiFetch<Tenant>(
+        `/api/v1/tenants/${tenant.id}/state`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ state: newState }),
+        }
+      );
+      onUpdate(updated);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Transition failed");
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError("");
+    try {
+      await apiFetch(`/api/v1/tenants/${tenant.id}`, { method: "DELETE" });
+      router.push("/dashboard/tenants");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+      setDeleting(false);
+    }
+  };
+
+  const nextActions: Record<string, { label: string; state: string; icon: React.ReactNode; color: string }[]> = {
+    active: [
+      { label: "Suspend Tenant", state: "suspended", icon: <Pause className="h-4 w-4" />, color: "bg-amber-600 hover:bg-amber-700" },
+    ],
+    suspended: [
+      { label: "Reactivate Tenant", state: "active", icon: <Play className="h-4 w-4" />, color: "bg-green-600 hover:bg-green-700" },
+      { label: "Deactivate Tenant", state: "deactivated", icon: <XCircle className="h-4 w-4" />, color: "bg-red-600 hover:bg-red-700" },
+    ],
+    deactivated: [
+      { label: "Reactivate Tenant", state: "active", icon: <Play className="h-4 w-4" />, color: "bg-green-600 hover:bg-green-700" },
+    ],
+  };
+
+  const actions = nextActions[tenant.status] ?? [];
+  const canDelete = tenant.status === "deactivated" || tenant.status === "provisioning";
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Status Transitions */}
+      <div className="rounded-lg border border-gray-200 p-6">
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">Tenant Status</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Current status: <TenantStatusBadge status={tenant.status} />
+        </p>
+        <p className="text-xs text-gray-400 mb-4">
+          Lifecycle: active → suspended → deactivated → deleted
+        </p>
+        {actions.length > 0 ? (
+          <div className="flex flex-wrap gap-3">
+            {actions.map((action) => (
+              <button
+                key={action.state}
+                onClick={() => transitionState(action.state)}
+                disabled={transitioning}
+                className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 ${action.color}`}
+              >
+                {action.icon}
+                {transitioning ? "Updating..." : action.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">No status transitions available.</p>
+        )}
+      </div>
+
+      {/* Delete */}
+      <div className="rounded-lg border-2 border-red-200 bg-red-50 p-6">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-red-900 mb-1">Delete Tenant</h3>
+            <p className="text-sm text-red-700 mb-4">
+              Permanently delete this tenant and all associated Kubernetes resources.
+              {!canDelete && " The tenant must be deactivated before it can be deleted."}
+            </p>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={!canDelete}
+                className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Tenant
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-red-800 font-medium">
+                  Type <span className="font-mono bg-red-100 px-1 rounded">{tenant.slug}</span> to confirm:
+                </p>
+                <input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder={tenant.slug}
+                  className="block w-full max-w-xs rounded-md border border-red-300 px-3 py-2 text-sm shadow-sm focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleDelete}
+                    disabled={confirmText !== tenant.slug || deleting}
+                    className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deleting ? "Deleting..." : "Confirm Delete"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConfirmDelete(false);
+                      setConfirmText("");
+                    }}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --------------- Main Page ---------------
 const tabs = [
   { id: "settings", label: "Settings" },
   { id: "users", label: "Users" },
   { id: "usage", label: "Usage" },
+  { id: "danger", label: "Danger Zone" },
 ];
 
 export default function TenantDetailPage() {
@@ -351,6 +517,9 @@ export default function TenantDetailPage() {
       )}
       {activeTab === "users" && <UsersTab tenant={tenant} />}
       {activeTab === "usage" && <UsageTab tenantId={tenant.id} />}
+      {activeTab === "danger" && (
+        <DangerZoneTab tenant={tenant} onUpdate={setTenant} />
+      )}
     </div>
   );
 }

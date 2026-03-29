@@ -1,0 +1,52 @@
+# KEDA configuration for agent-executor scale-to-zero
+# This is the SHARED agent-executor in the aiplatform namespace.
+# Per-tenant agent-executor ScaledObjects are created dynamically
+# by the tenant provisioning service.
+#
+# Prerequisites:
+#   1. KEDA installed on AKS: az aks update --enable-keda -n <cluster> -g <rg>
+#   2. Service Bus connection string stored in K8s secret (see keda-servicebus-secret.yaml)
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keda-servicebus-auth
+  namespace: aiplatform
+type: Opaque
+stringData:
+  connection-string: "${SERVICE_BUS_CONNECTION_STRING}"
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: servicebus-trigger-auth
+  namespace: aiplatform
+spec:
+  secretTargetRef:
+    - parameter: connection
+      name: keda-servicebus-auth
+      key: connection-string
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: agent-executor-scaledobject
+  namespace: aiplatform
+spec:
+  scaleTargetRef:
+    name: agent-executor
+  pollingInterval: 5           # Check queue every 5 seconds
+  cooldownPeriod: 300          # Wait 5 min with 0 messages before scaling to 0
+  minReplicaCount: 0           # Scale to zero when idle
+  maxReplicaCount: 10
+  fallback:
+    failureThreshold: 3
+    replicas: 1                # Fall back to 1 replica if KEDA can't reach Service Bus
+  triggers:
+    - type: azure-servicebus
+      metadata:
+        queueName: agent-requests
+        messageCount: "1"      # Scale up when ≥1 message in queue
+        activationMessageCount: "0"  # Activate (from 0→1) on first message
+      authenticationRef:
+        name: servicebus-trigger-auth

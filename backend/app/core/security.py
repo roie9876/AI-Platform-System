@@ -119,17 +119,37 @@ _ROLE_MAP = {
 
 
 def extract_user_context(claims: dict) -> dict:
+    from app.core.config import settings
+
     # v1 tokens use 'upn', v2 tokens use 'preferred_username'
     email = claims.get("preferred_username") or claims.get("upn", "")
     # Normalize Entra app role values to internal role names
     raw_roles = claims.get("roles", [])
     roles = [_ROLE_MAP.get(r, r) for r in raw_roles]
+    groups = claims.get("groups", [])
+
+    # Resolve platform_admin from Entra admin group membership
+    admin_group_id = settings.ENTRA_ADMIN_GROUP_ID
+    if admin_group_id and admin_group_id in groups and "platform_admin" not in roles:
+        roles.append("platform_admin")
+
+    # Fallback: configured admin emails
+    if "platform_admin" not in roles and settings.PLATFORM_ADMIN_EMAILS:
+        admin_emails = [
+            e.strip().lower()
+            for e in settings.PLATFORM_ADMIN_EMAILS.split(",")
+            if e.strip()
+        ]
+        if email.lower() in admin_emails:
+            roles.append("platform_admin")
+
     return {
         "user_id": claims.get("oid", ""),
         "tenant_id": claims.get("tid", ""),
         "email": email,
         "name": claims.get("name", ""),
         "roles": roles,
+        "groups": groups,
     }
 
 

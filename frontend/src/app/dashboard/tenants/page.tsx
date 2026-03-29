@@ -13,6 +13,7 @@ interface Tenant {
   name: string;
   slug: string;
   admin_email: string;
+  entra_group_id?: string;
   status: string;
   settings: Record<string, unknown>;
   created_at: string;

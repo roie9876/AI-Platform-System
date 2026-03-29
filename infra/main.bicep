@@ -157,6 +157,17 @@ module alerts './modules/alerts.bicep' = {
   }
 }
 
+module servicebus './modules/servicebus.bicep' = {
+  name: 'servicebus-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    tags: commonTags
+  }
+}
+
 module agc './modules/agc.bicep' = {
   name: 'agc-deployment'
   params: {
@@ -229,3 +240,6 @@ output appInsightsConnectionString string = appInsights.outputs.connectionString
 
 @description('Application Gateway for Containers resource ID')
 output agcId string = agc.outputs.agcId
+
+@description('Service Bus namespace FQDN')
+output serviceBusNamespace string = servicebus.outputs.serviceBusNamespace

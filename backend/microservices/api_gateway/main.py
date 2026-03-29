@@ -25,6 +25,7 @@ from app.api.v1.azure_connections import router as azure_connections_router
 from app.api.v1.azure_auth import router as azure_auth_router
 from app.api.v1.ai_services import router as ai_services_router
 from app.api.v1.tenants import router as tenants_router
+from app.api.v1.chat_async import router as chat_async_router
 
 import logging as _logging
 import os as _os
@@ -80,3 +81,4 @@ app.include_router(azure_connections_router, prefix="/api/v1/azure", tags=["azur
 app.include_router(azure_auth_router, prefix="/api/v1/azure", tags=["azure-auth"])
 app.include_router(ai_services_router, prefix="/api/v1/ai-services", tags=["ai-services"])
 app.include_router(tenants_router, prefix="/api/v1/tenants", tags=["tenants"])
+app.include_router(chat_async_router, prefix="/api/v1/agents", tags=["chat-async"])

@@ -28,8 +28,21 @@ class Settings(BaseSettings):
     # the managed identity client ID.  Falls back to AZURE_CLIENT_ID if not set.
     ENTRA_APP_CLIENT_ID: str = ""
 
+    # Client secret for the app registration (needed for Graph API calls)
+    ENTRA_CLIENT_SECRET: str = ""
+
+    # Entra ID group mapping for RBAC
+    ENTRA_ADMIN_GROUP_ID: str = ""  # Object ID of the "AI Platform Admins" group
+
+    # Fallback: comma-separated emails always treated as platform admins
+    PLATFORM_ADMIN_EMAILS: str = ""
+
     # Workload Identity client ID (for Cosmos DB auth via DefaultAzureCredential)
     AZURE_WORKLOAD_CLIENT_ID: str = ""
+
+    # Azure Service Bus (KEDA scale-to-zero)
+    SERVICE_BUS_NAMESPACE: str = ""
+    SERVICE_BUS_CONNECTION_STRING: str = ""
 
     # Inter-service URLs (K8s DNS defaults)
     TOOL_EXECUTOR_URL: str = "http://tool-executor:8000"

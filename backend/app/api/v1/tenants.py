@@ -30,7 +30,8 @@ async def create_tenant(body: TenantCreateRequest, request: Request):
     service = TenantService()
     try:
         tenant = await service.create_tenant(
-            name=body.name, slug=body.slug, admin_email=body.admin_email
+            name=body.name, slug=body.slug, admin_email=body.admin_email,
+            entra_group_id=body.entra_group_id,
         )
         return tenant
     except ValueError as e:

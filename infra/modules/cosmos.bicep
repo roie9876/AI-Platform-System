@@ -75,6 +75,7 @@ var containerNames = [
   'evaluation_results'
   'evaluation_runs'
   'execution_logs'
+  'execution_results'
   'mcp_discovered_tools'
   'mcp_servers'
   'model_endpoints'

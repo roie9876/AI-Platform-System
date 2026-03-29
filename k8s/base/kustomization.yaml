@@ -10,6 +10,7 @@ resources:
   - api-gateway/service.yaml
   - agent-executor/deployment.yaml
   - agent-executor/service.yaml
+  - agent-executor/keda-scaledobject.yaml
   - workflow-engine/deployment.yaml
   - workflow-engine/service.yaml
   - tool-executor/deployment.yaml

@@ -37,9 +37,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const isPlatformAdmin = user?.roles?.includes("platform_admin") ?? false;
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(
-    user?.tenant_id ?? null
-  );
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchTenants = useCallback(async () => {
@@ -59,11 +57,33 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     fetchTenants();
   }, [fetchTenants]);
 
+  // For non-platform-admins, populate tenants from accessible_tenants
   useEffect(() => {
-    if (!selectedTenantId && user?.tenant_id) {
-      setSelectedTenantId(user.tenant_id);
+    if (!isPlatformAdmin && user?.accessible_tenants?.length) {
+      setTenants(
+        user.accessible_tenants.map((t) => ({
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          admin_email: "",
+          status: "active",
+          settings: {},
+          created_at: "",
+          updated_at: "",
+        }))
+      );
     }
-  }, [user?.tenant_id, selectedTenantId]);
+  }, [isPlatformAdmin, user?.accessible_tenants]);
+
+  // Default to first tenant when tenants load and no valid selection exists
+  useEffect(() => {
+    if (tenants.length > 0) {
+      const currentValid = tenants.some((t) => t.id === selectedTenantId);
+      if (!currentValid) {
+        setSelectedTenantId(tenants[0].id);
+      }
+    }
+  }, [tenants, selectedTenantId]);
 
   useEffect(() => {
     setCurrentTenantId(selectedTenantId);

@@ -1,5 +1,6 @@
 """Agent Executor microservice — routes for chat, threads, memories + internal agent execution endpoint."""
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -48,7 +49,19 @@ async def lifespan(app):
     configure_logging(service_name="agent-executor")
     init_telemetry(service_name="agent-executor")
     _log_auth_config("agent-executor")
+
+    # Start queue consumer as background task (KEDA scale-to-zero support)
+    from microservices.agent_executor.queue_consumer import start_queue_consumer, stop_queue_consumer
+    consumer_task = asyncio.create_task(start_queue_consumer())
+
     yield
+
+    await stop_queue_consumer()
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except asyncio.CancelledError:
+        pass
     await close_cosmos_client()
 
 

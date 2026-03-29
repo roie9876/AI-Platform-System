@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from uuid import UUID
 from datetime import datetime
 
@@ -985,11 +985,20 @@ class TenantCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
     admin_email: Optional[EmailStr] = None
+    entra_group_id: Optional[str] = Field(default=None, description="Entra ID security group Object ID for this tenant")
+
+    @field_validator("slug", mode="before")
+    @classmethod
+    def lowercase_slug(cls, v: str) -> str:
+        if isinstance(v, str):
+            return v.lower().strip()
+        return v
 
 
 class TenantUpdateRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     admin_email: Optional[EmailStr] = None
+    entra_group_id: Optional[str] = None
 
 
 class TenantSettingsUpdateRequest(BaseModel):
@@ -1008,6 +1017,7 @@ class TenantResponse(BaseModel):
     name: str
     slug: str
     admin_email: str
+    entra_group_id: Optional[str] = ""
     status: str
     settings: dict
     created_at: str

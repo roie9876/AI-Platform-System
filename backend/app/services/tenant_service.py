@@ -35,10 +35,11 @@ class TenantService:
         self.repo = TenantRepository()
 
     async def create_tenant(
-        self, name: str, slug: str, admin_email: str | None = None, settings: dict | None = None
+        self, name: str, slug: str, admin_email: str | None = None,
+        settings: dict | None = None, entra_group_id: str | None = None,
     ) -> dict:
         existing = await self.repo.get_by_slug(slug)
-        if existing:
+        if existing and existing.get("status") != "deleted":
             raise ValueError(f"Tenant with slug '{slug}' already exists")
 
         tenant_id = str(uuid4())
@@ -58,6 +59,7 @@ class TenantService:
             "name": name,
             "slug": slug,
             "admin_email": resolved_email,
+            "entra_group_id": entra_group_id or "",
             "status": "provisioning",
             "settings": tenant_settings,
             "created_at": now,
@@ -88,14 +90,15 @@ class TenantService:
     async def list_tenants(self, status: str | None = None) -> list[dict]:
         if status:
             return await self.repo.get_by_status(status)
-        return await self.repo.list_all_tenants()
+        tenants = await self.repo.list_all_tenants()
+        return [t for t in tenants if t.get("status") != "deleted"]
 
     async def update_tenant(self, tenant_id: str, updates: dict) -> dict:
         tenant = await self.repo.get(tenant_id, tenant_id)
         if not tenant:
             raise ValueError(f"Tenant '{tenant_id}' not found")
 
-        allowed_fields = {"name", "admin_email"}
+        allowed_fields = {"name", "admin_email", "entra_group_id"}
         for key, value in updates.items():
             if key in allowed_fields:
                 tenant[key] = value
@@ -140,10 +143,25 @@ class TenantService:
             raise ValueError(f"Tenant '{tenant_id}' not found")
 
         current_state = tenant.get("status", "provisioning")
-        if current_state != "deactivated":
+        if current_state not in ("deactivated", "provisioning"):
             raise ValueError(
                 f"Cannot delete tenant in '{current_state}' state. "
-                "Tenant must be deactivated before deletion."
+                "Tenant must be deactivated (or stuck in provisioning) before deletion."
             )
 
-        return await self.transition_state(tenant_id, "deleted")
+        result = await self.transition_state(tenant_id, "deleted")
+
+        # Deprovision K8s resources
+        try:
+            from app.services.tenant_provisioning import TenantProvisioningService
+
+            provisioning = TenantProvisioningService()
+            await provisioning.deprovision_tenant(tenant)
+        except Exception:
+            logger.error(
+                "K8s deprovisioning failed for tenant %s — namespace may need manual cleanup",
+                tenant_id,
+                exc_info=True,
+            )
+
+        return result

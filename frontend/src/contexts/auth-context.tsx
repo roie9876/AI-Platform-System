@@ -10,6 +10,14 @@ import {
 import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { getLoginScopes } from "@/lib/msal";
+import { apiFetch } from "@/lib/api";
+
+export interface AccessibleTenant {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
 
 interface User {
   id: string;
@@ -17,6 +25,7 @@ interface User {
   full_name: string;
   tenant_id: string;
   roles: string[];
+  accessible_tenants: AccessibleTenant[];
 }
 
 interface AuthContextType {
@@ -41,13 +50,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       instance.setActiveAccount(account);
       const claims = account.idTokenClaims as Record<string, unknown> | undefined;
       if (claims) {
-        setUser({
+        const basicUser: User = {
           id: (claims.oid as string) || "",
           email: (claims.preferred_username as string) || "",
           full_name: (claims.name as string) || "",
           tenant_id: (claims.tid as string) || "",
           roles: (claims.roles as string[]) || [],
-        });
+          accessible_tenants: [],
+        };
+        setUser(basicUser);
+
+        // Fetch enriched user info from backend (group-resolved roles + tenant access)
+        apiFetch<{
+          id: string;
+          email: string;
+          full_name: string;
+          tenant_id: string;
+          roles: string[];
+          accessible_tenants: AccessibleTenant[];
+        }>("/api/v1/auth/me")
+          .then((me) => {
+            setUser((prev) => ({
+              ...prev!,
+              roles: me.roles,
+              accessible_tenants: me.accessible_tenants || [],
+            }));
+          })
+          .catch((err) => {
+            console.error("Failed to fetch enriched user profile:", err);
+          });
       }
     } else if (!loading) {
       setUser(null);

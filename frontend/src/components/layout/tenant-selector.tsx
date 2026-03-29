@@ -8,7 +8,11 @@ export function TenantSelector() {
   const { tenants, selectedTenantId, setSelectedTenantId, loading } =
     useTenant();
 
-  if (!user?.roles?.includes("platform_admin")) return null;
+  const isPlatformAdmin = user?.roles?.includes("platform_admin") ?? false;
+  const hasMultipleTenants = tenants.length > 1;
+
+  // Show selector for platform admins or users with access to multiple tenants
+  if (!isPlatformAdmin && !hasMultipleTenants) return null;
 
   if (loading) {
     return (

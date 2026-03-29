@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Check,
   Building2,
-  Shield,
   Cpu,
   Bot,
   ClipboardList,
@@ -64,7 +63,6 @@ function StepIndicator({
 
 const STEPS = [
   { label: "Organization", icon: <Building2 className="h-4 w-4" /> },
-  { label: "Entra ID", icon: <Shield className="h-4 w-4" /> },
   { label: "Model Endpoint", icon: <Cpu className="h-4 w-4" /> },
   { label: "First Agent", icon: <Bot className="h-4 w-4" /> },
   { label: "Review", icon: <ClipboardList className="h-4 w-4" /> },
@@ -89,16 +87,13 @@ export default function NewTenantPage() {
     name: "",
     slug: "",
     admin_email: "",
-    // Step 2 — Entra ID (optional)
-    entra_tenant_id: "",
-    entra_group_id: "",
-    // Step 3 — Model Endpoint (optional)
+    // Step 2 — Model Endpoint (optional)
     endpoint_name: "",
     provider: "azure-openai",
     endpoint_url: "",
     model_name: "",
     api_version: "",
-    // Step 4 — First Agent (optional)
+    // Step 3 — First Agent (optional)
     agent_name: "",
     agent_description: "",
     agent_system_prompt: "",
@@ -132,10 +127,8 @@ export default function NewTenantPage() {
 
   const isOptionalStepFilled = (step: number) => {
     if (step === 1)
-      return formData.entra_tenant_id !== "" || formData.entra_group_id !== "";
-    if (step === 2)
       return formData.endpoint_name !== "" || formData.endpoint_url !== "";
-    if (step === 3)
+    if (step === 2)
       return formData.agent_name !== "" || formData.agent_system_prompt !== "";
     return false;
   };
@@ -206,7 +199,7 @@ export default function NewTenantPage() {
     <div className="p-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">New Tenant</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Set up a new tenant in 5 steps. Only the first step is required.
+        Set up a new tenant in 4 steps. Only the first step is required.
       </p>
 
       <StepIndicator steps={STEPS} currentStep={currentStep} />
@@ -263,48 +256,8 @@ export default function NewTenantPage() {
         </div>
       )}
 
-      {/* Step 2 — Entra ID */}
+      {/* Step 2 — Model Endpoint */}
       {currentStep === 1 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Entra ID Configuration
-          </h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Optional. Connect to Microsoft Entra ID for SSO and group-based
-            access.
-          </p>
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">
-              Entra Tenant ID
-            </span>
-            <input
-              type="text"
-              value={formData.entra_tenant_id}
-              onChange={(e) => update("entra_tenant_id", e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">
-              Entra Group ID
-            </span>
-            <input
-              type="text"
-              value={formData.entra_group_id}
-              onChange={(e) => update("entra_group_id", e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            />
-          </label>
-          <div className="rounded-md bg-gray-50 p-4 text-sm text-gray-600 mt-4">
-            You can configure this later from the tenant settings.
-          </div>
-        </div>
-      )}
-
-      {/* Step 3 — Model Endpoint */}
-      {currentStep === 2 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Model Endpoint
@@ -380,8 +333,8 @@ export default function NewTenantPage() {
         </div>
       )}
 
-      {/* Step 4 — First Agent */}
-      {currentStep === 3 && (
+      {/* Step 3 — First Agent */}
+      {currentStep === 2 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">First Agent</h2>
           <p className="text-sm text-gray-500 mb-4">
@@ -390,7 +343,7 @@ export default function NewTenantPage() {
           </p>
           {!formData.endpoint_name ? (
             <div className="rounded-md bg-yellow-50 p-4 text-sm text-yellow-700">
-              Set up a model endpoint first (Step 3) to create an agent, or skip
+              Set up a model endpoint first (Step 2) to create an agent, or skip
               this step.
             </div>
           ) : (
@@ -438,8 +391,8 @@ export default function NewTenantPage() {
         </div>
       )}
 
-      {/* Step 5 — Review */}
-      {currentStep === 4 && (
+      {/* Step 4 — Review */}
+      {currentStep === 3 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Review &amp; Create
@@ -458,30 +411,6 @@ export default function NewTenantPage() {
                 <dd className="text-gray-900">{formData.admin_email}</dd>
               </dl>
             </div>
-
-            {(formData.entra_tenant_id || formData.entra_group_id) && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Entra ID</h3>
-                <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  {formData.entra_tenant_id && (
-                    <>
-                      <dt className="text-gray-500">Tenant ID</dt>
-                      <dd className="text-gray-900">
-                        {formData.entra_tenant_id}
-                      </dd>
-                    </>
-                  )}
-                  {formData.entra_group_id && (
-                    <>
-                      <dt className="text-gray-500">Group ID</dt>
-                      <dd className="text-gray-900">
-                        {formData.entra_group_id}
-                      </dd>
-                    </>
-                  )}
-                </dl>
-              </div>
-            )}
 
             {(formData.endpoint_name || formData.endpoint_url) && (
               <div>
@@ -548,13 +477,13 @@ export default function NewTenantPage() {
           </Link>
         )}
 
-        {currentStep < 4 ? (
+        {currentStep < 3 ? (
           <button
             onClick={() => setCurrentStep((s) => s + 1)}
             disabled={currentStep === 0 && !step1Valid}
             className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {currentStep >= 1 && currentStep <= 3 && !isOptionalStepFilled(currentStep)
+            {currentStep >= 1 && currentStep <= 2 && !isOptionalStepFilled(currentStep)
               ? "Skip"
               : "Next"}{" "}
             <ArrowRight className="h-4 w-4" />
