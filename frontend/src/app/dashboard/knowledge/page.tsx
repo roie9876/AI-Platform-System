@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { ResourcePicker } from "@/components/azure/resource-picker";
 import {
@@ -53,6 +54,7 @@ interface ConnectionResponse {
   health_status: string;
   last_health_check: string | null;
   config: Record<string, unknown> | null;
+  agent_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -121,6 +123,9 @@ function statusColor(status: string) {
 type View = "list" | "create" | "edit";
 
 export default function KnowledgePage() {
+  const searchParams = useSearchParams();
+  const attachToAgentId = searchParams.get("attachTo");
+
   const [view, setView] = useState<View>("list");
   const [connections, setConnections] = useState<ConnectionResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,6 +264,19 @@ export default function KnowledgePage() {
           knowledge_name: knowledgeName || undefined,
         }),
       });
+
+      // Auto-attach to agent if redirected from agent page
+      if (attachToAgentId) {
+        try {
+          await apiFetch(
+            `/api/v1/knowledge/agents/${attachToAgentId}/attach/${newConnectionId}`,
+            { method: "POST" }
+          );
+        } catch {
+          // Attachment is best-effort; connection still created
+        }
+      }
+
       resetCreateFlow();
       setView("list");
       await loadConnections();
@@ -395,6 +413,12 @@ export default function KnowledgePage() {
           </div>
         )}
 
+        {attachToAgentId && (
+          <div className="mb-4 rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
+            New knowledge created here will be automatically attached to the agent you came from.
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
         ) : connections.length === 0 ? (
@@ -426,6 +450,7 @@ export default function KnowledgePage() {
                 (conn.config?.knowledge_name as string) || conn.resource_name;
               const selectedIdx =
                 (conn.config?.selected_indexes as string[]) || [];
+              const agentCount = (conn.agent_ids || []).length;
               return (
                 <div
                   key={conn.id}
@@ -442,6 +467,7 @@ export default function KnowledgePage() {
                         {conn.region && ` · ${conn.region}`}
                         {selectedIdx.length > 0 &&
                           ` · ${selectedIdx.length} index${selectedIdx.length > 1 ? "es" : ""}`}
+                        {` · ${agentCount} agent${agentCount !== 1 ? "s" : ""}`}
                       </p>
                     </div>
                   </div>

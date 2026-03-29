@@ -371,6 +371,22 @@ class AgentExecutionService:
             collected_response = ""
             tools_called: List[Dict[str, Any]] = []
 
+            # Record RAG retrieval as synthetic tool calls for trace visibility
+            if rag_sources:
+                for src in rag_sources:
+                    if src.get("type") == "azure_search":
+                        tools_called.append({
+                            "name": "azure_ai_search",
+                            "status": "success",
+                            "index": src.get("index", ""),
+                        })
+                    elif src.get("type") == "document":
+                        tools_called.append({
+                            "name": "document_retrieval",
+                            "status": "success",
+                            "document": src.get("name", ""),
+                        })
+
             if tool_schemas:
                 # Tool-calling loop
                 iteration = 0
@@ -501,6 +517,7 @@ class AgentExecutionService:
                 rag_sources, start_time, primary_endpoint,
                 input_tokens=usage.get("prompt_tokens"),
                 output_tokens=usage.get("completion_tokens"),
+                tools_called=tools_called,
             )
             yield self._sse_data("", done=True)
 

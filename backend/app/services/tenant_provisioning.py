@@ -24,9 +24,16 @@ DEFAULT_TOOLS = [
     {
         "name": "code_interpreter",
         "type": "built-in",
-        "description": "Execute Python code",
+        "description": "Execute Python code and return stdout, stderr, and exit code.",
         "config": {},
         "is_platform_tool": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Python code to execute"},
+            },
+            "required": ["code"],
+        },
     },
 ]
 

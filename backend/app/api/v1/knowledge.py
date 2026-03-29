@@ -99,10 +99,10 @@ async def list_agent_knowledge(
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """List all selected AI Search indexes available to an agent (agent-specific + platform-level)."""
+    "List all selected AI Search indexes explicitly attached to an agent."""
     all_connections = await conn_repo.query(
         tenant_id,
-        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.resource_type = 'Microsoft.Search/searchServices' AND (c.agent_id = @aid OR NOT IS_DEFINED(c.agent_id) OR c.agent_id = null)",
+        "SELECT * FROM c WHERE c.tenant_id = @tid AND c.resource_type = 'Microsoft.Search/searchServices' AND (c.agent_id = @aid OR ARRAY_CONTAINS(c.agent_ids, @aid))",
         [{"name": "@tid", "value": tenant_id}, {"name": "@aid", "value": agent_id}],
     )
 
@@ -126,3 +126,57 @@ async def list_agent_knowledge(
         connections=knowledge_connections,
         total_indexes=total,
     )
+
+
+@router.post(
+    "/agents/{agent_id}/attach/{connection_id}",
+    response_model=AzureConnectionResponse,
+)
+async def attach_knowledge_to_agent(
+    agent_id: str,
+    connection_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Attach a knowledge connection to an agent."""
+    connection = await conn_repo.get(tenant_id, connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    agent_ids = connection.get("agent_ids") or []
+    if agent_id not in agent_ids:
+        agent_ids.append(agent_id)
+    connection["agent_ids"] = agent_ids
+
+    updated = await conn_repo.update(tenant_id, connection_id, connection)
+    return updated
+
+
+@router.delete(
+    "/agents/{agent_id}/detach/{connection_id}",
+    response_model=AzureConnectionResponse,
+)
+async def detach_knowledge_from_agent(
+    agent_id: str,
+    connection_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Detach a knowledge connection from an agent."""
+    connection = await conn_repo.get(tenant_id, connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    agent_ids = connection.get("agent_ids") or []
+    if agent_id in agent_ids:
+        agent_ids.remove(agent_id)
+    connection["agent_ids"] = agent_ids
+
+    # Also clear legacy agent_id if it matches
+    if connection.get("agent_id") == agent_id:
+        connection["agent_id"] = None
+
+    updated = await conn_repo.update(tenant_id, connection_id, connection)
+    return updated

@@ -203,10 +203,10 @@ class RAGService:
         """Retrieve documents from Azure AI Search indexes connected to the agent."""
         from app.services.azure_arm import AzureARMService
 
-        # Find connections for this agent OR shared platform-level connections
+        # Find connections explicitly attached to this agent
         connections = await _conn_repo.query(
             tenant_id,
-            "SELECT * FROM c WHERE c.tenant_id = @tid AND c.resource_type = 'Microsoft.Search/searchServices' AND (c.agent_id = @aid OR NOT IS_DEFINED(c.agent_id) OR c.agent_id = null)",
+            "SELECT * FROM c WHERE c.tenant_id = @tid AND c.resource_type = 'Microsoft.Search/searchServices' AND (c.agent_id = @aid OR ARRAY_CONTAINS(c.agent_ids, @aid))",
             [{"name": "@tid", "value": tenant_id}, {"name": "@aid", "value": agent_id}],
         )
         if not connections:

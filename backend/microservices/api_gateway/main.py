@@ -16,7 +16,12 @@ from app.health import health_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.agents import router as agents_router
 from app.api.v1.model_endpoints import router as model_endpoints_router
+from app.api.v1.chat import router as chat_router
+from app.api.v1.tools import agent_tools_router
+from app.api.v1.data_sources import agent_data_sources_router
 from app.api.v1.catalog import router as catalog_router
+from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.memories import router as memories_router
 from app.api.v1.marketplace import router as marketplace_router
 from app.api.v1.observability import router as observability_router
 from app.api.v1.evaluations import router as evaluations_router
@@ -26,6 +31,7 @@ from app.api.v1.azure_auth import router as azure_auth_router
 from app.api.v1.ai_services import router as ai_services_router
 from app.api.v1.tenants import router as tenants_router
 from app.api.v1.chat_async import router as chat_async_router
+from app.api.v1.agent_mcp_tools import router as agent_mcp_tools_router
 
 import logging as _logging
 import os as _os
@@ -71,8 +77,15 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(agents_router, prefix="/api/v1/agents", tags=["agents"])
+app.include_router(chat_router, prefix="/api/v1/agents", tags=["chat"])
+app.include_router(agent_tools_router, prefix="/api/v1/agents", tags=["agent-tools"])
+app.include_router(agent_data_sources_router, prefix="/api/v1/agents", tags=["agent-data-sources"])
+app.include_router(memories_router, prefix="/api/v1/agents", tags=["agent-memories"])
+app.include_router(agent_mcp_tools_router, prefix="/api/v1/agents", tags=["agent-mcp-tools"])
+app.include_router(chat_async_router, prefix="/api/v1/agents", tags=["chat-async"])
 app.include_router(model_endpoints_router, prefix="/api/v1/model-endpoints", tags=["model-endpoints"])
 app.include_router(catalog_router, prefix="/api/v1/catalog", tags=["catalog"])
+app.include_router(knowledge_router, prefix="/api/v1/knowledge", tags=["knowledge"])
 app.include_router(marketplace_router, prefix="/api/v1/marketplace", tags=["marketplace"])
 app.include_router(observability_router, prefix="/api/v1/observability", tags=["observability"])
 app.include_router(evaluations_router, prefix="/api/v1/evaluations", tags=["evaluations"])
@@ -81,4 +94,3 @@ app.include_router(azure_connections_router, prefix="/api/v1/azure", tags=["azur
 app.include_router(azure_auth_router, prefix="/api/v1/azure", tags=["azure-auth"])
 app.include_router(ai_services_router, prefix="/api/v1/ai-services", tags=["ai-services"])
 app.include_router(tenants_router, prefix="/api/v1/tenants", tags=["tenants"])
-app.include_router(chat_async_router, prefix="/api/v1/agents", tags=["chat-async"])

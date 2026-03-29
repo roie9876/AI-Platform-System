@@ -362,6 +362,7 @@ class AzureConnectionResponse(BaseModel):
 
     id: UUID
     agent_id: Optional[UUID] = None
+    agent_ids: Optional[List[str]] = None
     azure_subscription_id: Optional[UUID] = None
     resource_type: str = ""
     resource_name: str = ""

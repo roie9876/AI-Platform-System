@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import os
+import tempfile
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -300,6 +302,80 @@ class VisionAdapter(PlatformToolAdapter):
         }
 
 
+class CodeInterpreterAdapter(PlatformToolAdapter):
+    """Code Interpreter — execute Python code in a sandboxed subprocess."""
+
+    MAX_OUTPUT = 65536  # 64 KB
+    TIMEOUT = 30  # seconds
+
+    def service_name(self) -> str:
+        return "Code Interpreter"
+
+    def tool_name(self) -> str:
+        return "code_interpreter"
+
+    def description(self) -> str:
+        return "Execute Python code and return stdout, stderr, and exit code."
+
+    def get_input_schema(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Python code to execute"},
+            },
+            "required": ["code"],
+        }
+
+    async def execute(self, input_data: dict) -> dict:
+        code = input_data.get("code", "")
+        if not code.strip():
+            return {"status": "error", "message": "No code provided"}
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            ) as f:
+                f.write(code)
+                script_path = f.name
+
+            process = await asyncio.create_subprocess_exec(
+                "python3", script_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    process.communicate(), timeout=self.TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+                return {
+                    "status": "error",
+                    "message": f"Code execution timed out after {self.TIMEOUT}s",
+                }
+            finally:
+                try:
+                    os.unlink(script_path)
+                except OSError:
+                    pass
+
+            stdout_text = stdout_bytes.decode("utf-8", errors="replace")[: self.MAX_OUTPUT]
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace")[: self.MAX_OUTPUT]
+
+            return {
+                "status": "success" if process.returncode == 0 else "error",
+                "stdout": stdout_text,
+                "stderr": stderr_text,
+                "exit_code": process.returncode,
+            }
+        except Exception as e:
+            logger.exception("Code interpreter execution failed")
+            return {"status": "error", "message": str(e)}
+
+
 # Registry of all platform tool adapters
 PLATFORM_ADAPTERS: List[PlatformToolAdapter] = [
     AzureAISearchAdapter(),
@@ -309,6 +385,7 @@ PLATFORM_ADAPTERS: List[PlatformToolAdapter] = [
     TranslationAdapter(),
     SpeechAdapter(),
     VisionAdapter(),
+    CodeInterpreterAdapter(),
 ]
 
 
