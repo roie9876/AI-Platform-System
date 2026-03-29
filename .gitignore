@@ -34,3 +34,9 @@ Thumbs.db
 
 # Docker
 postgres_data/
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+backend/register_endpoint.py

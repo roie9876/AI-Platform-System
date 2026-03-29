@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:ui": "npx playwright test --ui"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.6.1",
@@ -22,6 +25,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

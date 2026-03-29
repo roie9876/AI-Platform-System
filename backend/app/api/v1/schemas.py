@@ -19,10 +19,10 @@ class UserLoginRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: UUID
-    email: str
-    full_name: str
-    tenant_id: UUID
-    is_active: bool
+    email: str = ""
+    full_name: str = ""
+    tenant_id: Optional[UUID] = None
+    is_active: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -61,17 +61,17 @@ class AgentUpdateRequest(BaseModel):
 class AgentResponse(BaseModel):
     id: UUID
     name: str
-    description: Optional[str]
-    system_prompt: Optional[str]
-    status: str
-    temperature: float
-    max_tokens: int
-    timeout_seconds: int
-    model_endpoint_id: Optional[UUID]
-    current_config_version: int
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    description: Optional[str] = None
+    system_prompt: Optional[str] = None
+    status: str = "active"
+    temperature: float = 0.7
+    max_tokens: int = 1024
+    timeout_seconds: int = 30
+    model_endpoint_id: Optional[UUID] = None
+    current_config_version: int = 1
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -110,15 +110,15 @@ class ModelEndpointUpdateRequest(BaseModel):
 class ModelEndpointResponse(BaseModel):
     id: UUID
     name: str
-    provider_type: str
-    endpoint_url: Optional[str]
-    model_name: str
-    auth_type: str
-    is_active: bool
-    priority: int
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    provider_type: str = ""
+    endpoint_url: Optional[str] = None
+    model_name: str = ""
+    auth_type: str = "api_key"
+    is_active: bool = True
+    priority: int = 0
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -133,10 +133,10 @@ class ModelEndpointListResponse(BaseModel):
 class AgentConfigVersionResponse(BaseModel):
     id: UUID
     agent_id: UUID
-    version_number: int
-    config_snapshot: dict
-    change_description: Optional[str]
-    created_at: datetime
+    version_number: int = 1
+    config_snapshot: dict = {}
+    change_description: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -179,16 +179,16 @@ class ToolUpdateRequest(BaseModel):
 class ToolResponse(BaseModel):
     id: UUID
     name: str
-    description: Optional[str]
-    input_schema: dict
-    output_schema: Optional[dict]
-    docker_image: Optional[str]
-    execution_command: Optional[str]
-    timeout_seconds: int
-    is_platform_tool: bool
-    tenant_id: Optional[UUID]
-    created_at: datetime
-    updated_at: datetime
+    description: Optional[str] = None
+    input_schema: dict = {}
+    output_schema: Optional[dict] = None
+    docker_image: Optional[str] = None
+    execution_command: Optional[str] = None
+    timeout_seconds: int = 30
+    is_platform_tool: bool = False
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -204,9 +204,9 @@ class AgentToolAttachRequest(BaseModel):
 
 class AgentToolResponse(BaseModel):
     id: UUID
-    agent_id: UUID
-    tool_id: UUID
-    created_at: datetime
+    agent_id: Optional[UUID] = None
+    tool_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -230,13 +230,13 @@ class DataSourceUpdateRequest(BaseModel):
 class DataSourceResponse(BaseModel):
     id: UUID
     name: str
-    description: Optional[str]
-    source_type: str
-    config: Optional[dict]
-    status: str
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    description: Optional[str] = None
+    source_type: str = ""
+    config: Optional[dict] = None
+    status: str = "active"
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -254,16 +254,16 @@ class AgentDataSourceAttachRequest(BaseModel):
 
 class DocumentResponse(BaseModel):
     id: UUID
-    data_source_id: UUID
-    filename: str
-    content_type: Optional[str]
-    file_size: Optional[int]
-    content_hash: Optional[str]
-    status: str
-    chunk_count: int
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    data_source_id: Optional[UUID] = None
+    filename: str = ""
+    content_type: Optional[str] = None
+    file_size: Optional[int] = None
+    content_hash: Optional[str] = None
+    status: str = "pending"
+    chunk_count: int = 0
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -282,10 +282,10 @@ class IngestURLRequest(BaseModel):
 class PlatformToolResponse(BaseModel):
     id: UUID
     name: str
-    description: Optional[str]
-    input_schema: dict
-    service_name: str
-    is_enabled: bool
+    description: Optional[str] = None
+    input_schema: dict = {}
+    service_name: str = ""
+    is_enabled: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -314,12 +314,12 @@ class AzureSubscriptionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: UUID
-    subscription_id: str
-    display_name: str
-    tenant_azure_id: str
-    state: str
-    created_at: datetime
-    updated_at: datetime
+    subscription_id: str = ""
+    display_name: str = ""
+    tenant_azure_id: Optional[str] = None
+    state: str = "active"
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class DiscoveredResource(BaseModel):
@@ -362,18 +362,18 @@ class AzureConnectionResponse(BaseModel):
 
     id: UUID
     agent_id: Optional[UUID] = None
-    azure_subscription_id: UUID
-    resource_type: str
-    resource_name: str
-    resource_id: str
+    azure_subscription_id: Optional[UUID] = None
+    resource_type: str = ""
+    resource_name: str = ""
+    resource_id: str = ""
     endpoint: Optional[str] = None
     region: Optional[str] = None
-    auth_type: str
-    health_status: str
+    auth_type: str = "api_key"
+    health_status: str = "unknown"
     last_health_check: Optional[datetime] = None
     config: Optional[dict] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 # --- Catalog Schemas ---
@@ -396,16 +396,16 @@ class CatalogEntryResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
-    connector_type: str
-    category: str
-    provider: str
+    connector_type: str = ""
+    category: str = ""
+    provider: str = "Custom"
     icon_name: Optional[str] = None
     badges: Optional[List[str]] = None
     config_schema: Optional[dict] = None
     auth_types: Optional[List[str]] = None
-    is_builtin: bool
+    is_builtin: bool = False
     arm_resource_type: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
 
 # --- Knowledge / AI Search Schemas ---
@@ -442,9 +442,9 @@ class AgentKnowledgeResponse(BaseModel):
 
 class AgentDataSourceResponse(BaseModel):
     id: UUID
-    agent_id: UUID
-    data_source_id: UUID
-    created_at: datetime
+    agent_id: Optional[UUID] = None
+    data_source_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -462,13 +462,13 @@ class ThreadUpdateRequest(BaseModel):
 
 class ThreadResponse(BaseModel):
     id: UUID
-    title: Optional[str]
-    agent_id: UUID
-    user_id: UUID
-    tenant_id: UUID
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    title: Optional[str] = None
+    agent_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    tenant_id: Optional[UUID] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     message_count: int = 0
     last_message_preview: Optional[str] = None
 
@@ -482,12 +482,12 @@ class ThreadListResponse(BaseModel):
 
 class ThreadMessageResponse(BaseModel):
     id: UUID
-    thread_id: UUID
-    role: str
-    content: str
+    thread_id: Optional[UUID] = None
+    role: str = ""
+    content: str = ""
     message_metadata: Optional[dict] = None
-    sequence_number: int
-    created_at: datetime
+    sequence_number: int = 0
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -501,11 +501,11 @@ class ThreadMessagesResponse(BaseModel):
 
 class AgentMemoryResponse(BaseModel):
     id: UUID
-    agent_id: UUID
-    content: str
-    memory_type: str
+    agent_id: Optional[UUID] = None
+    content: str = ""
+    memory_type: str = "conversation"
     source_thread_id: Optional[UUID] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -535,16 +535,16 @@ class WorkflowNodeCreateRequest(BaseModel):
 
 class WorkflowNodeResponse(BaseModel):
     id: UUID
-    workflow_id: UUID
-    agent_id: UUID
-    name: str
-    node_type: str
-    position_x: float
-    position_y: float
+    workflow_id: Optional[UUID] = None
+    agent_id: Optional[UUID] = None
+    name: str = ""
+    node_type: str = "agent"
+    position_x: float = 0
+    position_y: float = 0
     config: Optional[dict] = None
-    execution_order: int
-    created_at: datetime
-    updated_at: datetime
+    execution_order: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -559,14 +559,14 @@ class WorkflowEdgeCreateRequest(BaseModel):
 
 class WorkflowEdgeResponse(BaseModel):
     id: UUID
-    workflow_id: UUID
-    source_node_id: UUID
-    target_node_id: UUID
-    edge_type: str
+    workflow_id: Optional[UUID] = None
+    source_node_id: Optional[UUID] = None
+    target_node_id: Optional[UUID] = None
+    edge_type: str = "default"
     condition: Optional[dict] = None
     output_mapping: Optional[dict] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -589,12 +589,12 @@ class WorkflowResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
-    workflow_type: str
-    is_active: bool
-    tenant_id: UUID
-    created_by: UUID
-    created_at: datetime
-    updated_at: datetime
+    workflow_type: str = "sequential"
+    is_active: bool = True
+    tenant_id: Optional[UUID] = None
+    created_by: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -616,35 +616,35 @@ class WorkflowExecuteRequest(BaseModel):
 
 class WorkflowExecutionResponse(BaseModel):
     id: UUID
-    workflow_id: UUID
-    status: str
+    workflow_id: Optional[UUID] = None
+    status: str = "pending"
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     input_data: Optional[dict] = None
     output_data: Optional[dict] = None
     error: Optional[str] = None
-    tenant_id: UUID
-    triggered_by: UUID
+    tenant_id: Optional[UUID] = None
+    triggered_by: Optional[UUID] = None
     thread_id: Optional[UUID] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
 
 class WorkflowNodeExecutionResponse(BaseModel):
     id: UUID
-    node_id: UUID
-    agent_id: UUID
-    status: str
+    node_id: Optional[UUID] = None
+    agent_id: Optional[UUID] = None
+    status: str = "pending"
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     input_data: Optional[dict] = None
     output_data: Optional[dict] = None
     error: Optional[str] = None
     thread_id: Optional[UUID] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -721,15 +721,15 @@ class ModelPricingCreate(BaseModel):
 
 class ModelPricingResponse(BaseModel):
     id: UUID
-    model_name: str
-    provider_type: str
-    input_price_per_1k: float
-    output_price_per_1k: float
-    currency: str
-    is_active: bool
+    model_name: str = ""
+    provider_type: str = ""
+    input_price_per_1k: float = 0.0
+    output_price_per_1k: float = 0.0
+    currency: str = "USD"
+    is_active: bool = True
     tenant_id: Optional[UUID] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -745,17 +745,17 @@ class CostAlertCreate(BaseModel):
 
 class CostAlertResponse(BaseModel):
     id: UUID
-    name: str
-    alert_type: str
-    threshold_amount: float
-    period: str
-    scope_type: str
+    name: str = ""
+    alert_type: str = "budget_threshold"
+    threshold_amount: float = 0.0
+    period: str = "monthly"
+    scope_type: str = "tenant"
     scope_id: Optional[UUID] = None
-    is_active: bool
+    is_active: bool = True
     last_triggered_at: Optional[datetime] = None
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -770,13 +770,13 @@ class TestSuiteCreate(BaseModel):
 
 class TestSuiteResponse(BaseModel):
     id: UUID
-    name: str
+    name: str = ""
     description: Optional[str] = None
-    agent_id: UUID
-    tenant_id: UUID
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    agent_id: Optional[UUID] = None
+    tenant_id: Optional[UUID] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -791,44 +791,44 @@ class TestCaseCreate(BaseModel):
 
 class TestCaseResponse(BaseModel):
     id: UUID
-    test_suite_id: UUID
-    input_message: str
+    test_suite_id: Optional[UUID] = None
+    input_message: str = ""
     expected_output: Optional[str] = None
     expected_keywords: Optional[List[str]] = None
-    order_index: int
-    created_at: datetime
-    updated_at: datetime
+    order_index: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
 
 class EvaluationRunResponse(BaseModel):
     id: UUID
-    test_suite_id: UUID
-    agent_id: UUID
+    test_suite_id: Optional[UUID] = None
+    agent_id: Optional[UUID] = None
     config_version_id: Optional[UUID] = None
-    status: str
+    status: str = "pending"
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     summary: Optional[dict] = None
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
 
 class EvaluationResultResponse(BaseModel):
     id: UUID
-    run_id: UUID
-    test_case_id: UUID
+    run_id: Optional[UUID] = None
+    test_case_id: Optional[UUID] = None
     actual_output: Optional[str] = None
     score: Optional[float] = None
     metrics: Optional[dict] = None
-    status: str
+    status: str = "pending"
     error_message: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -914,16 +914,16 @@ class MCPServerUpdateRequest(BaseModel):
 class MCPServerResponse(BaseModel):
     id: UUID
     name: str
-    url: str
+    url: str = ""
     description: Optional[str] = None
-    auth_type: str
+    auth_type: str = "none"
     auth_header_name: Optional[str] = None
-    is_active: bool
-    status: str
+    is_active: bool = True
+    status: str = "unknown"
     status_message: Optional[str] = None
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -937,14 +937,14 @@ class MCPServerListResponse(BaseModel):
 
 class MCPDiscoveredToolResponse(BaseModel):
     id: UUID
-    server_id: UUID
-    tool_name: str
+    server_id: Optional[UUID] = None
+    tool_name: str = ""
     description: Optional[str] = None
     input_schema: Optional[dict] = None
-    is_available: bool
-    tenant_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    is_available: bool = True
+    tenant_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -967,14 +967,14 @@ class AgentMCPToolAttachRequest(BaseModel):
 
 class AgentMCPToolResponse(BaseModel):
     id: UUID
-    agent_id: UUID
-    mcp_tool_id: UUID
-    tool_name: str
+    agent_id: Optional[UUID] = None
+    mcp_tool_id: Optional[UUID] = None
+    tool_name: str = ""
     description: Optional[str] = None
-    server_id: UUID
-    server_name: str
-    is_available: bool
-    created_at: datetime
+    server_id: Optional[UUID] = None
+    server_name: str = ""
+    is_available: bool = True
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

@@ -47,6 +47,7 @@ async def connect_subscription(
         "subscription_id": body.subscription_id,
         "display_name": body.display_name,
         "tenant_azure_id": body.tenant_azure_id,
+        "state": "active",
         "access_token_encrypted": encrypt_api_key(body.access_token),
         "refresh_token_encrypted": encrypt_api_key(body.refresh_token) if body.refresh_token else None,
     }

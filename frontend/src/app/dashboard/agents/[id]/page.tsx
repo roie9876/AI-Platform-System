@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getCurrentTenantId } from "@/lib/api";
 import { getMsalInstance, getLoginScopes } from "@/lib/msal";
 import { AgentConfigTopBar } from "@/components/agent/agent-config-top-bar";
 import { AgentConfigLayout } from "@/components/agent/agent-config-layout";
@@ -13,7 +13,7 @@ import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
 import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface ChatSource {
   type: string;
@@ -221,11 +221,16 @@ export default function AgentDetailPage() {
         } catch { /* will get 401 */ }
       }
 
+      const tenantId = getCurrentTenantId();
       const response = await fetch(
         `${API_BASE}/api/v1/agents/${agentId}/chat`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+            ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+          },
           body: JSON.stringify(body),
           signal: controller.signal,
         }

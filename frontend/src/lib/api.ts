@@ -11,6 +11,10 @@ export function setCurrentTenantId(id: string | null) {
   _currentTenantId = id;
 }
 
+export function getCurrentTenantId(): string | null {
+  return _currentTenantId;
+}
+
 async function getAccessToken(forceRefresh = false): Promise<string | null> {
   let instance;
   try {

@@ -11,6 +11,10 @@ COPY app/ ./app/
 # Copy microservice entry point
 COPY microservices/agent_executor/main.py ./main.py
 
+# Copy microservice modules
+COPY microservices/__init__.py ./microservices/__init__.py
+COPY microservices/agent_executor/ ./microservices/agent_executor/
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

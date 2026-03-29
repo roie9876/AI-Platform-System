@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { getCurrentTenantId } from "@/lib/api";
 import { getMsalInstance, getLoginScopes } from "@/lib/msal";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ConfigPanel } from "@/components/chat/config-panel";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface Agent {
   id: string;
@@ -128,11 +129,16 @@ export default function ChatPage() {
           } catch { /* will get 401 */ }
         }
 
+        const tenantId = getCurrentTenantId();
         const response = await fetch(
           `${API_BASE}/api/v1/agents/${agentId}/chat`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders },
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders,
+              ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+            },
             body: JSON.stringify(body),
             signal: controller.signal,
           }
