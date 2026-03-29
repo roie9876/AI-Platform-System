@@ -64,6 +64,7 @@ async def create_model_endpoint(
         "api_key_encrypted": encrypted_key,
         "auth_type": body.auth_type,
         "priority": body.priority,
+        "is_active": True,
     }
     endpoint = await endpoint_repo.create(tenant_id, endpoint_data)
     return endpoint
