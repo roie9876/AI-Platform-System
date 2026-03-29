@@ -2,11 +2,10 @@ import logging
 from typing import List, Optional
 from uuid import uuid4
 
-import litellm
-
 from app.core.config import settings
 from app.repositories.agent_repo import AgentRepository
 from app.repositories.thread_repo import ThreadMessageRepository, AgentMemoryRepository
+from app.services.model_abstraction import _build_client
 from app.services.secret_store import decrypt_api_key
 
 logger = logging.getLogger(__name__)
@@ -19,31 +18,16 @@ class MemoryService:
     """Manages long-term agent memory with embeddings."""
 
     async def embed(self, text: str, model_endpoint: dict) -> List[float]:
-        """Generate embedding vector using LiteLLM."""
+        """Generate embedding vector using OpenAI SDK."""
         try:
             embedding_model = settings.EMBEDDING_MODEL
-            provider = model_endpoint.get("provider_type", "")
-            if provider == "azure_openai":
-                model_str = f"azure/{embedding_model}"
-            elif provider == "openai":
-                model_str = embedding_model
-            else:
-                model_str = f"{provider}/{embedding_model}"
+            client = _build_client(model_endpoint)
 
-            kwargs: dict = {
-                "model": model_str,
-                "input": [text],
-            }
-
-            if model_endpoint.get("endpoint_url"):
-                kwargs["api_base"] = model_endpoint["endpoint_url"]
-
-            if model_endpoint.get("api_key_encrypted"):
-                decrypted = decrypt_api_key(model_endpoint["api_key_encrypted"])
-                kwargs["api_key"] = decrypted
-
-            response = await litellm.aembedding(**kwargs)
-            return response.data[0]["embedding"]
+            response = await client.embeddings.create(
+                model=embedding_model,
+                input=[text],
+            )
+            return response.data[0].embedding
         except Exception:
             logger.warning("Failed to generate embedding, storing memory without vector", exc_info=True)
             return []

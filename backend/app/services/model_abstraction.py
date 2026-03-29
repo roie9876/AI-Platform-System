@@ -1,12 +1,46 @@
 import logging
+import re
 import time
 from typing import Optional, List, Dict, Any, AsyncGenerator
 
-import litellm
+from openai import AsyncAzureOpenAI, AsyncOpenAI
+
+from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
 
 from app.services.secret_store import decrypt_api_key
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Reasoning-model detection
+# ---------------------------------------------------------------------------
+# Models whose names match this pattern use the "reasoning" API contract:
+#   - No temperature (or must be 1)
+#   - max_completion_tokens instead of max_tokens
+#   - "developer" role instead of "system"
+#   - Some don't support streaming
+_REASONING_MODEL_RE = re.compile(
+    r"(^|[-/])(o1|o3|o4-mini|o4|gpt-5)",
+    re.IGNORECASE,
+)
+
+
+def is_reasoning_model(model_name: str) -> bool:
+    """Return True if the model uses the reasoning API contract."""
+    return bool(_REASONING_MODEL_RE.search(model_name))
+
+
+def _adapt_messages_for_reasoning(
+    messages: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Convert 'system' role to 'developer' for reasoning models."""
+    adapted = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            adapted.append({**msg, "role": "developer"})
+        else:
+            adapted.append(msg)
+    return adapted
 
 
 class ModelError(Exception):
@@ -63,61 +97,65 @@ class CircuitBreaker:
 # Module-level singleton so state persists across requests within the process.
 _circuit_breaker = CircuitBreaker()
 
+# Cache Azure credential to avoid re-creating per request.
+_azure_credential: Optional[DefaultAzureCredential] = None
 
-def _build_litellm_params(
-    endpoint: dict,
-    messages: List[Dict[str, str]],
-    temperature: float,
-    max_tokens: int,
-    timeout: int,
-    stream: bool,
-    tools: Optional[list] = None,
-    tool_choice: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Build kwargs for litellm.acompletion based on provider and auth type."""
+
+def _get_azure_credential() -> DefaultAzureCredential:
+    global _azure_credential
+    if _azure_credential is None:
+        _azure_credential = DefaultAzureCredential()
+    return _azure_credential
+
+
+def _build_client(endpoint: dict) -> AsyncOpenAI | AsyncAzureOpenAI:
+    """Construct the appropriate async OpenAI client for the endpoint."""
     provider = endpoint.get("provider_type", "")
-    model_name = endpoint.get("model_name", "")
-
-    params: Dict[str, Any] = {
-        "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "timeout": timeout,
-        "stream": stream,
-    }
+    api_key: Optional[str] = None
+    if endpoint.get("api_key_encrypted"):
+        api_key = decrypt_api_key(endpoint["api_key_encrypted"])
 
     if provider == "azure_openai":
-        params["model"] = f"azure/{model_name}"
-        if endpoint.get("endpoint_url"):
-            params["api_base"] = endpoint["endpoint_url"]
-        if endpoint.get("auth_type") == "api_key" and endpoint.get("api_key_encrypted"):
-            params["api_key"] = decrypt_api_key(endpoint["api_key_encrypted"])
-        # For entra_id auth, litellm can pick up AZURE_AD_TOKEN env var or
-        # DefaultAzureCredential via azure-identity at runtime.
-    elif provider in ("openai", "anthropic", "custom"):
-        if provider == "custom":
-            params["model"] = f"openai/{model_name}"
-            if endpoint.get("endpoint_url"):
-                params["api_base"] = endpoint["endpoint_url"]
-        else:
-            params["model"] = f"{provider}/{model_name}"
-        if endpoint.get("api_key_encrypted"):
-            params["api_key"] = decrypt_api_key(endpoint["api_key_encrypted"])
-    else:
-        params["model"] = model_name
-        if endpoint.get("api_key_encrypted"):
-            params["api_key"] = decrypt_api_key(endpoint["api_key_encrypted"])
+        base_url = endpoint.get("endpoint_url")
+        auth_type = endpoint.get("auth_type", "entra_id")
+        if auth_type == "api_key" and api_key:
+            return AsyncAzureOpenAI(
+                api_key=api_key,
+                azure_endpoint=base_url or "",
+                api_version="2025-04-01-preview",
+            )
+        # Entra ID / Managed Identity auth
+        credential = _get_azure_credential()
+        token_provider = get_bearer_token_provider(
+            credential, "https://cognitiveservices.azure.com/.default"
+        )
+        return AsyncAzureOpenAI(
+            azure_ad_token_provider=token_provider,
+            azure_endpoint=base_url or "",
+            api_version="2025-04-01-preview",
+        )
 
-    if tools:
-        params["tools"] = tools
-    if tool_choice:
-        params["tool_choice"] = tool_choice
+    if provider == "custom":
+        return AsyncOpenAI(
+            api_key=api_key or "unused",
+            base_url=endpoint.get("endpoint_url"),
+        )
 
-    return params
+    if provider == "anthropic":
+        # Anthropic has its own SDK, but we route through OpenAI-compatible
+        # endpoint if configured.  For direct Anthropic API, users should
+        # set provider_type=custom with the Anthropic base URL.
+        return AsyncOpenAI(
+            api_key=api_key or "",
+            base_url=endpoint.get("endpoint_url") or "https://api.anthropic.com/v1",
+        )
+
+    # Default: OpenAI
+    return AsyncOpenAI(api_key=api_key or "")
 
 
 class ModelAbstractionService:
-    """LiteLLM-based model abstraction with circuit breaker and fallback."""
+    """Direct OpenAI-SDK model abstraction with circuit breaker, fallback, and reasoning model support."""
 
     def __init__(self) -> None:
         self._last_usage: Dict[str, int] = {}
@@ -142,14 +180,30 @@ class ModelAbstractionService:
         if not _circuit_breaker.is_available(endpoint_id):
             raise ModelError(f"Circuit breaker open for endpoint {endpoint.get('name', '')}")
 
-        params = _build_litellm_params(
-            endpoint, messages, temperature, max_tokens, timeout, stream
-        )
+        model_name = endpoint.get("model_name", "")
+        reasoning = is_reasoning_model(model_name)
+        client = _build_client(endpoint)
+
+        # Build kwargs
+        kwargs: Dict[str, Any] = {
+            "model": model_name,
+            "messages": _adapt_messages_for_reasoning(messages) if reasoning else messages,
+            "timeout": timeout,
+            "stream": stream,
+        }
+
+        if reasoning:
+            kwargs["max_completion_tokens"] = max_tokens
+            # Reasoning models don't accept temperature
+        else:
+            kwargs["temperature"] = temperature
+            kwargs["max_tokens"] = max_tokens
+
         if stream:
-            params["stream_options"] = {"include_usage": True}
+            kwargs["stream_options"] = {"include_usage": True}
 
         try:
-            response = await litellm.acompletion(**params)
+            response = await client.chat.completions.create(**kwargs)
 
             if stream:
                 async for chunk in response:
@@ -234,8 +288,7 @@ class ModelAbstractionService:
         max_tokens: int = 1024,
         timeout: int = 30,
     ) -> Dict[str, Any]:
-        """Non-streaming completion that returns full response including tool_calls.
-        Returns dict with keys: content (str|None), tool_calls (list|None), finish_reason (str)."""
+        """Non-streaming completion that returns full response including tool_calls."""
         sorted_endpoints = sorted(endpoints, key=lambda e: e.get("priority", 0))
         last_error: Optional[Exception] = None
 
@@ -248,12 +301,30 @@ class ModelAbstractionService:
                 )
                 continue
 
-            params = _build_litellm_params(
-                endpoint, messages, temperature, max_tokens, timeout,
-                stream=False, tools=tools, tool_choice=tool_choice,
-            )
+            model_name = endpoint.get("model_name", "")
+            reasoning = is_reasoning_model(model_name)
+            client = _build_client(endpoint)
+
+            kwargs: Dict[str, Any] = {
+                "model": model_name,
+                "messages": _adapt_messages_for_reasoning(messages) if reasoning else messages,
+                "timeout": timeout,
+                "stream": False,
+            }
+
+            if reasoning:
+                kwargs["max_completion_tokens"] = max_tokens
+            else:
+                kwargs["temperature"] = temperature
+                kwargs["max_tokens"] = max_tokens
+
+            if tools:
+                kwargs["tools"] = tools
+            if tool_choice:
+                kwargs["tool_choice"] = tool_choice
+
             try:
-                response = await litellm.acompletion(**params)
+                response = await client.chat.completions.create(**kwargs)
                 _circuit_breaker.record_success(endpoint_id)
                 message = response.choices[0].message
                 usage = getattr(response, "usage", None)

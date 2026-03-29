@@ -147,7 +147,7 @@ class AgentExecutionService:
         return tools
 
     def _build_tool_schemas(self, tools: List[dict]) -> List[Dict[str, Any]]:
-        """Convert Tool dicts to OpenAI-format tool schemas for LiteLLM."""
+        """Convert Tool dicts to OpenAI-format tool schemas."""
         return [
             {
                 "type": "function",
