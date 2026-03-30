@@ -1,0 +1,217 @@
+<mxfile host="draw.io">
+  <diagram name="Cluster Topology" id="cluster-topology">
+    <mxGraphModel dx="1400" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="950">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="AKS Cluster Topology" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="600" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- AKS Cluster outer box -->
+        <mxCell id="cluster" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#283593;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="40" y="55" width="1320" height="860" as="geometry"/>
+        </mxCell>
+        <mxCell id="cluster-icon" value="AKS Cluster" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/containers/Kubernetes_Services.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;fontColor=#283593;" vertex="1" parent="1">
+          <mxGeometry x="60" y="65" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cluster-name" value="stumsft-aiplatform-prod-aks" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#283593;" vertex="1" parent="1">
+          <mxGeometry x="115" y="78" width="250" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== System Node Pool ========== -->
+        <mxCell id="sys-pool" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="130" width="600" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys-label" value="System Node Pool (2× Standard_D4s_v5)" style="text;html=1;fontSize=12;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#6A1B9A;" vertex="1" parent="1">
+          <mxGeometry x="80" y="138" width="400" height="18" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sys1" value="CoreDNS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="170" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys2" value="CSI Secrets&lt;br&gt;Store Driver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="170" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys3" value="OMS Agent&lt;br&gt;(Monitoring)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="170" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys4" value="AGC Ingress&lt;br&gt;Controller" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="170" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sys-note" value="Taint: CriticalAddonsOnly — no workload pods scheduled here" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=none;strokeColor=none;fontColor=#6A1B9A;" vertex="1" parent="1">
+          <mxGeometry x="80" y="225" width="400" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== User Node Pool ========== -->
+        <mxCell id="usr-pool" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="310" width="1280" height="580" as="geometry"/>
+        </mxCell>
+        <mxCell id="usr-label" value="User Node Pool (1× Standard_D4s_v5)" style="text;html=1;fontSize=12;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="80" y="318" width="400" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Namespace: aiplatform (shared control plane) ========== -->
+        <mxCell id="ns-ai" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=1.5;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="80" y="345" width="1240" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="ns-ai-label" value="Namespace: aiplatform (Shared Control Plane)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="95" y="352" width="350" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Pods Row 1 -->
+        <mxCell id="pod-gw" value="api-gateway&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;1 replica, port 8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="380" width="160" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="pod-ae" value="agent-executor&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;1 replica, port 8000&lt;br&gt;KEDA: 0–5 replicas&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="380" width="170" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="pod-te" value="tool-executor&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;1 replica, port 8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="380" width="160" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="pod-mcp" value="mcp-proxy&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;1 replica, port 8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="380" width="160" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="pod-we" value="workflow-engine&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;1 replica, port 8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="830" y="380" width="160" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="pod-fe" value="frontend&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;1 replica, port 3000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="380" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Config Resources Row -->
+        <mxCell id="cm" value="ConfigMap:&lt;br&gt;aiplatform-config" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="460" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec" value="Secrets:&lt;br&gt;aiplatform-secrets (CSI ← Key Vault)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="460" width="240" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="sa" value="ServiceAccount:&lt;br&gt;aiplatform-workload (Workload Identity)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="460" width="260" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="keda-icon" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/general/Scale.svg;" vertex="1" parent="1">
+          <mxGeometry x="810" y="465" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="keda-label" value="KEDA ScaledObject" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="845" y="472" width="130" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Probes info -->
+        <mxCell id="probes" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FA;strokeColor=#00838F;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="520" width="1200" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="probes-title" value="Health Probes (all pods):" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#00838F;" vertex="1" parent="1">
+          <mxGeometry x="115" y="525" width="200" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="probe1" value="Liveness: /healthz every 10s (5s initial)" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="115" y="545" width="270" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="probe2" value="Readiness: /readyz every 5s (10s initial)" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="400" y="545" width="270" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="probe3" value="Startup: /startupz every 2s (3s initial, 30 fail threshold)" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="700" y="545" width="350" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="res-info" value="Resources: 100m/500m CPU, 256Mi/512Mi Memory" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="525" width="230" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Namespace: tenant-{slug} ========== -->
+        <mxCell id="ns-tenant" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=1.5;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="80" y="600" width="1240" height="270" as="geometry"/>
+        </mxCell>
+        <mxCell id="ns-tenant-label" value="Namespace: tenant-{slug} (Per-Tenant Runtime — replicated per tenant)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="95" y="608" width="500" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Tenant pods -->
+        <mxCell id="t-ae" value="agent-executor&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Dedicated per tenant&lt;br&gt;HPA: 1–5 replicas&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="640" width="170" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-te" value="tool-executor&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Dedicated per tenant&lt;br&gt;HPA: 1–5 replicas&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="640" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Tenant config resources -->
+        <mxCell id="t-sa" value="ServiceAccount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="640" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-rq" value="ResourceQuota&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;4 CPU / 8 Gi&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="640" width="110" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-lr" value="LimitRange&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;250m CPU / 512Mi max&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="750" y="640" width="130" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-np" value="NetworkPolicy&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;deny-all + allow aiplatform NS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="640" width="160" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-hpa1" value="HPA ×2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="640" width="70" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Isolation explanation -->
+        <mxCell id="iso-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="710" width="1200" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="iso-title" value="Tenant Isolation Guarantees:" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#C62828;" vertex="1" parent="1">
+          <mxGeometry x="115" y="715" width="200" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="iso1" value="• Namespace-level isolation (separate pods)" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="115" y="735" width="250" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="iso2" value="• NetworkPolicy deny-all default" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="375" y="735" width="200" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="iso3" value="• ResourceQuota prevents noisy neighbor" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="600" y="735" width="250" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="iso4" value="• All DB queries scoped to tenant_id" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="870" y="735" width="250" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Tenant replicate note -->
+        <mxCell id="replicate" value="↑ One namespace per onboarded tenant — auto-provisioned on tenant creation" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#BF360C;" vertex="1" parent="1">
+          <mxGeometry x="100" y="775" width="500" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Ingress (right side, top area) ========== -->
+        <mxCell id="ingress-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="130" width="640" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="ingress-title" value="AGC Ingress Routing" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=#00695C;strokeColor=none;fontColor=#fff;rounded=1;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="880" y="138" width="280" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="agc-icon" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/networking/Application_Gateway_Containers.svg;" vertex="1" parent="1">
+          <mxGeometry x="720" y="140" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="route1" value="/api/v1/threads → agent-executor" style="text;html=1;fontSize=9;align=left;fillColor=#B2DFDB;strokeColor=#00695C;rounded=1;spacing=3;" vertex="1" parent="1">
+          <mxGeometry x="720" y="175" width="220" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="route2" value="/api/v1/workflows → workflow-engine" style="text;html=1;fontSize=9;align=left;fillColor=#B2DFDB;strokeColor=#00695C;rounded=1;spacing=3;" vertex="1" parent="1">
+          <mxGeometry x="720" y="198" width="220" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="route3" value="/api/v1/tools → tool-executor" style="text;html=1;fontSize=9;align=left;fillColor=#B2DFDB;strokeColor=#00695C;rounded=1;spacing=3;" vertex="1" parent="1">
+          <mxGeometry x="720" y="221" width="220" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="route4" value="/api/v1/mcp* → mcp-proxy" style="text;html=1;fontSize=9;align=left;fillColor=#B2DFDB;strokeColor=#00695C;rounded=1;spacing=3;" vertex="1" parent="1">
+          <mxGeometry x="960" y="175" width="220" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="route5" value="/api/v1/* → api-gateway (catch-all)" style="text;html=1;fontSize=9;align=left;fillColor=#B2DFDB;strokeColor=#00695C;rounded=1;spacing=3;" vertex="1" parent="1">
+          <mxGeometry x="960" y="198" width="220" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="route6" value="/ → frontend (:3000)" style="text;html=1;fontSize=9;align=left;fillColor=#B2DFDB;strokeColor=#00695C;rounded=1;spacing=3;" vertex="1" parent="1">
+          <mxGeometry x="960" y="221" width="220" height="18" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="route-note" value="TLS termination • Health checks at /healthz" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=none;strokeColor=none;fontColor=#00695C;" vertex="1" parent="1">
+          <mxGeometry x="720" y="250" width="300" height="14" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,241 @@
+<mxfile host="draw.io">
+  <diagram name="Network Security Boundaries" id="network-security">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="Network Security Boundaries" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="600" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- VNet outer box -->
+        <mxCell id="vnet" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#283593;strokeWidth=3;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="55" width="1320" height="810" as="geometry"/>
+        </mxCell>
+        <mxCell id="vnet-icon" value="Azure VNet" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/networking/Virtual_Networks.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;fontStyle=1;fontColor=#283593;" vertex="1" parent="1">
+          <mxGeometry x="60" y="65" width="40" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="vnet-cidr" value="10.0.0.0/16" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#283593;" vertex="1" parent="1">
+          <mxGeometry x="110" y="75" width="120" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== AKS Nodes Subnet ========== -->
+        <mxCell id="aks-subnet" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="870" height="720" as="geometry"/>
+        </mxCell>
+        <mxCell id="aks-subnet-label" value="AKS Nodes Subnet — 10.0.0.0/22" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="75" y="128" width="300" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="aks-icon" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/containers/Kubernetes_Services.svg;" vertex="1" parent="1">
+          <mxGeometry x="380" y="122" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Pod CIDR overlay -->
+        <mxCell id="pod-cidr" value="Pod CIDR: 192.168.0.0/16 (CNI Overlay)" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=#FFF9C4;strokeColor=#F9A825;rounded=1;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="152" width="260" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc-cidr" value="Service CIDR: 172.16.0.0/16" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=#FFF9C4;strokeColor=#F9A825;rounded=1;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="360" y="152" width="200" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- System Node Pool -->
+        <mxCell id="sys-pool" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="80" y="185" width="400" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys-pool-label" value="System Node Pool (2× D4s_v5)" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#6A1B9A;" vertex="1" parent="1">
+          <mxGeometry x="95" y="192" width="300" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys1" value="CoreDNS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="95" y="218" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys2" value="CSI Secrets&lt;br&gt;Store Driver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="195" y="218" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys3" value="OMS Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="295" y="218" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys4" value="AGC Ingress&lt;br&gt;Controller" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="395" y="218" width="72" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="nsp-sys" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/networking/Network_Security_Groups.svg;" vertex="1" parent="1">
+          <mxGeometry x="95" y="265" width="25" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="nsp-sys-label" value="NSG: Allow kube-system only" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;fontColor=#6A1B9A;" vertex="1" parent="1">
+          <mxGeometry x="125" y="268" width="200" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- User Node Pool -->
+        <mxCell id="usr-pool" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="80" y="340" width="830" height="480" as="geometry"/>
+        </mxCell>
+        <mxCell id="usr-pool-label" value="User Node Pool (1× D4s_v5)" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="95" y="348" width="300" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Namespace: aiplatform -->
+        <mxCell id="ns" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=1;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="95" y="375" width="800" height="195" as="geometry"/>
+        </mxCell>
+        <mxCell id="ns-label" value="Namespace: aiplatform (Shared Control Plane)" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="110" y="380" width="350" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1" value="api-gateway&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;:8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="110" y="400" width="95" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2" value="workflow-engine&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;:8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="400" width="105" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3" value="mcp-proxy&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;:8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="340" y="400" width="95" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4" value="frontend&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;:3000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="400" width="95" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5" value="ConfigMap&lt;br&gt;Secrets (CSI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="400" width="90" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p6" value="ServiceAccount&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;aiplatform-workload&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="665" y="400" width="120" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- NetworkPolicy note for shared -->
+        <mxCell id="netpol-shared" value="NetworkPolicy: allow 8000/3000 from AGC only" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=none;strokeColor=none;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="110" y="450" width="350" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Namespace: tenant-{slug} -->
+        <mxCell id="tns" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=1;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="95" y="490" width="800" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="tns-label" value="Namespace: tenant-{slug} (Per-Tenant Runtime — separate per tenant)" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="110" y="498" width="450" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="tp1" value="agent-executor&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;:8000 (KEDA 0–5)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="110" y="525" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tp2" value="tool-executor&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;:8000&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="525" width="110" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tquota" value="ResourceQuota&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;4 CPU / 8 Gi&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="395" y="525" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tlimit" value="LimitRange&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;250m / 512Mi max&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="510" y="525" width="110" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tnetpol" value="NetworkPolicy&lt;br&gt;&lt;font style=&quot;font-size:8px&quot;&gt;Deny all + allow aiplatform&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="640" y="525" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="isolation-note" value="Tenant Isolation: deny-all default + explicit allow from aiplatform namespace" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="110" y="580" width="450" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="replicate-note" value="← Replicated per tenant (one namespace per tenant)" style="text;html=1;fontSize=9;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#BF360C;" vertex="1" parent="1">
+          <mxGeometry x="110" y="605" width="350" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- HPA row -->
+        <mxCell id="hpa-row" value="HPA: CPU &gt; 70% → scale up (min: 1, max: 5) — per-tenant" style="text;html=1;fontSize=9;fontStyle=2;align=left;fillColor=#E0F7FA;strokeColor=#00838F;rounded=1;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="110" y="630" width="350" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Private Endpoints Subnet ========== -->
+        <mxCell id="pe-subnet" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="960" y="120" width="380" height="570" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe-subnet-label" value="Private Endpoints Subnet — 10.0.4.0/24" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="975" y="128" width="350" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- Cosmos DB -->
+        <mxCell id="cosmos" value="Cosmos DB" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/databases/Azure_Cosmos_DB.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="170" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cosmos-pe" value="Private Endpoint" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="185" width="90" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Key Vault -->
+        <mxCell id="kv" value="Key Vault" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/security/Key_Vaults.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="255" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="kv-pe" value="Private Endpoint" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="270" width="90" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- AI Search -->
+        <mxCell id="search" value="AI Search" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/app_services/Search_Services.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="340" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="search-pe" value="Private Endpoint" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="355" width="90" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Azure OpenAI -->
+        <mxCell id="aoai" value="Azure OpenAI" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="425" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="aoai-pe" value="Private Endpoint" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="440" width="90" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- ACR -->
+        <mxCell id="acr" value="ACR" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/containers/Container_Registries.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="515" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="acr-pe" value="Private Endpoint" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="530" width="90" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- NSG on PE subnet -->
+        <mxCell id="nsg-pe" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/networking/Network_Security_Groups.svg;" vertex="1" parent="1">
+          <mxGeometry x="975" y="610" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="nsg-pe-label" value="NSG: Allow inbound from AKS subnet only" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="616" width="280" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Connection arrows AKS → PE -->
+        <mxCell id="c1" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=1.5;strokeColor=#1565C0;dashed=1;dashPattern=4 4;" edge="1" parent="1" source="usr-pool" target="pe-subnet">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== AGC Subnet ========== -->
+        <mxCell id="agc-subnet" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="960" y="720" width="380" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="agc-subnet-label" value="AGC Subnet — 10.0.8.0/24" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#00695C;" vertex="1" parent="1">
+          <mxGeometry x="975" y="728" width="300" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="agc" value="AGC" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/networking/Application_Gateway_Containers.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="755" width="45" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="agc-info" value="TLS termination&lt;br&gt;Path-based routing&lt;br&gt;Health checks" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;fontColor=#00695C;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="755" width="140" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Internet Arrow -->
+        <mxCell id="internet" value="☁ Internet" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="720" width="100" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="inet-arrow" value="HTTPS only" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#00695C;fontSize=9;fontColor=#00695C;" edge="1" parent="1" source="internet" target="agc-subnet">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- AGC → AKS arrow -->
+        <mxCell id="agc-aks" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#00695C;dashed=1;dashPattern=4 4;" edge="1" parent="1" source="agc-subnet" target="usr-pool">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Principle: Zero public endpoints for data services • All backend traffic stays on VNet • Only AGC is internet-facing" style="text;html=1;fontSize=10;align=center;fillColor=#F5F5F5;strokeColor=#999;rounded=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="200" y="875" width="900" height="22" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

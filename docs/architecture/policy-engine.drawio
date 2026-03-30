@@ -1,0 +1,182 @@
+<mxfile host="draw.io">
+  <diagram name="Policy Engine" id="policy-engine">
+    <mxGraphModel dx="1100" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="750">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="Policy Engine &amp; Governance" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="250" y="15" width="600" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== 3-Tier Policy Stack (left) ========== -->
+        <mxCell id="stack-label" value="POLICY HIERARCHY (stacked, inner overrides outer)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#333;" vertex="1" parent="1">
+          <mxGeometry x="55" y="58" width="400" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- Tier 1: Global -->
+        <mxCell id="global-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=3;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="85" width="520" height="350" as="geometry"/>
+        </mxCell>
+        <mxCell id="global-title" value="GLOBAL POLICIES" style="text;html=1;fontSize=14;fontStyle=1;align=center;fillColor=#1565C0;strokeColor=none;fontColor=#fff;rounded=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="170" y="95" width="260" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="g1" value="Content safety" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="135" width="120" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="g2" value="Platform rate limits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="135" width="130" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="g-icon" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/management_governance/Policy.svg;" vertex="1" parent="1">
+          <mxGeometry x="490" y="96" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Tier 2: Tenant -->
+        <mxCell id="tenant-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="180" width="460" height="225" as="geometry"/>
+        </mxCell>
+        <mxCell id="tenant-title" value="TENANT POLICIES" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=#E65100;strokeColor=none;fontColor=#fff;rounded=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="185" y="190" width="230" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="t1" value="Token quotas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="230" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="t2" value="Allowed providers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="205" y="230" width="120" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3" value="Feature flags" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="340" y="230" width="105" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="t4" value="Budget limits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="270" width="100" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- Tier 3: Agent -->
+        <mxCell id="agent-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="315" width="400" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="agent-title" value="AGENT POLICIES" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=#2E7D32;strokeColor=none;fontColor=#fff;rounded=1;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="200" y="322" width="200" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" value="Per-agent rate limits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="115" y="355" width="120" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" value="Tool access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="245" y="355" width="80" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" value="Content filters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="335" y="355" width="90" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" value="Max iterations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="435" y="355" width="50" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Enforcement Points (right) ========== -->
+        <mxCell id="enforce-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="85" width="440" height="350" as="geometry"/>
+        </mxCell>
+        <mxCell id="enforce-title" value="ENFORCEMENT POINTS" style="text;html=1;fontSize=14;fontStyle=1;align=center;fillColor=#C62828;strokeColor=none;fontColor=#fff;rounded=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="720" y="95" width="240" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- Pre-execution -->
+        <mxCell id="e1-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="140" width="390" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1-title" value="● Pre-execution" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#C62828;" vertex="1" parent="1">
+          <mxGeometry x="660" y="145" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1-desc" value="Validate inputs against content safety policies before sending to LLM" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="660" y="165" width="360" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Post-execution -->
+        <mxCell id="e2-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="215" width="390" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2-title" value="● Post-execution" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#C62828;" vertex="1" parent="1">
+          <mxGeometry x="660" y="220" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2-desc" value="Filter LLM outputs before returning to user" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="660" y="240" width="360" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Rate limiting -->
+        <mxCell id="e3-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="280" width="390" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3-title" value="● Rate limiting" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#C62828;" vertex="1" parent="1">
+          <mxGeometry x="660" y="285" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3-desc" value="Per-agent and per-tenant request throttling" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="660" y="305" width="360" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Budget enforcement -->
+        <mxCell id="e4-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="345" width="390" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4-title" value="● Budget enforcement" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#C62828;" vertex="1" parent="1">
+          <mxGeometry x="660" y="350" width="180" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4-desc" value="Cost alerts trigger when token spend exceeds thresholds" style="text;html=1;fontSize=9;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="660" y="370" width="360" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Cost alert icon -->
+        <mxCell id="cost-icon" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/general/Cost_Alerts.svg;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="350" width="25" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrow from stack to enforcement -->
+        <mxCell id="stack-enforce" value="Applied at" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#333;fontSize=10;fontColor=#333;" edge="1" parent="1" source="global-box" target="enforce-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Request flow at bottom ========== -->
+        <mxCell id="flow-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999;" vertex="1" parent="1">
+          <mxGeometry x="40" y="475" width="1020" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-title" value="Request Flow Through Policy Engine:" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="480" width="250" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="User Input" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="505" width="80" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f2" value="Global Policy&lt;br&gt;Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="505" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3" value="Tenant Policy&lt;br&gt;Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="505" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f4" value="Agent Policy&lt;br&gt;Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="505" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f5" value="LLM Execution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#4527A0;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="505" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f6" value="Post-exec&lt;br&gt;Filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="505" width="90" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f7" value="Log Cost" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="810" y="505" width="70" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="f8" value="Response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="910" y="505" width="80" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Flow arrows -->
+        <mxCell id="fa12" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f1" target="f2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fa23" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f2" target="f3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fa34" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f3" target="f4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fa45" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f4" target="f5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fa56" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f5" target="f6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fa67" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f6" target="f7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fa78" value="" style="strokeWidth=1.5;strokeColor=#333;" edge="1" parent="1" source="f7" target="f8"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

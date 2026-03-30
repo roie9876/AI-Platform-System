@@ -1,0 +1,167 @@
+<mxfile host="draw.io">
+  <diagram name="KEDA Scale-to-Zero" id="keda-scale">
+    <mxGraphModel dx="1200" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="700">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="KEDA Scale-to-Zero — Agent Executor" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="300" y="15" width="600" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Request Path (top) ========== -->
+        <mxCell id="req-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=2;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1120" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="req-label" value="ASYNC REQUEST PATH" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="55" y="68" width="250" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- User -->
+        <mxCell id="user" value="User" style="shape=mxgraph.azure.user;fillColor=#0078D4;fontColor=#333333;strokeColor=none;fontSize=10;fontStyle=1;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;" vertex="1" parent="1">
+          <mxGeometry x="70" y="100" width="35" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- POST endpoint -->
+        <mxCell id="post" value="POST /agents/{id}/chat/async" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=10;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="100" width="200" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Service Bus -->
+        <mxCell id="sb" value="Service Bus" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/integration/Service_Bus.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="90" width="50" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="queue" value="Queue: &quot;agent-requests&quot;" style="text;html=1;fontSize=9;fontStyle=2;fillColor=#FFF9C4;strokeColor=#F9A825;rounded=1;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="545" y="100" width="160" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- KEDA -->
+        <mxCell id="keda" value="KEDA" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/general/Scale.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="780" y="90" width="50" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="keda-watch" value="Watches queue depth" style="text;html=1;fontSize=9;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="850" y="105" width="130" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows in request path -->
+        <mxCell id="a1" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#1565C0;" edge="1" parent="1" source="user" target="post">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" value="Enqueue" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#1565C0;fontSize=9;fontColor=#1565C0;" edge="1" parent="1" source="post" target="sb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=1.5;strokeColor=#F9A825;dashed=1;" edge="1" parent="1" source="sb" target="keda">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Scaling States (middle) ========== -->
+        <mxCell id="scale-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=2;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="230" width="1120" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="scale-label" value="SCALING STATES" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="55" y="238" width="200" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- State: Zero -->
+        <mxCell id="state0" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#BF360C;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="270" width="300" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="state0-title" value="IDLE — 0 Replicas" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#BF360C;" vertex="1" parent="1">
+          <mxGeometry x="120" y="280" width="200" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="state0-icon" value="💤" style="text;html=1;fontSize=36;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="170" y="310" width="100" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="state0-info" value="Queue depth = 0&lt;br&gt;Zero compute cost&lt;br&gt;Cooldown: 300s" style="text;html=1;fontSize=10;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="120" y="370" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- State: Scaling -->
+        <mxCell id="state1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="270" width="300" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="state1-title" value="SCALING — 1 Replica" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#F9A825;" vertex="1" parent="1">
+          <mxGeometry x="470" y="280" width="200" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="state1-icon" value="⚡" style="text;html=1;fontSize=36;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="520" y="310" width="100" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="state1-info" value="Queue depth = 1+&lt;br&gt;Cold start ~3s&lt;br&gt;Polling interval: 30s" style="text;html=1;fontSize=10;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="470" y="370" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- State: Max -->
+        <mxCell id="state2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="770" y="270" width="360" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="state2-title" value="MAX LOAD — 5 Replicas" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="850" y="280" width="200" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="state2-pods" value="🟢 🟢 🟢 🟢 🟢" style="text;html=1;fontSize=20;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="850" y="310" width="200" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="state2-info" value="Queue depth = high&lt;br&gt;1 msg per replica scaling&lt;br&gt;Max replicas enforced" style="text;html=1;fontSize=10;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="850" y="370" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Transition arrows between states -->
+        <mxCell id="t01" value="msg arrives" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#E65100;fontSize=9;fontColor=#E65100;" edge="1" parent="1" source="state0" target="state1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="t12" value="queue grows" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#E65100;fontSize=9;fontColor=#E65100;" edge="1" parent="1" source="state1" target="state2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="t10" value="queue drained (300s cooldown)" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=1.5;strokeColor=#999;fontSize=8;fontColor=#666;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="state1" target="state0">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="570" y="505"/>
+              <mxPoint x="220" y="505"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== Service Bus Configuration (bottom) ========== -->
+        <mxCell id="config-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="530" width="1120" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="config-title" value="SERVICE BUS CONFIGURATION" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;fontColor=#333;" vertex="1" parent="1">
+          <mxGeometry x="55" y="540" width="300" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cfg1" value="Lock Duration: 5 min" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="70" y="575" width="150" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cfg2" value="TTL: 1 hour" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="240" y="575" width="120" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cfg3" value="Max Delivery: 3 retries" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="575" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cfg4" value="Dead-Letter: enabled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="575" width="150" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="keda-cfg-title" value="KEDA ScaledObject:" style="text;html=1;fontSize=10;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="70" y="625" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="kcfg1" value="minReplicaCount: 0" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="230" y="625" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="kcfg2" value="maxReplicaCount: 5" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="400" y="625" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="kcfg3" value="pollingInterval: 30" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="570" y="625" width="150" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="kcfg4" value="cooldownPeriod: 300" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="740" y="625" width="160" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="kcfg5" value="messageCount: 1" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="920" y="625" width="150" height="16" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

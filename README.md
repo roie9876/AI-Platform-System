@@ -67,98 +67,6 @@ The platform is organized into three layers: a **Control Plane** for management,
 
 ![Azure High-Level Design](docs/architecture/azure-hld.drawio.png)
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                          EXTERNAL CLIENTS                               │
-│         Browser (Web UI)  •  CLI  •  REST API  •  Webhooks              │
-└────────────────────────────────┬─────────────────────────────────────────┘
-                                 │ HTTPS
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                      EDGE LAYER (Azure AGC)                             │
-│            TLS Termination  •  Path-Based Routing  •  Health Checks     │
-└─────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┘
-      │          │          │          │          │          │
-      ▼          ▼          ▼          ▼          ▼          ▼
-┌──────────┐┌──────────┐┌──────────┐┌──────────┐┌──────────┐┌──────────┐
-│ CONTROL  ││          RUNTIME PLANE            ││ PRESEN-  │
-│  PLANE   ││                                   ││ TATION   │
-│          ││                                   ││          │
-│ API      ││ Agent    │ Tool     │ MCP    │ WF ││ Frontend │
-│ Gateway  ││ Executor │ Executor │ Proxy  │ Eng││ Next.js  │
-│ :8000    ││ :8000    │ :8000    │ :8000  │:800││ :3000    │
-└────┬─────┘└────┬─────┘└────┬────┘└───┬───┘└─┬─┘└──────────┘
-     │           │           │         │      │
-     ▼           ▼           ▼         ▼      ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                          DATA LAYER                                     │
-│  Cosmos DB (NoSQL)  •  Azure Key Vault  •  Azure AI Search              │
-│  Application Insights  •  Azure Service Bus                             │
-└──────────────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                      EXTERNAL SERVICES                                  │
-│  LLM Providers (Azure OpenAI, OpenAI, Anthropic, 100+)                  │
-│  MCP Servers (Jira, GitHub, Slack, Confluence)                           │
-│  Microsoft Entra ID (Identity Provider)                                 │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-```mermaid
-graph TB
-    subgraph "External"
-        User["👤 End Users"]
-        Admin["👑 Platform Admin"]
-    end
-
-    subgraph "Edge"
-        AGC["🌐 Application Gateway for Containers<br/>TLS • Path Routing • Health Checks"]
-    end
-
-    subgraph "CONTROL PLANE"
-        GW["🚪 API Gateway<br/>Auth • Agent CRUD • Catalog<br/>Evaluations • Observability<br/>Marketplace • Tenants"]
-    end
-
-    subgraph "RUNTIME PLANE"
-        AE["🤖 Agent Executor<br/>ReAct Loop • Chat SSE<br/>Threads • Memory"]
-        TE["🔧 Tool Executor<br/>Tool Registry • Data Sources<br/>RAG Retrieval"]
-        MCP["🔌 MCP Proxy<br/>Server Discovery<br/>Protocol Bridge"]
-        WF["🔄 Workflow Engine<br/>DAG Orchestration<br/>Multi-Agent Flows"]
-    end
-
-    subgraph "PRESENTATION"
-        FE["🖥️ Frontend<br/>Next.js 15 • React 19<br/>MSAL Auth"]
-    end
-
-    subgraph "DATA LAYER"
-        Cosmos["🗄️ Cosmos DB<br/>33 Containers<br/>Serverless"]
-        KV["🔐 Key Vault"]
-        Search["🔍 Azure AI Search"]
-        AI["📊 App Insights"]
-        SB["📨 Service Bus"]
-    end
-
-    subgraph "EXTERNAL"
-        LLM["🧠 LLM Providers<br/>Azure OpenAI, OpenAI<br/>Anthropic, 100+"]
-        MCPExt["🔌 MCP Servers<br/>Jira, GitHub, Slack"]
-        Entra["🔐 Entra ID"]
-    end
-
-    User & Admin --> AGC
-    AGC --> GW & AE & TE & MCP & WF & FE
-
-    GW --> Cosmos & KV
-    AE --> Cosmos & LLM & TE & MCP
-    TE --> Cosmos & Search
-    MCP --> Cosmos & MCPExt
-    WF --> AE
-
-    GW & AE --> Entra
-    GW & AE & TE & MCP & WF --> AI
-    AE --> SB
-```
-
 ### 1.2 Control Plane vs Runtime Plane
 
 The architecture enforces a strict separation between **management** and **execution**. The Control Plane can go down without affecting running agents. The Runtime Plane can scale independently to handle execution load.
@@ -173,45 +81,7 @@ The architecture enforces a strict separation between **management** and **execu
 | **State** | Stateless (reads config from DB) | Stateful (threads, memory, execution state) |
 | **If it goes down** | "Can't manage agents" | "Agents don't respond" |
 
-```
-                    ┌─────────────────────────────────────────────────┐
-                    │              CONTROL PLANE                      │
-                    │                                                 │
-                    │  ┌─────────────────────────────────────────┐    │
-                    │  │          API Gateway Pod                 │    │
-                    │  │                                         │    │
-                    │  │  Auth & RBAC────────Tenant Manager       │    │
-                    │  │       │                   │              │    │
-                    │  │  Agent Registry      Policy Engine       │    │
-                    │  │       │                   │              │    │
-                    │  │  Marketplace         Eval Engine         │    │
-                    │  │       │                   │              │    │
-                    │  │  Model Endpoints     Cost Dashboard      │    │
-                    │  └─────────────────────────────────────────┘    │
-                    └──────────────────┬──────────────────────────────┘
-                                       │ Configs & Policies
-                                       ▼
-                    ┌─────────────────────────────────────────────────┐
-                    │              RUNTIME PLANE                      │
-                    │                                                 │
-                    │  ┌───────────┐ ┌───────────┐ ┌───────────┐     │
-                    │  │  Agent    │ │  Tool     │ │  MCP      │     │
-                    │  │  Executor │ │  Executor │ │  Proxy    │     │
-                    │  │           │ │           │ │           │     │
-                    │  │  ReAct    │ │  Registry │ │  Server   │     │
-                    │  │  Loop     │ │  Sandbox  │ │  Discovery│     │
-                    │  │  Chat SSE │ │  RAG      │ │  Tool Call│     │
-                    │  │  Threads  │ │  Data Src │ │  Bridge   │     │
-                    │  │  Memory   │ │  Knowledge│ │           │     │
-                    │  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘     │
-                    │        │             │             │            │
-                    │  ┌─────┴─────────────┴─────────────┴─────┐     │
-                    │  │         Workflow Engine Pod            │     │
-                    │  │  DAG Execution • Sequential/Parallel   │     │
-                    │  │  Conditional • Sub-Agent Delegation    │     │
-                    │  └───────────────────────────────────────┘     │
-                    └─────────────────────────────────────────────────┘
-```
+![Control Plane vs Runtime Plane](docs/architecture/control-runtime-planes.drawio.png)
 
 ### 1.3 Data Layer
 
@@ -336,26 +206,7 @@ Agents are the core entity of the platform. Each agent has:
 
 The policy layer enforces rules at multiple levels:
 
-```
-┌─────────────────────────────────────────┐
-│            GLOBAL POLICIES              │
-│  Content safety • Platform rate limits  │
-├─────────────────────────────────────────┤
-│            TENANT POLICIES              │
-│  Token quotas • Allowed providers       │
-│  Feature flags • Budget limits          │
-├─────────────────────────────────────────┤
-│            AGENT POLICIES               │
-│  Per-agent rate limits • Tool access    │
-│  Content filters • Max iterations       │
-└─────────────────────────────────────────┘
-```
-
-**Enforcement points:**
-- **Pre-execution**: Validate inputs against content safety policies before sending to LLM
-- **Post-execution**: Filter LLM outputs before returning to user
-- **Rate limiting**: Per-agent and per-tenant request throttling
-- **Budget enforcement**: Cost alerts trigger when token spend exceeds thresholds
+![Policy Engine & Governance](docs/architecture/policy-engine.drawio.png)
 
 ### 2.6 Evaluation Engine
 
@@ -500,32 +351,7 @@ sequenceDiagram
 
 The model abstraction layer provides a **unified OpenAI-compatible interface** to 100+ LLM providers. Every model interaction, regardless of provider, goes through the same interface.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│              MODEL ABSTRACTION LAYER                     │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │     OpenAI-Compatible Chat Completions API       │    │
-│  │     (Same interface for ALL providers)            │    │
-│  └────────────────────┬─────────────────────────────┘    │
-│                       │                                  │
-│  ┌────────────────────┴─────────────────────────────┐    │
-│  │            RESILIENCE LAYER                       │    │
-│  │                                                   │    │
-│  │  Circuit Breaker ──► Fallback Chain ──► Cost Calc │    │
-│  │  (3 failures = open)  (primary → secondary)       │    │
-│  └────────────────────┬─────────────────────────────┘    │
-│                       │                                  │
-│  ┌────────────────────┴─────────────────────────────┐    │
-│  │            LiteLLM ROUTER                         │    │
-│  │            (100+ providers)                       │    │
-│  └──┬──────┬──────┬──────┬──────┬──────┬────────────┘    │
-│     │      │      │      │      │      │                 │
-│     ▼      ▼      ▼      ▼      ▼      ▼                │
-│  Azure   OpenAI  Anthro  Gemini  Ollama  Custom          │
-│  OpenAI          pic            (local)                  │
-└─────────────────────────────────────────────────────────┘
-```
+![Model Abstraction Layer](docs/architecture/model-abstraction.drawio.png)
 
 **Multi-model routing:** Each agent has a `model_endpoint_id` pointing to a registered endpoint. The platform supports:
 - **Azure OpenAI** (Entra ID or API key auth)
@@ -554,30 +380,7 @@ stateDiagram-v2
 
 The platform implements two memory scopes:
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    MEMORY SYSTEM                          │
-│                                                          │
-│  ┌─────────────────────────┐  ┌────────────────────────┐ │
-│  │   SHORT-TERM MEMORY     │  │   LONG-TERM MEMORY     │ │
-│  │   (Thread History)      │  │   (Agent Memories)     │ │
-│  │                         │  │                        │ │
-│  │  • Current conversation │  │  • Cross-session facts │ │
-│  │  • Messages in thread   │  │  • Extracted insights  │ │
-│  │  • Stored in Cosmos DB  │  │  • Vector embeddings   │ │
-│  │    (thread_messages)    │  │    (1536-dim)          │ │
-│  │                         │  │  • Similarity search   │ │
-│  │  Scope: per-thread      │  │  • Stored in Cosmos DB │ │
-│  │  Lifetime: until deleted│  │    (agent_memories)    │ │
-│  │                         │  │                        │ │
-│  │  Loaded: always         │  │  Scope: per-agent      │ │
-│  │  (last N messages)      │  │  Lifetime: persistent  │ │
-│  │                         │  │                        │ │
-│  └─────────────────────────┘  │  Loaded: top-K by      │ │
-│                               │  relevance to query    │ │
-│                               └────────────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-```
+![Memory Management](docs/architecture/memory-management.drawio.png)
 
 **Short-term memory:**
 - Conversation history within a single thread
@@ -659,21 +462,7 @@ The tool executor manages the **tool registry**, **data source connections**, an
 
 The RAG pipeline runs at execution time, injecting relevant external knowledge into the agent's prompt before sending to the LLM.
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Ingestion   │     │   Storage    │     │  Retrieval   │     │  Injection  │
-│              │     │              │     │              │     │             │
-│  Upload doc  │────►│  Parse &     │────►│  Query by    │────►│  Prepend to │
-│  or URL      │     │  Chunk       │     │  similarity  │     │  agent      │
-│              │     │  (1000 char  │     │  (top-K)     │     │  prompt     │
-│              │     │   200 overlap│     │              │     │             │
-└─────────────┘     └──────────────┘     └──────────────┘     └─────────────┘
-                          │                     │
-                          ▼                     ▼
-                    Local Chunks          Azure AI Search
-                    (Cosmos DB            (Hybrid: vector
-                     document_chunks)      + keyword)
-```
+![RAG System](docs/architecture/rag-system.drawio.png)
 
 **Two retrieval paths (executed in parallel):**
 
@@ -761,32 +550,7 @@ Classifier──► Support Agent                             │
 
 ### 4.1 Authentication Flow
 
-```
-User ──► Entra ID (OAuth2/PKCE) ──► Access Token ──► Frontend (MSAL.js)
-                                                          │
-                                                    Bearer Token
-                                                    + X-Tenant-Id
-                                                          │
-                                                          ▼
-AGC Ingress ──► Backend Pod ──► Tenant Middleware
-                                     │
-                                     ├── Validate JWT (JWKS, audience, expiry)
-                                     ├── Extract user identity (oid, email, groups)
-                                     ├── Resolve tenant from header
-                                     ├── Check tenant status (active?)
-                                     └── Attach tenant_id to request.state
-```
-
-**Pod-to-Azure authentication (no API keys in pods):**
-
-```
-Pod ──► Service Account ──► Projected OIDC Token ──► Entra ID ──► Managed Identity
-                                                                        │
-                                                                   RBAC Roles:
-                                                                   • Cosmos DB Data Contributor
-                                                                   • Key Vault Secrets User
-                                                                   • ACR Pull
-```
+![Authentication Flow](docs/architecture/auth-flow.drawio.png)
 
 ### 4.2 Tenant Isolation Model
 
@@ -811,30 +575,7 @@ Pod ──► Service Account ──► Projected OIDC Token ──► Entra ID 
 
 ### 4.4 Network Security Boundaries
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  INTERNET                                                           │
-│                                                                     │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │  Azure VNet: 10.0.0.0/16                                     │  │
-│  │                                                               │  │
-│  │  ┌─────────────────────────┐  ┌────────────────────────────┐  │  │
-│  │  │  AKS Nodes Subnet      │  │  Private Endpoints Subnet  │  │  │
-│  │  │  10.0.0.0/22            │  │  10.0.8.0/24               │  │  │
-│  │  │                         │  │                            │  │  │
-│  │  │  [Pods: CNI Overlay     │  │  Cosmos DB                 │  │  │
-│  │  │   192.168.0.0/16]       │  │  Key Vault                 │  │  │
-│  │  │                         │  │  Service Bus               │  │  │
-│  │  └─────────────────────────┘  └────────────────────────────┘  │  │
-│  │                                                               │  │
-│  │  ┌─────────────────────────┐                                  │  │
-│  │  │  AGC Subnet             │                                  │  │
-│  │  │  10.0.12.0/24           │                                  │  │
-│  │  │  (Ingress Controller)   │                                  │  │
-│  │  └─────────────────────────┘                                  │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-```
+![Network Security Boundaries](docs/architecture/network-security.drawio.png)
 
 ---
 
@@ -848,21 +589,7 @@ All pods can be scaled horizontally. The current configuration runs 1 replica pe
 
 The **Agent Executor** supports a scale-to-zero pattern via Azure Service Bus + KEDA:
 
-```
-User ──► POST /agents/{id}/chat/async ──► Service Bus Queue ("agent-requests")
-                                                    │
-                                              KEDA watches
-                                              queue depth
-                                                    │
-                                           ┌────────┴────────┐
-                                           │ Queue empty:     │
-                                           │   0 replicas     │
-                                           │                  │
-                                           │ Queue has msgs:  │
-                                           │   1-5 replicas   │
-                                           │   (auto-scale)   │
-                                           └─────────────────┘
-```
+![KEDA Scale-to-Zero](docs/architecture/keda-scale-to-zero.drawio.png)
 
 **Service Bus configuration:** 5-minute lock duration, 1-hour TTL, 3 max delivery retries, dead-letter enabled.
 
@@ -889,36 +616,7 @@ All 33 containers use `/tenant_id` as partition key:
 
 The platform uses **OpenTelemetry** for distributed tracing across all five microservices, with data exported to Azure Application Insights.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  PER-POD INSTRUMENTATION                     │
-│                                                             │
-│  FastAPI Instrumentation ──► Request spans (method, path)   │
-│  HTTPX Instrumentation ──► Inter-service call spans         │
-│  Custom Spans ──► LLM calls, tool execution, RAG retrieval  │
-│  Structured Logger ──► JSON logs with trace_id, span_id     │
-│                                                             │
-│                     OpenTelemetry SDK                        │
-│                          │                                  │
-│                  Azure Monitor Exporter                      │
-└─────────────────┬───────────────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│                AZURE OBSERVABILITY STACK                     │
-│                                                             │
-│  Application Insights ──► APM, dependency map, exceptions   │
-│  Log Analytics ──► KQL queries, 30-day retention            │
-│  Azure Monitor Alerts ──► Pod restart > 5 in 5min → email   │
-│                                                             │
-│  Platform Cost Dashboard ──► /api/v1/observability/*        │
-│    • KPI tiles (requests, tokens, cost, latency)            │
-│    • Time-series token usage charts                         │
-│    • Cost breakdown by agent / model                        │
-│    • Execution logs with state snapshots                    │
-│    • Budget alerts (threshold + spike detection)            │
-└─────────────────────────────────────────────────────────────┘
-```
+![Observability Stack](docs/architecture/observability.drawio.png)
 
 **What gets tracked per execution:**
 
@@ -1008,56 +706,7 @@ graph TB
 
 This traces a complete chat request through the entire Microsoft stack:
 
-```
-1. USER types message in browser
-         │
-         ▼
-2. MSAL.js (Entra ID SDK) attaches Bearer token
-         │
-         ▼
-3. Application Gateway for Containers (AGC)
-   • TLS termination
-   • Path match: /api/v1/agents/{id}/chat → agent-executor
-         │
-         ▼
-4. AKS POD: agent-executor (FastAPI on Python 3.12)
-   • Tenant Middleware validates JWT (JWKS from Entra ID)
-   • Extracts tenant_id, scopes all subsequent queries
-         │
-         ▼
-5. COSMOS DB (Serverless, NoSQL)
-   • Query agent config (partition: tenant_id)
-   • Query thread messages (partition: tenant_id)
-   • Query agent memories (partition: tenant_id)
-         │
-         ▼
-6. AZURE AI SEARCH (if knowledge attached)
-   • Hybrid search: vector + keyword
-   • Returns top-K relevant chunks
-         │
-         ▼
-7. AZURE OPENAI (or other LLM via LiteLLM)
-   • Chat completion with tools
-   • Streaming response (SSE)
-         │
-         ▼
-8. If tool_call → AKS POD: tool-executor or mcp-proxy
-   • Execute tool, return result
-   • Loop back to step 7
-         │
-         ▼
-9. COSMOS DB
-   • Save messages to thread_messages
-   • Write execution_log (tokens, cost, latency)
-         │
-         ▼
-10. APPLICATION INSIGHTS
-    • Trace span with all steps correlated
-    • Metrics: latency, token count, error rate
-         │
-         ▼
-11. SSE stream → AGC → Browser → User sees response
-```
+![End-to-End Request Lifecycle](docs/architecture/e2e-request-lifecycle.drawio.png)
 
 ---
 
@@ -1065,27 +714,7 @@ This traces a complete chat request through the entire Microsoft stack:
 
 ### 8.1 Cluster Topology
 
-```
-AKS Cluster: stumsft-aiplatform-prod-aks
-│
-├── System Node Pool (2× D4s_v5)
-│   ├── CoreDNS
-│   ├── CSI Secrets Store Driver
-│   ├── OMS Agent (Monitoring)
-│   └── AGC Ingress Controller
-│
-└── User Node Pool (1× D4s_v5)
-    └── Namespace: aiplatform
-        ├── api-gateway (1 replica, port 8000)
-        ├── agent-executor (1 replica, port 8000, KEDA: 0–5)
-        ├── tool-executor (1 replica, port 8000)
-        ├── mcp-proxy (1 replica, port 8000)
-        ├── workflow-engine (1 replica, port 8000)
-        ├── frontend (1 replica, port 3000)
-        ├── ConfigMap: aiplatform-config
-        ├── Secrets: aiplatform-secrets (CSI ← Key Vault)
-        └── ServiceAccount: aiplatform-workload (Workload Identity)
-```
+![Cluster Topology](docs/architecture/cluster-topology.drawio.png)
 
 ### 8.2 Ingress & Traffic Routing
 
@@ -1224,24 +853,7 @@ The frontend is a **Next.js 15** application (React 19, App Router) with **Shadc
 
 End-to-end deployment is orchestrated by `scripts/deploy.sh` in three phases:
 
-```
-Phase 1: Infrastructure          Phase 2: Build & Push           Phase 3: K8s Deploy
-┌──────────────────┐             ┌──────────────────┐            ┌──────────────────┐
-│ az deployment    │             │ docker build     │            │ kustomize apply  │
-│ group create     │────────────►│ (6 images, amd64)│───────────►│ k8s/base/        │
-│                  │             │                  │            │                  │
-│ infra/main.bicep │             │ docker push to   │            │ rollout status   │
-│ 10 Bicep modules │             │ ACR              │            │ (wait for ready) │
-│                  │             │                  │            │                  │
-│ Creates: VNet,   │             │ Images:          │            │ Smoke test:      │
-│ AKS, Cosmos,     │             │ • api-gateway    │            │ /healthz checks  │
-│ ACR, KV, AI,     │             │ • agent-executor │            │                  │
-│ Log Analytics,   │             │ • tool-executor  │            │                  │
-│ Identity, Alerts │             │ • mcp-proxy      │            │                  │
-│                  │             │ • workflow-engine │            │                  │
-│                  │             │ • frontend       │            │                  │
-└──────────────────┘             └──────────────────┘            └──────────────────┘
-```
+![Deployment Pipeline](docs/architecture/deployment-pipeline.drawio.png)
 
 ```bash
 ./scripts/deploy.sh \

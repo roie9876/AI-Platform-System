@@ -1,0 +1,275 @@
+<mxfile host="draw.io">
+  <diagram name="E2E Request Lifecycle" id="e2e-lifecycle">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="End-to-End Request Lifecycle (Microsoft Stack)" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="300" y="10" width="800" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 1: User -->
+        <mxCell id="s1" value="① User types message" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="200" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 2: MSAL.js -->
+        <mxCell id="s2" value="② MSAL.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="60" width="180" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2note" value="Entra ID SDK attaches Bearer token" style="text;html=1;fontSize=9;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="300" y="108" width="200" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Entra ID icon -->
+        <mxCell id="entra" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/identity/Azure_Active_Directory.svg;" vertex="1" parent="1">
+          <mxGeometry x="490" y="55" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 3: AGC -->
+        <mxCell id="s3" value="③ AGC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="60" width="200" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3note" value="TLS termination • Path: /api/v1/agents/{id}/chat → agent-executor" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="540" y="108" width="280" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="agc-icon" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/networking/Application_Gateway_Containers.svg;" vertex="1" parent="1">
+          <mxGeometry x="790" y="55" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 4: Agent Executor -->
+        <mxCell id="s4" value="④ AKS Pod: agent-executor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="170" width="300" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4note" value="FastAPI on Python 3.12 • Tenant Middleware validates JWT (JWKS from Entra ID) • Extracts tenant_id" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="218" width="420" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="aks-icon1" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/containers/Kubernetes_Services.svg;" vertex="1" parent="1">
+          <mxGeometry x="350" y="175" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 5: Cosmos DB -->
+        <mxCell id="s5" value="⑤ Cosmos DB (Serverless, NoSQL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="270" width="300" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5note" value="Query agent config • thread messages • agent memories (partition: tenant_id)" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="318" width="380" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="cosmos-icon" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/databases/Azure_Cosmos_DB.svg;" vertex="1" parent="1">
+          <mxGeometry x="350" y="275" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 6: AI Search -->
+        <mxCell id="s6" value="⑥ Azure AI Search (if knowledge attached)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="370" width="300" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6note" value="Hybrid search: vector + keyword • Returns top-K relevant chunks" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="418" width="350" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="search-icon" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/app_services/Search_Services.svg;" vertex="1" parent="1">
+          <mxGeometry x="350" y="375" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 7: Azure OpenAI -->
+        <mxCell id="s7" value="⑦ Azure OpenAI (or other LLM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#4527A0;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="470" width="300" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7note" value="Chat completion with tools • Streaming response (SSE)" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="518" width="350" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="aoai-icon" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;" vertex="1" parent="1">
+          <mxGeometry x="350" y="475" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 8: Tool Call loop -->
+        <mxCell id="s8" value="⑧ If tool_call → AKS Pod: tool-executor or mcp-proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="570" width="380" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s8note" value="Execute tool, return result → Loop back to step ⑦" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="618" width="300" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Loop arrow back to step 7 -->
+        <mxCell id="loop" value="ReAct&lt;br&gt;loop" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#C62828;dashed=1;dashPattern=6 6;fontSize=9;fontColor=#C62828;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="s8" target="s7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="593"/>
+              <mxPoint x="460" y="493"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 9: Cosmos DB save -->
+        <mxCell id="s9" value="⑨ Cosmos DB — Save" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="670" width="300" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s9note" value="Save messages to thread_messages • Write execution_log (tokens, cost, latency)" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="718" width="400" height="14" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 10: App Insights -->
+        <mxCell id="s10" value="⑩ Application Insights" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#283593;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="770" width="300" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="s10note" value="Trace span with all steps correlated • Metrics: latency, token count, error rate" style="text;html=1;fontSize=8;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="818" width="400" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="ai-icon" value="" style="image;aspect=fixed;html=1;points=[];align=center;image=img/lib/azure2/devops/Application_Insights.svg;" vertex="1" parent="1">
+          <mxGeometry x="350" y="775" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 11: Response -->
+        <mxCell id="s11" value="⑪ SSE stream → AGC → Browser → User sees response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="870" width="380" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Vertical flow arrows -->
+        <mxCell id="f12" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#1565C0;" edge="1" parent="1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f23" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#1565C0;" edge="1" parent="1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f34" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#1565C0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="s3" target="s4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="83"/>
+              <mxPoint x="850" y="140"/>
+              <mxPoint x="400" y="140"/>
+              <mxPoint x="400" y="193"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f45" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#E65100;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="s4" target="s5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f56" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#2E7D32;" edge="1" parent="1" source="s5" target="s6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f67" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#4527A0;" edge="1" parent="1" source="s6" target="s7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f78" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#C62828;" edge="1" parent="1" source="s7" target="s8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f89" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#E65100;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="s8" target="s9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f910" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#283593;" edge="1" parent="1" source="s9" target="s10">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="f1011" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#2E7D32;" edge="1" parent="1" source="s10" target="s11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Right Side: Microsoft Services Column ========== -->
+        <mxCell id="svc-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="170" width="810" height="770" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc-title" value="MICROSOFT SERVICES INVOLVED" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#333;" vertex="1" parent="1">
+          <mxGeometry x="750" y="178" width="400" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- Service cards -->
+        <mxCell id="svc1" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/identity/Azure_Active_Directory.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="215" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc1t" value="Microsoft Entra ID — JWT authentication, JWKS, group RBAC" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="222" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc2" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/networking/Application_Gateway_Containers.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="265" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc2t" value="Application Gateway for Containers — TLS, path routing, health checks" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="272" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc3" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/containers/Kubernetes_Services.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="315" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc3t" value="Azure Kubernetes Service — Hosts all pods, Workload Identity" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="322" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc4" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/databases/Azure_Cosmos_DB.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="365" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc4t" value="Azure Cosmos DB — NoSQL Serverless, /tenant_id partition, session consistency" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="372" width="440" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc5" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/app_services/Search_Services.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="415" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc5t" value="Azure AI Search — Hybrid vector + keyword search for RAG" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="422" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc6" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="465" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc6t" value="Azure OpenAI — Default LLM (chat completions, streaming, tools)" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="472" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc7" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/security/Key_Vaults.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="515" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc7t" value="Azure Key Vault — Secrets mounted via CSI driver" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="522" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc8" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/integration/Service_Bus.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="565" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc8t" value="Azure Service Bus — Async queue for KEDA scale-to-zero" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="572" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc9" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/devops/Application_Insights.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="615" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc9t" value="Application Insights — Distributed tracing, APM, dependency map" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="622" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc10" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/management_governance/Log_Analytics_Workspaces.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="665" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc10t" value="Log Analytics — KQL queries, 30-day retention" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="672" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc11" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/identity/Managed_Identities.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="715" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc11t" value="Workload Identity — Pod-to-Azure auth without secrets" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="722" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc12" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/containers/Container_Registries.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="765" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc12t" value="Azure Container Registry — Docker images, vulnerability scanning" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="772" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="svc13" value="" style="image;aspect=fixed;html=1;points=[];image=img/lib/azure2/management_governance/Alerts.svg;" vertex="1" parent="1">
+          <mxGeometry x="580" y="815" width="35" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="svc13t" value="Azure Monitor Alerts — Pod restart &gt; 5 in 5min → email" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="625" y="822" width="400" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Footer -->
+        <mxCell id="footer" value="All Azure services accessed via Private Endpoints (VNet) • Pod auth via Workload Identity (zero secrets) • All queries scoped to tenant_id" style="text;html=1;fontSize=10;align=center;fillColor=#F5F5F5;strokeColor=#999;rounded=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="100" y="960" width="1200" height="24" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

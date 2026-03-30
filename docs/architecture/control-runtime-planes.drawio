@@ -1,0 +1,223 @@
+<mxfile host="draw.io">
+  <diagram name="Control Plane vs Runtime Plane" id="ctrl-runtime">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="Control Plane vs Runtime Plane" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="350" y="10" width="700" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CONTROL PLANE ==================== -->
+        <mxCell id="cp-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=3;verticalAlign=top;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="380" height="500" as="geometry"/>
+        </mxCell>
+        <mxCell id="cp-label" value="CONTROL PLANE" style="text;html=1;fontSize=14;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="120" y="68" width="220" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="cp-ns" value="Namespace: aiplatform" style="text;html=1;fontSize=10;align=center;fillColor=none;strokeColor=none;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="120" y="88" width="220" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- API Gateway Pod -->
+        <mxCell id="gw-pod" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="120" width="320" height="420" as="geometry"/>
+        </mxCell>
+        <mxCell id="gw-title" value="API Gateway Pod" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="140" y="128" width="180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="gw-port" value=":8000" style="text;html=1;fontSize=9;align=center;fillColor=none;strokeColor=none;fontColor=#999;" vertex="1" parent="1">
+          <mxGeometry x="320" y="128" width="50" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Control Plane modules -->
+        <mxCell id="auth" value="Auth &amp; RBAC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="160" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="tenant" value="Tenant Manager" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="160" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="registry" value="Agent Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="210" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="policy" value="Policy Engine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="210" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="marketplace" value="Marketplace" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="260" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="eval" value="Eval Engine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="260" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="models" value="Model Endpoints" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="310" width="130" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="cost" value="Cost Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="310" width="130" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- Control Plane characteristics -->
+        <mxCell id="cp-chars" value="Low frequency (admin CRUD)&lt;br&gt;Stateless • 1–2 replicas&lt;br&gt;Seconds latency OK&lt;br&gt;&lt;i&gt;If down: &quot;Can't manage agents&quot;&lt;/i&gt;" style="text;html=1;fontSize=10;align=center;fillColor=#E8F5E9;strokeColor=#66BB6A;rounded=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="100" y="370" width="260" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrow: Configs & Policies -->
+        <mxCell id="cp-rp-edge" value="Configs &amp; Policies" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#FF6F00;fontColor=#FF6F00;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cp-zone" target="rp-zone">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== RUNTIME PLANE ==================== -->
+        <mxCell id="rp-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=3;verticalAlign=top;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="530" y="60" width="830" height="810" as="geometry"/>
+        </mxCell>
+        <mxCell id="rp-label" value="RUNTIME PLANE" style="text;html=1;fontSize=14;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="830" y="68" width="220" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="rp-ns" value="Namespace: tenant-{slug}" style="text;html=1;fontSize=10;align=center;fillColor=none;strokeColor=none;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="830" y="88" width="220" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- Agent Executor Pod -->
+        <mxCell id="ae-pod" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="120" width="230" height="290" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-title" value="Agent Executor Pod" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="595" y="128" width="160" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-port" value=":8000" style="text;html=1;fontSize=9;align=center;fillColor=none;strokeColor=none;fontColor=#999;" vertex="1" parent="1">
+          <mxGeometry x="740" y="128" width="40" height="14" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ae-react" value="ReAct Loop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="158" width="95" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-chat" value="Chat SSE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="685" y="158" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-threads" value="Threads" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="198" width="95" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-memory" value="Memory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="685" y="198" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-model" value="Model Abstraction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="238" width="190" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Tool Executor Pod -->
+        <mxCell id="te-pod" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="120" width="230" height="290" as="geometry"/>
+        </mxCell>
+        <mxCell id="te-title" value="Tool Executor Pod" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="860" y="128" width="150" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="te-port" value=":8000" style="text;html=1;fontSize=9;align=center;fillColor=none;strokeColor=none;fontColor=#999;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="128" width="40" height="14" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="te-registry" value="Tool Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="158" width="95" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="te-sandbox" value="Sandbox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="945" y="158" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="te-rag" value="RAG Retrieval" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="198" width="95" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="te-data" value="Data Sources" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="945" y="198" width="85" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="te-knowledge" value="Knowledge / AI Search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="238" width="190" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- MCP Proxy Pod -->
+        <mxCell id="mcp-pod" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="120" width="250" height="290" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcp-title" value="MCP Proxy Pod" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="128" width="130" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcp-port" value=":8000" style="text;html=1;fontSize=9;align=center;fillColor=none;strokeColor=none;fontColor=#999;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="128" width="40" height="14" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="mcp-discovery" value="Server Discovery" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="158" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcp-bridge" value="Protocol Bridge" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="158" width="95" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcp-call" value="Tool Call Proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="198" width="215" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Workflow Engine Pod -->
+        <mxCell id="wf-pod" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="450" width="600" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="wf-title" value="Workflow Engine Pod" style="text;html=1;fontSize=12;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="860" y="458" width="160" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="wf-port" value=":8000" style="text;html=1;fontSize=9;align=center;fillColor=none;strokeColor=none;fontColor=#999;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="458" width="40" height="14" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="wf-dag" value="DAG Execution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="490" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="wf-seq" value="Sequential / Parallel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="490" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="wf-cond" value="Conditional" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="970" y="490" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="wf-sub" value="Sub-Agent Delegation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="490" width="140" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Runtime Plane characteristics -->
+        <mxCell id="rp-chars" value="High frequency (user conversations)&lt;br&gt;Stateful • KEDA 0→N replicas&lt;br&gt;Milliseconds latency critical (streaming)&lt;br&gt;&lt;i&gt;If down: &quot;Agents don't respond&quot;&lt;/i&gt;" style="text;html=1;fontSize=10;align=center;fillColor=#FBE9E7;strokeColor=#E65100;rounded=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="770" y="640" width="290" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Inter-pod edges inside runtime plane -->
+        <mxCell id="ae-te-edge" value="tool exec" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=1.5;strokeColor=#E65100;fontSize=9;fontColor=#E65100;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ae-pod" target="te-pod">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ae-mcp-edge" value="MCP calls" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=1.5;strokeColor=#E65100;fontSize=9;fontColor=#E65100;dashed=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="te-pod" target="mcp-pod">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="wf-ae-edge" value="internal/execute" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=1.5;strokeColor=#E65100;fontSize=9;fontColor=#E65100;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="wf-pod" target="ae-pod">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="590" width="350" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-title" value="Architecture Summary" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="598" width="200" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-1" value="• Control Plane can go down without affecting running agents" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="620" width="330" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-2" value="• Runtime Plane scales independently for execution load" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="640" width="330" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-3" value="• Configs flow from Control → Runtime (orange arrow)" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="660" width="330" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-4" value="• All pods share the same Python app/ codebase" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="680" width="330" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-5" value="• Dashed edges = inter-service HTTP calls" style="text;html=1;fontSize=10;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="700" width="330" height="16" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
