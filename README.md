@@ -19,6 +19,57 @@ This platform empowers organizations to bring AI capabilities to their teams wit
 
 ---
 
+## Getting Started
+
+### Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Docker Desktop | Latest (must be running) |
+| Python | 3.11 – 3.13 |
+| Node.js | 18+ |
+| npm | 9+ |
+
+### Quick Start (one command)
+
+```bash
+git clone https://github.com/roie9876/AI-Platform-System.git
+cd AI-Platform-System
+./start.sh
+```
+
+The `start.sh` script handles everything automatically:
+1. Starts **PostgreSQL** (with pgvector) and **Redis** via Docker Compose
+2. Creates a Python virtual environment and installs backend dependencies
+3. Runs database migrations (Alembic)
+4. Starts the **FastAPI** backend on `http://localhost:8000`
+5. Starts demo **MCP servers** (Web Tools on `:8081`, Atlassian mock on `:8082`)
+6. Installs frontend npm packages and starts the **Next.js** app on `http://localhost:3000`
+
+### Access Points
+
+| Service | URL |
+|---------|-----|
+| Frontend (UI) | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
+| MCP Web Tools | http://localhost:8081/mcp |
+| MCP Jira/Confluence | http://localhost:8082/mcp |
+
+### Docker-Only Setup (alternative)
+
+If you prefer running everything inside containers:
+
+```bash
+docker compose up --build
+```
+
+This starts the backend, frontend, PostgreSQL, and Redis — no local Python or Node.js required.
+
+Press `Ctrl+C` to stop all services.
+
+---
+
 ## Table of Contents
 
 - [1. High-Level Architecture](#1-high-level-architecture)
