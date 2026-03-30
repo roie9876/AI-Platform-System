@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Database, FileText, Paperclip } from "lucide-react";
+import { Database, FileText, Paperclip, Image as ImageIcon } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   sources?: Array<{ type: string; index?: string; name?: string }>;
-  attachment?: { name: string; size: number };
+  attachment?: { name: string; size: number; previewUrl?: string };
 }
 
 interface ChatMessagesProps {
@@ -66,7 +66,15 @@ export function ChatMessages({
               )}
               {message.role === "user" && message.attachment && (
                 <div className="flex items-center gap-1.5 mb-1.5 rounded bg-blue-500/20 px-2 py-1 text-xs text-blue-100">
-                  <Paperclip className="h-3 w-3" />
+                  {message.attachment.previewUrl ? (
+                    <img
+                      src={message.attachment.previewUrl}
+                      alt={message.attachment.name}
+                      className="h-16 w-16 rounded object-cover"
+                    />
+                  ) : (
+                    <Paperclip className="h-3 w-3" />
+                  )}
                   <span className="truncate max-w-[180px]">{message.attachment.name}</span>
                 </div>
               )}

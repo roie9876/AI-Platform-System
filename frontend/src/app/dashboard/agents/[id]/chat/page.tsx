@@ -49,7 +49,7 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   sources?: Array<{ type: string; index?: string; name?: string }>;
-  attachment?: { name: string; size: number };
+  attachment?: { name: string; size: number; previewUrl?: string };
 }
 
 export default function ChatPage() {
@@ -98,7 +98,13 @@ export default function ChatPage() {
       const userMsg: Message = {
         role: "user",
         content: userMessage,
-        ...(file ? { attachment: { name: file.name, size: file.size } } : {}),
+        ...(file ? {
+          attachment: {
+            name: file.name,
+            size: file.size,
+            ...(file.type.startsWith("image/") ? { previewUrl: URL.createObjectURL(file) } : {}),
+          },
+        } : {}),
       };
       setMessages((prev) => [...prev, userMsg]);
 

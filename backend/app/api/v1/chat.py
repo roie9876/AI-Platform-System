@@ -9,6 +9,7 @@ from app.repositories.thread_repo import ThreadRepository, ThreadMessageReposito
 from app.api.v1.schemas import ChatRequest
 from app.services.agent_execution import AgentExecutionService
 from app.services.document_parser import DocumentParser
+import base64
 
 router = APIRouter()
 
@@ -19,6 +20,16 @@ document_parser = DocumentParser()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 ALLOWED_EXTENSIONS = {"pdf", "txt", "md", "docx"}
+IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+ALL_ALLOWED = ALLOWED_EXTENSIONS | IMAGE_EXTENSIONS
+
+MIME_MAP = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
 
 
 @router.post("/{agent_id}/chat")
@@ -102,10 +113,10 @@ async def chat_with_file(
     # Validate file extension
     filename = file.filename or "unknown.txt"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in ALLOWED_EXTENSIONS:
+    if ext not in ALL_ALLOWED:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: .{ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+            detail=f"Unsupported file type: .{ext}. Allowed: {', '.join(sorted(ALL_ALLOWED))}",
         )
 
     # Read and validate file size
@@ -116,16 +127,7 @@ async def chat_with_file(
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)} MB.",
         )
 
-    # Parse file content to text
-    try:
-        file_text = document_parser.parse_bytes(file_content, filename)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to parse file content.")
-
-    # Truncate to ~30k chars to stay within model context limits
-    max_chars = 30_000
-    if len(file_text) > max_chars:
-        file_text = file_text[:max_chars] + "\n\n[... file truncated ...]"
+    is_image = ext in IMAGE_EXTENSIONS
 
     # Build conversation history
     conversation_history = None
@@ -138,18 +140,45 @@ async def chat_with_file(
             {"role": m["role"], "content": m["content"]} for m in messages
         ]
 
-    # Inject file content as a system message before the user's question
-    file_context_msg = {
-        "role": "system",
-        "content": (
-            f"The user has attached a file named '{filename}'. "
-            f"Here is the full text content of the file:\n\n{file_text}"
-        ),
-    }
-
     if conversation_history is None:
         conversation_history = []
-    conversation_history.append(file_context_msg)
+
+    if is_image:
+        # Encode image as base64 data URL for vision models
+        mime = MIME_MAP.get(ext, "image/png")
+        b64 = base64.b64encode(file_content).decode("utf-8")
+        data_url = f"data:{mime};base64,{b64}"
+
+        # Inject image as a user message in history; the actual question
+        # will be appended by the execution service as the current user_message.
+        image_msg = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"[Attached image: {filename}]"},
+                {"type": "image_url", "image_url": {"url": data_url, "detail": "auto"}},
+            ],
+        }
+        conversation_history.append(image_msg)
+    else:
+        # Parse document content to text
+        try:
+            file_text = document_parser.parse_bytes(file_content, filename)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to parse file content.")
+
+        # Truncate to ~30k chars to stay within model context limits
+        max_chars = 30_000
+        if len(file_text) > max_chars:
+            file_text = file_text[:max_chars] + "\n\n[... file truncated ...]"
+
+        file_context_msg = {
+            "role": "system",
+            "content": (
+                f"The user has attached a file named '{filename}'. "
+                f"Here is the full text content of the file:\n\n{file_text}"
+            ),
+        }
+        conversation_history.append(file_context_msg)
 
     execution_service = AgentExecutionService()
 
