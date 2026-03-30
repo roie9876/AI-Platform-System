@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-sharepoint
+  labels:
+    app: mcp-sharepoint
+    app.kubernetes.io/name: mcp-sharepoint
+    app.kubernetes.io/component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-sharepoint
+  template:
+    metadata:
+      labels:
+        app: mcp-sharepoint
+        app.kubernetes.io/name: mcp-sharepoint
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: aiplatform-workload
+      containers:
+        - name: mcp-sharepoint
+          image: ${ACR_SERVER}/aiplatform-mcp-sharepoint:latest
+          ports:
+            - containerPort: 8083
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: "8083"
+            - name: SHAREPOINT_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_TENANT_ID
+            - name: SHAREPOINT_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_CLIENT_ID
+            - name: SHAREPOINT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_CLIENT_SECRET
+            - name: SHAREPOINT_SITE_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_SITE_HOSTNAME
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: aiplatform-keyvault

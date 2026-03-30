@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-github
+  labels:
+    app: mcp-github
+    app.kubernetes.io/name: mcp-github
+    app.kubernetes.io/component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-github
+  template:
+    metadata:
+      labels:
+        app: mcp-github
+        app.kubernetes.io/name: mcp-github
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: aiplatform-workload
+      containers:
+        - name: mcp-github
+          image: ${ACR_SERVER}/aiplatform-mcp-github:latest
+          ports:
+            - containerPort: 8084
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: "8084"
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: GITHUB_TOKEN
+            - name: GITHUB_DEFAULT_ORG
+              valueFrom:
+                configMapKeyRef:
+                  name: aiplatform-config
+                  key: GITHUB_DEFAULT_ORG
+                  optional: true
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: aiplatform-keyvault
