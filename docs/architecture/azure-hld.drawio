@@ -76,16 +76,16 @@
         <mxCell id="mcp-atl-desc" value="Jira + Confluence · 12 tools" style="text;html=1;fontSize=8;align=center;fillColor=none;strokeColor=none;fontColor=#666666;" parent="1" vertex="1">
           <mxGeometry x="745" y="511" width="148" height="16" as="geometry" />
         </mxCell>
-        <mxCell id="mcp-sharepoint" value="mcp-sharepoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#038387;strokeWidth=1;fontSize=10;fontStyle=2;dashed=1;dashPattern=4 4;fontColor=#888888;" parent="1" vertex="1">
+        <mxCell id="mcp-sharepoint" value="mcp-sharepoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
           <mxGeometry x="700" y="407" width="120" height="32" as="geometry" />
         </mxCell>
-        <mxCell id="mcp-sp-desc" value="Microsoft Graph (planned)" style="text;html=1;fontSize=7;align=center;fillColor=none;strokeColor=none;fontColor=#999999;fontStyle=2;" parent="1" vertex="1">
+        <mxCell id="mcp-sp-desc" value="SharePoint · Microsoft Graph" style="text;html=1;fontSize=8;align=center;fillColor=none;strokeColor=none;fontColor=#666666;" parent="1" vertex="1">
           <mxGeometry x="700" y="441" width="120" height="16" as="geometry" />
         </mxCell>
-        <mxCell id="mcp-github-pod" value="mcp-github" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#24292E;strokeWidth=1;fontSize=10;fontStyle=2;dashed=1;dashPattern=4 4;fontColor=#888888;" parent="1" vertex="1">
+        <mxCell id="mcp-github-pod" value="mcp-github" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
           <mxGeometry x="835" y="407" width="120" height="32" as="geometry" />
         </mxCell>
-        <mxCell id="mcp-gh-desc" value="GitHub API (planned)" style="text;html=1;fontSize=7;align=center;fillColor=none;strokeColor=none;fontColor=#999999;fontStyle=2;" parent="1" vertex="1">
+        <mxCell id="mcp-gh-desc" value="GitHub · Repos · Issues · PRs" style="text;html=1;fontSize=8;align=center;fillColor=none;strokeColor=none;fontColor=#666666;" parent="1" vertex="1">
           <mxGeometry x="835" y="441" width="120" height="16" as="geometry" />
         </mxCell>
         <mxCell id="internal-note" value="AE ↔ TE · AE ↔ MCP-Proxy · WF → AE · MCP-Proxy ↔ MCP-*" style="text;html=1;fontSize=9;align=center;fillColor=none;strokeColor=none;fontColor=#82B366;fontStyle=2;" parent="1" vertex="1">
