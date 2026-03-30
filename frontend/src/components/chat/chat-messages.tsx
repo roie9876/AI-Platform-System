@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Database, FileText, Paperclip, Image as ImageIcon } from "lucide-react";
+import { Database, FileText, Paperclip, Loader2 } from "lucide-react";
+import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
+import { CodeExecutionBlock, type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
 
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   sources?: Array<{ type: string; index?: string; name?: string }>;
   attachment?: { name: string; size: number; previewUrl?: string };
+  toolCalls?: ToolCallEvent[];
+  toolResults?: ToolResultEvent[];
 }
 
 interface ChatMessagesProps {
@@ -55,7 +59,7 @@ export function ChatMessages({
             <div
               className={`max-w-[80%] rounded-lg px-4 py-2 ${
                 message.role === "user"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-white whitespace-pre-wrap"
                   : "bg-gray-100 text-gray-900"
               }`}
             >
@@ -78,12 +82,29 @@ export function ChatMessages({
                   <span className="truncate max-w-[180px]">{message.attachment.name}</span>
                 </div>
               )}
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              {message.role === "assistant" &&
-                isStreaming &&
-                i === messages.length - 1 && (
-                  <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
-                )}
+              {/* Tool execution blocks */}
+              {message.role === "assistant" && message.toolCalls && message.toolCalls.length > 0 && (
+                <div className="mb-2">
+                  {message.toolCalls.map((tc, ti) => (
+                    <CodeExecutionBlock
+                      key={ti}
+                      toolCall={tc}
+                      toolResult={message.toolResults?.[ti]}
+                    />
+                  ))}
+                </div>
+              )}
+              {message.role === "assistant" ? (
+                message.content ? (
+                  <div className="text-sm"><MarkdownRenderer content={message.content} /></div>
+                ) : (
+                  isStreaming && i === messages.length - 1 && !message.toolCalls?.length ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  ) : null
+                )
+              ) : (
+                <p className="text-sm">{message.content}</p>
+              )}
             </div>
             {message.role === "assistant" && message.sources && message.sources.length > 0 && (
               <div className="mt-1 flex flex-wrap gap-1.5">

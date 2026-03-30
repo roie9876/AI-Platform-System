@@ -9,6 +9,7 @@ import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ConfigPanel } from "@/components/chat/config-panel";
+import { type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -50,6 +51,8 @@ interface Message {
   content: string;
   sources?: Array<{ type: string; index?: string; name?: string }>;
   attachment?: { name: string; size: number; previewUrl?: string };
+  toolCalls?: ToolCallEvent[];
+  toolResults?: ToolResultEvent[];
 }
 
 export default function ChatPage() {
@@ -223,6 +226,30 @@ export default function ChatPage() {
                       ...last,
                       sources: data.sources,
                     };
+                  }
+                  return updated;
+                });
+              }
+
+              if (data.tool_call) {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    const calls = [...(last.toolCalls || []), data.tool_call as ToolCallEvent];
+                    updated[updated.length - 1] = { ...last, toolCalls: calls };
+                  }
+                  return updated;
+                });
+              }
+
+              if (data.tool_result) {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    const results = [...(last.toolResults || []), data.tool_result as ToolResultEvent];
+                    updated[updated.length - 1] = { ...last, toolResults: results };
                   }
                   return updated;
                 });

@@ -431,6 +431,8 @@ class AgentExecutionService:
                                 continue
                             try:
                                 args = json.loads(tc.function.arguments)
+                                # Emit tool_call event so the frontend can show execution UI
+                                yield self._sse_tool_call(tc.function.name, args)
                                 if mcp_tool:
                                     result = await self._execute_mcp_tool(
                                         mcp_tool, args, tenant_id,
@@ -465,12 +467,15 @@ class AgentExecutionService:
                                     "content": json.dumps(result),
                                 })
                                 tools_called.append({"name": tc.function.name, "status": "success"})
+                                # Emit tool_result event so the frontend can show output
+                                yield self._sse_tool_result(tc.function.name, result, "success")
                             except (ToolExecutionError, MCPClientError) as e:
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tc.id,
                                     "content": json.dumps({"error": str(e)}),
                                 })
+                                yield self._sse_tool_result(tc.function.name, {"error": str(e)}, "error")
                             except Exception as e:
                                 logger.warning("Unexpected error executing tool %s: %s", tc.function.name, e, exc_info=True)
                                 messages.append({
@@ -478,6 +483,7 @@ class AgentExecutionService:
                                     "tool_call_id": tc.id,
                                     "content": json.dumps({"error": f"Tool execution failed: {e}"}),
                                 })
+                                yield self._sse_tool_result(tc.function.name, {"error": f"Tool execution failed: {e}"}, "error")
                     else:
                         # No tool calls — model returned final content
                         collected_response = response["content"] or ""
@@ -641,6 +647,14 @@ class AgentExecutionService:
     @staticmethod
     def _sse_sources(sources: List[Dict[str, str]]) -> str:
         return f"data: {json.dumps({'sources': sources})}\n\n"
+
+    @staticmethod
+    def _sse_tool_call(tool_name: str, arguments: dict) -> str:
+        return f"data: {json.dumps({'tool_call': {'name': tool_name, 'arguments': arguments}})}\n\n"
+
+    @staticmethod
+    def _sse_tool_result(tool_name: str, result: dict, status: str = "success") -> str:
+        return f"data: {json.dumps({'tool_result': {'name': tool_name, 'result': result, 'status': status}})}\n\n"
 
     @staticmethod
     def _sse_error(message: str) -> str:

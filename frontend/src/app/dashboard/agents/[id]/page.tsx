@@ -12,6 +12,8 @@ import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
 import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip } from "lucide-react";
+import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
+import { CodeExecutionBlock, type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -26,6 +28,8 @@ interface ChatMessage {
   content: string;
   sources?: ChatSource[];
   attachment?: { name: string; size: number; previewUrl?: string };
+  toolCalls?: ToolCallEvent[];
+  toolResults?: ToolResultEvent[];
 }
 
 interface Agent {
@@ -308,6 +312,28 @@ export default function AgentDetailPage() {
                 const last = updated[updated.length - 1];
                 if (last && last.role === "assistant") {
                   updated[updated.length - 1] = { ...last, sources: data.sources };
+                }
+                return updated;
+              });
+            }
+            if (data.tool_call) {
+              setChatMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.role === "assistant") {
+                  const calls = [...(last.toolCalls || []), data.tool_call as ToolCallEvent];
+                  updated[updated.length - 1] = { ...last, toolCalls: calls };
+                }
+                return updated;
+              });
+            }
+            if (data.tool_result) {
+              setChatMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.role === "assistant") {
+                  const results = [...(last.toolResults || []), data.tool_result as ToolResultEvent];
+                  updated[updated.length - 1] = { ...last, toolResults: results };
                 }
                 return updated;
               });
@@ -901,9 +927,9 @@ export default function AgentDetailPage() {
                     className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
+                      className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
                         msg.role === "user"
-                          ? "bg-[#7C3AED] text-white"
+                          ? "bg-[#7C3AED] text-white whitespace-pre-wrap"
                           : "bg-gray-100 text-gray-900"
                       }`}
                     >
@@ -918,9 +944,27 @@ export default function AgentDetailPage() {
                           <span className="opacity-70">({(msg.attachment.size / 1024).toFixed(0)} KB)</span>
                         </div>
                       )}
-                      {msg.content || (isStreaming && i === chatMessages.length - 1 ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                      ) : null)}
+                      {/* Tool execution blocks (ChatGPT-style) */}
+                      {msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0 && (
+                        <div className="mb-2">
+                          {msg.toolCalls.map((tc, ti) => (
+                            <CodeExecutionBlock
+                              key={ti}
+                              toolCall={tc}
+                              toolResult={msg.toolResults?.[ti]}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {msg.role === "assistant" && msg.content ? (
+                        <MarkdownRenderer content={msg.content} />
+                      ) : msg.role === "user" ? (
+                        msg.content
+                      ) : (
+                        isStreaming && i === chatMessages.length - 1 && !msg.toolCalls?.length ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        ) : null
+                      )}
                     </div>
                     {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1.5">
