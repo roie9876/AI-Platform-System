@@ -11,7 +11,7 @@ import { AgentMonitorPanel } from "@/components/agent/agent-monitor-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
-import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield } from "lucide-react";
+import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -25,6 +25,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources?: ChatSource[];
+  attachment?: { name: string; size: number; previewUrl?: string };
 }
 
 interface Agent {
@@ -167,6 +168,8 @@ export default function AgentDetailPage() {
   const [mcpActionLoading, setMcpActionLoading] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [chatFile, setChatFile] = useState<File | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -176,10 +179,22 @@ export default function AgentDetailPage() {
     const message = chatInput.trim();
     if (!message || !agent || isStreaming) return;
 
+    const fileToSend = chatFile;
     setChatError(null);
     setChatInput("");
+    setChatFile(null);
     setPendingSources([]);
-    const userMsg: ChatMessage = { role: "user", content: message };
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: message,
+      ...(fileToSend ? {
+        attachment: {
+          name: fileToSend.name,
+          size: fileToSend.size,
+          ...(fileToSend.type.startsWith("image/") ? { previewUrl: URL.createObjectURL(fileToSend) } : {}),
+        },
+      } : {}),
+    };
     setChatMessages((prev) => [...prev, userMsg]);
     setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
     setIsStreaming(true);
@@ -203,14 +218,6 @@ export default function AgentDetailPage() {
     }
 
     try {
-      const body: Record<string, unknown> = { message };
-      if (threadId) {
-        body.thread_id = threadId;
-      } else {
-        const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
-        if (history.length > 0) body.conversation_history = history;
-      }
-
       const instance = getMsalInstance();
       const account = instance.getActiveAccount();
       let authHeaders: Record<string, string> = {};
@@ -222,19 +229,51 @@ export default function AgentDetailPage() {
       }
 
       const tenantId = getCurrentTenantId();
-      const response = await fetch(
-        `${API_BASE}/api/v1/agents/${agentId}/chat`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-            ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
+      let response: Response;
+
+      if (fileToSend) {
+        // Use multipart upload endpoint
+        const formData = new FormData();
+        formData.append("message", message);
+        formData.append("file", fileToSend);
+        if (threadId) formData.append("thread_id", threadId);
+
+        response = await fetch(
+          `${API_BASE}/api/v1/agents/${agentId}/chat/upload`,
+          {
+            method: "POST",
+            headers: {
+              ...authHeaders,
+              ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+            },
+            body: formData,
+            signal: controller.signal,
+          }
+        );
+      } else {
+        // Standard JSON chat
+        const body: Record<string, unknown> = { message };
+        if (threadId) {
+          body.thread_id = threadId;
+        } else {
+          const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+          if (history.length > 0) body.conversation_history = history;
         }
-      );
+
+        response = await fetch(
+          `${API_BASE}/api/v1/agents/${agentId}/chat`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders,
+              ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          }
+        );
+      }
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
@@ -298,7 +337,7 @@ export default function AgentDetailPage() {
       loadMemories();
       loadThreads();
     }
-  }, [agent, agentId, chatInput, chatMessages, chatThreadId, isStreaming]);
+  }, [agent, agentId, chatInput, chatFile, chatMessages, chatThreadId, isStreaming]);
 
   const handleSave = useCallback(async () => {
     if (!agent || isSaving) return;
@@ -868,6 +907,17 @@ export default function AgentDetailPage() {
                           : "bg-gray-100 text-gray-900"
                       }`}
                     >
+                      {msg.role === "user" && msg.attachment && (
+                        <div className="mb-1.5 flex items-center gap-1.5 rounded bg-white/20 px-2 py-1 text-xs">
+                          {msg.attachment.previewUrl ? (
+                            <img src={msg.attachment.previewUrl} alt={msg.attachment.name} className="h-8 w-8 rounded object-cover" />
+                          ) : (
+                            <Paperclip className="h-3 w-3" />
+                          )}
+                          <span className="truncate max-w-[140px]">{msg.attachment.name}</span>
+                          <span className="opacity-70">({(msg.attachment.size / 1024).toFixed(0)} KB)</span>
+                        </div>
+                      )}
                       {msg.content || (isStreaming && i === chatMessages.length - 1 ? (
                         <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                       ) : null)}
@@ -901,13 +951,52 @@ export default function AgentDetailPage() {
             )}
 
             <div className="border-t border-gray-200 px-4 py-3">
+              {chatFile && (
+                <div className="mb-2 flex items-center gap-2 rounded-md bg-purple-50 border border-purple-200 px-3 py-1.5 text-sm text-purple-800 w-fit">
+                  {chatFile.type.startsWith("image/") ? (
+                    <img src={URL.createObjectURL(chatFile)} alt={chatFile.name} className="h-10 w-10 rounded object-cover" />
+                  ) : (
+                    <Paperclip className="h-3.5 w-3.5" />
+                  )}
+                  <span className="truncate max-w-[160px] text-xs">{chatFile.name}</span>
+                  <button onClick={() => setChatFile(null)} className="text-purple-400 hover:text-purple-600">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <input
+                  ref={chatFileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg,.gif,.webp"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      const ext = f.name.split(".").pop()?.toLowerCase();
+                      const allowed = ["pdf","txt","md","docx","png","jpg","jpeg","gif","webp"];
+                      if (!ext || !allowed.includes(ext)) { alert("Unsupported file type."); return; }
+                      if (f.size > 10 * 1024 * 1024) { alert("File too large (max 10 MB)."); return; }
+                      setChatFile(f);
+                    }
+                    if (chatFileInputRef.current) chatFileInputRef.current.value = "";
+                  }}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => chatFileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  title="Attach file"
+                  className="text-gray-400 hover:text-gray-600 disabled:opacity-40"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
-                  placeholder="Message the agent..."
+                  placeholder={chatFile ? "Ask about the file..." : "Message the agent..."}
                   className="flex-1 text-sm outline-none"
                   disabled={isStreaming}
                 />
