@@ -43,7 +43,7 @@ The `start.sh` script handles everything automatically:
 2. Creates a Python virtual environment and installs backend dependencies
 3. Runs database migrations (Alembic)
 4. Starts the **FastAPI** backend on `http://localhost:8000`
-5. Starts demo **MCP servers** (Web Tools on `:8081`, Atlassian mock on `:8082`)
+5. Starts demo **MCP servers** (Web Tools on `:8081`, Atlassian on `:8082`)
 6. Installs frontend npm packages and starts the **Next.js** app on `http://localhost:3000`
 
 ### Access Points
@@ -94,6 +94,7 @@ Press `Ctrl+C` to stop all services.
   - [3.6 Tool Executor Pod](#36-tool-executor-pod)
   - [3.7 RAG System (Retrieval-Augmented Generation)](#37-rag-system-retrieval-augmented-generation)
   - [3.8 MCP Proxy Pod](#38-mcp-proxy-pod)
+    - [3.8.1 MCP Servers](#381-mcp-servers)
   - [3.9 Workflow Engine Pod](#39-workflow-engine-pod)
 - [4. Security Architecture](#4-security-architecture)
   - [4.1 Authentication Flow](#41-authentication-flow)
@@ -154,7 +155,7 @@ Press `Ctrl+C` to stop all services.
 
 ### 1.1 System-Level View
 
-The platform is organized into three layers: a **Control Plane** for management, a **Runtime Plane** for execution, and a shared **Data Layer** for persistence. Six Kubernetes pods (5 backend microservices + 1 frontend) run inside an AKS cluster behind an Application Gateway for Containers (AGC) ingress controller.
+The platform is organized into three layers: a **Control Plane** for management, a **Runtime Plane** for execution, and a shared **Data Layer** for persistence. Eight Kubernetes pods (7 backend microservices + 1 frontend) run inside an AKS cluster behind an Application Gateway for Containers (AGC) ingress controller.
 
 ![Azure High-Level Design](docs/architecture/azure-hld.drawio.png)
 
@@ -164,7 +165,7 @@ The architecture enforces a strict separation between **management** and **execu
 
 | Property | Control Plane | Runtime Plane |
 |----------|--------------|---------------|
-| **Pods** | `api-gateway` | `agent-executor`, `tool-executor`, `mcp-proxy`, `workflow-engine` |
+| **Pods** | `api-gateway` | `agent-executor`, `tool-executor`, `mcp-proxy`, `mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `workflow-engine` |
 | **Purpose** | Configuration, governance, admin ops | Agent execution, tool calls, LLM routing |
 | **Traffic Pattern** | Low frequency (admin CRUD) | High frequency (user conversations) |
 | **Latency Tolerance** | Seconds acceptable | Milliseconds critical (streaming) |
@@ -369,7 +370,7 @@ Token counts are captured from the LLM response `usage` object and stored in the
 
 > 📚 **Learn the concepts:** [Runtime Plane (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/09-runtime-plane.md)
 
-The Runtime Plane handles the actual execution of AI agents. It consists of four pods that work together: the **Agent Executor** orchestrates the core loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, and the **Workflow Engine** coordinates multi-agent flows.
+The Runtime Plane handles the actual execution of AI agents. It consists of seven pods that work together: the **Agent Executor** orchestrates the core loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, three **MCP servers** (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`) connect to external SaaS APIs, and the **Workflow Engine** coordinates multi-agent flows.
 
 ### 3.1 Agent Executor Pod
 
@@ -599,7 +600,7 @@ response = model_abstraction.chat_completion(prompt)
 
 > 📚 **Learn the concepts:** [Tools & Marketplace (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/06-tools-marketplace.md) · [Agent Frameworks & Ecosystem (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/16-agent-frameworks.md)
 
-The MCP Proxy bridges the **Model Context Protocol** ecosystem to the platform. MCP is a standardized protocol for tool discovery and invocation across external services (Jira, GitHub, Slack, Confluence, etc.).
+The MCP Proxy bridges the **Model Context Protocol** ecosystem to the platform. MCP is a standardized protocol for tool discovery and invocation across external services. The proxy routes tool calls to the appropriate MCP server based on the server registry.
 
 | Responsibility | Routes | Description |
 |---------------|--------|-------------|
@@ -607,6 +608,16 @@ The MCP Proxy bridges the **Model Context Protocol** ecosystem to the platform. 
 | Tool Discovery | `/api/v1/mcp/tools` | Introspect available tools from servers |
 | Tool Execution | `POST /internal/mcp/call-tool` | Proxy tool calls during agent execution |
 | Agent Attachment | `/api/v1/agents/{id}/mcp-tools` | Attach/detach discovered tools to agents |
+
+### 3.8.1 MCP Servers
+
+Each external SaaS integration runs as a dedicated MCP server pod. Separate servers are required because each SaaS has a different API and authentication model.
+
+| MCP Server | External Service | API | Auth | Tools | Status |
+|---|---|---|---|---|---|
+| `mcp-atlassian` | Jira Cloud + Confluence | Atlassian REST API | API Token (Key Vault) | 12 (7 Jira + 5 Confluence) | **Active** |
+| `mcp-sharepoint` | SharePoint / OneDrive | Microsoft Graph API | Managed Identity (Entra ID) | — | Planned |
+| `mcp-github` | Repos, Issues, PRs | GitHub REST / GraphQL | GitHub App or PAT | — | Planned |
 
 **MCP lifecycle:**
 
@@ -880,11 +891,12 @@ The AGC ingress routes requests to the correct pod based on URL path prefix. Rul
 | `COSMOS_DATABASE` | `aiplatform` | Database name |
 | `TOOL_EXECUTOR_URL` | `http://tool-executor:8000` | Inter-service call |
 | `MCP_PROXY_URL` | `http://mcp-proxy:8000` | Inter-service call |
+| `MCP_ATLASSIAN_URL` | `http://mcp-atlassian:8082` | Atlassian MCP server |
 | `AGENT_EXECUTOR_URL` | `http://agent-executor:8000` | Inter-service call |
 | `WORKFLOW_ENGINE_URL` | `http://workflow-engine:8000` | Inter-service call |
 | `CORS_ORIGINS` | `["https://aiplatform.stumsft.com", "http://localhost:3000"]` | CORS |
 
-**Shared codebase pattern:** All 5 backend microservices share the same Python `app/` package. Each microservice's `main.py` creates a FastAPI app and mounts only the relevant routers for that service. A single Dockerfile per service copies the entire `backend/` directory and sets the entry point.
+**Shared codebase pattern:** All 7 backend microservices share the same Python `app/` package. Each microservice's `main.py` creates a FastAPI app and mounts only the relevant routers for that service. A single Dockerfile per service copies the entire `backend/` directory and sets the entry point. The MCP servers (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`) each run as standalone FastAPI apps with dedicated Dockerfiles.
 
 ---
 
