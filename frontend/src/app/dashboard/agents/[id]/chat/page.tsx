@@ -49,6 +49,7 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   sources?: Array<{ type: string; index?: string; name?: string }>;
+  attachment?: { name: string; size: number };
 }
 
 export default function ChatPage() {
@@ -73,7 +74,7 @@ export default function ChatPage() {
   }, [agentId]);
 
   const handleSend = useCallback(
-    async (userMessage: string) => {
+    async (userMessage: string, file?: File) => {
       if (!agent) return;
 
       setError(null);
@@ -94,7 +95,11 @@ export default function ChatPage() {
         }
       }
 
-      const userMsg: Message = { role: "user", content: userMessage };
+      const userMsg: Message = {
+        role: "user",
+        content: userMessage,
+        ...(file ? { attachment: { name: file.name, size: file.size } } : {}),
+      };
       setMessages((prev) => [...prev, userMsg]);
 
       const assistantMsg: Message = { role: "assistant", content: "" };
@@ -105,20 +110,6 @@ export default function ChatPage() {
       abortRef.current = controller;
 
       try {
-        const body: Record<string, unknown> = { message: userMessage };
-        if (threadId) {
-          body.thread_id = threadId;
-        } else {
-          // Stateless fallback — send client-side history
-          const history = messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
-          if (history.length > 0) {
-            body.conversation_history = history;
-          }
-        }
-
         const instance = getMsalInstance();
         const account = instance.getActiveAccount();
         let authHeaders: Record<string, string> = {};
@@ -130,19 +121,58 @@ export default function ChatPage() {
         }
 
         const tenantId = getCurrentTenantId();
-        const response = await fetch(
-          `${API_BASE}/api/v1/agents/${agentId}/chat`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...authHeaders,
-              ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
-            },
-            body: JSON.stringify(body),
-            signal: controller.signal,
+        let response: Response;
+
+        if (file) {
+          // Use multipart/form-data upload endpoint
+          const formData = new FormData();
+          formData.append("message", userMessage);
+          formData.append("file", file);
+          if (threadId) {
+            formData.append("thread_id", threadId);
           }
-        );
+
+          response = await fetch(
+            `${API_BASE}/api/v1/agents/${agentId}/chat/upload`,
+            {
+              method: "POST",
+              headers: {
+                ...authHeaders,
+                ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+              },
+              body: formData,
+              signal: controller.signal,
+            }
+          );
+        } else {
+          // Standard JSON chat endpoint
+          const body: Record<string, unknown> = { message: userMessage };
+          if (threadId) {
+            body.thread_id = threadId;
+          } else {
+            const history = messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            }));
+            if (history.length > 0) {
+              body.conversation_history = history;
+            }
+          }
+
+          response = await fetch(
+            `${API_BASE}/api/v1/agents/${agentId}/chat`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders,
+                ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+              },
+              body: JSON.stringify(body),
+              signal: controller.signal,
+            }
+          );
+        }
 
         if (!response.ok) {
           const err = await response
