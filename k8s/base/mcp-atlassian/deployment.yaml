@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-atlassian
+  labels:
+    app: mcp-atlassian
+    app.kubernetes.io/name: mcp-atlassian
+    app.kubernetes.io/component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-atlassian
+  template:
+    metadata:
+      labels:
+        app: mcp-atlassian
+        app.kubernetes.io/name: mcp-atlassian
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: aiplatform-workload
+      containers:
+        - name: mcp-atlassian
+          image: ${ACR_SERVER}/aiplatform-mcp-atlassian:latest
+          ports:
+            - containerPort: 8082
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: "8082"
+            - name: JIRA_BASE_URL
+              value: "https://roie9876.atlassian.net"
+            - name: JIRA_EMAIL
+              value: "roie9876@gmail.com"
+            - name: JIRA_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: JIRA_API_TOKEN
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: aiplatform-keyvault

@@ -164,7 +164,15 @@ class AgentExecutionService:
         """Convert MCP discovered tools to OpenAI-format tool schemas."""
         schemas = []
         for mt in mcp_tools:
-            params = mt.get("input_schema") or {"type": "object", "properties": {}}
+            params = dict(mt.get("input_schema") or {})
+            # Ensure OpenAI-compatible schema: type must be object,
+            # properties must be a dict, required must be a list (or absent).
+            params.setdefault("type", "object")
+            params.setdefault("properties", {})
+            if params.get("properties") is None:
+                params["properties"] = {}
+            if "required" in params and params["required"] is None:
+                del params["required"]
             schemas.append({
                 "type": "function",
                 "function": {
@@ -256,9 +264,18 @@ class AgentExecutionService:
 
         # Build messages
         messages: List[Dict[str, Any]] = []
-        system_prompt = agent.get("system_prompt")
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        system_prompt = agent.get("system_prompt") or ""
+        if not system_prompt.strip():
+            system_prompt = "You are a helpful assistant."
+        # Always append tool-use directive so the model calls tools proactively
+        system_prompt += (
+            "\n\nIMPORTANT: You have access to external tools. "
+            "When the user asks a question that your tools can help answer, "
+            "you MUST call the appropriate tool immediately instead of asking "
+            "the user for clarification. Be proactive — use your tools first, "
+            "then summarize the results for the user."
+        )
+        messages.append({"role": "system", "content": system_prompt})
 
         # Inject current date/time so the model always knows today's date
         from datetime import datetime, timezone
@@ -287,7 +304,9 @@ class AgentExecutionService:
                 if memories:
                     memory_text = "\n\n".join(m.get("content", "") if isinstance(m, dict) else m.content for m in memories)
                     memory_msg = (
-                        "Relevant memories from past interactions:\n\n"
+                        "Relevant memories from past interactions (for context only "
+                        "— always use your tools to fetch live data rather than "
+                        "relying on these memories):\n\n"
                         f"{memory_text}"
                     )
                     insert_idx = 1 if messages and messages[0]["role"] == "system" else 0
@@ -356,10 +375,22 @@ class AgentExecutionService:
         # Load tools attached to this agent (platform + sandbox + MCP)
         tools_list = await self._load_agent_tools(agent["id"], tenant_id)
         mcp_tools_list = await self._load_agent_mcp_tools(agent["id"], tenant_id)
+        logger.info(
+            "Agent %s: loaded %d platform tools, %d MCP tools",
+            agent.get("name"), len(tools_list), len(mcp_tools_list),
+        )
         tool_schemas = self._build_tool_schemas(tools_list) if tools_list else []
         mcp_schemas = self._build_mcp_tool_schemas(mcp_tools_list) if mcp_tools_list else []
         all_schemas = tool_schemas + mcp_schemas
         tool_schemas = all_schemas if all_schemas else None
+        if tool_schemas:
+            logger.info(
+                "Agent %s: sending %d tool schemas to LLM: %s",
+                agent.get("name"), len(all_schemas),
+                [s["function"]["name"] for s in all_schemas],
+            )
+        else:
+            logger.warning("Agent %s: NO tools loaded — running without tools", agent.get("name"))
         tool_map = {t["name"]: t for t in tools_list}
         mcp_tool_map = {f"mcp__{mt['tool_name']}": mt for mt in mcp_tools_list}
 
@@ -396,6 +427,7 @@ class AgentExecutionService:
                         messages=messages,
                         endpoints=endpoints,
                         tools=tool_schemas,
+                        tool_choice="auto",
                         temperature=agent.get("temperature"),
                         max_tokens=agent.get("max_tokens"),
                         timeout=agent.get("timeout_seconds"),
@@ -623,8 +655,10 @@ class AgentExecutionService:
             }
             await _exec_log_repo.create(tenant_id, log_entry)
 
-            # Store assistant response as long-term memory
-            if len(content) > 10:
+            # Store assistant response as long-term memory only when tool
+            # calls were made — conversational responses (e.g. "I can't find…")
+            # poison future interactions if stored as memories.
+            if len(content) > 10 and tools_called:
                 try:
                     await self._memory_service.store_memory(
                         agent_id=agent["id"],

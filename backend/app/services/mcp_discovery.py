@@ -66,7 +66,7 @@ class MCPDiscoveryService:
                     "server_id": server["id"],
                     "tool_name": tool_info.name,
                     "description": tool_info.description,
-                    "input_schema": tool_info.inputSchema.model_dump() if tool_info.inputSchema else None,
+                    "input_schema": tool_info.inputSchema.model_dump(exclude_none=True) if tool_info.inputSchema else {"type": "object", "properties": {}},
                     "is_available": True,
                     "tenant_id": tenant_id,
                 }
@@ -111,9 +111,10 @@ class MCPDiscoveryService:
         """Discover tools from all active MCP servers for a tenant."""
         servers = await _server_repo.query(
             tenant_id,
-            "SELECT * FROM c WHERE c.tenant_id = @tid AND c.is_active = true",
+            "SELECT * FROM c WHERE c.tenant_id = @tid AND (c.is_active = true OR NOT IS_DEFINED(c.is_active))",
             [{"name": "@tid", "value": tenant_id}],
         )
+        logger.info("discover_all_servers: found %d active servers for tenant %s", len(servers), tenant_id)
 
         summary = {}
         for server in servers:

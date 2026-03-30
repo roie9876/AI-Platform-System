@@ -17,6 +17,8 @@ resources:
   - tool-executor/service.yaml
   - mcp-proxy/deployment.yaml
   - mcp-proxy/service.yaml
+  - mcp-atlassian/deployment.yaml
+  - mcp-atlassian/service.yaml
   - frontend/deployment.yaml
   - frontend/service.yaml
 

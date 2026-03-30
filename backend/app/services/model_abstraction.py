@@ -289,6 +289,13 @@ class ModelAbstractionService:
         timeout: int = 30,
     ) -> Dict[str, Any]:
         """Non-streaming completion that returns full response including tool_calls."""
+        # Guard against None overrides from caller
+        if temperature is None:
+            temperature = 0.7
+        if max_tokens is None:
+            max_tokens = 4096
+        if timeout is None:
+            timeout = 60
         sorted_endpoints = sorted(endpoints, key=lambda e: e.get("priority", 0))
         last_error: Optional[Exception] = None
 
@@ -320,13 +327,34 @@ class ModelAbstractionService:
 
             if tools:
                 kwargs["tools"] = tools
-            if tool_choice:
+            if tool_choice and not reasoning:
+                # Reasoning models may not support tool_choice
                 kwargs["tool_choice"] = tool_choice
 
             try:
+                import json as _json
+                logger.info(
+                    "complete_with_tools: model=%s, tools_count=%d, tool_choice=%s, msg_count=%d, reasoning=%s",
+                    model_name, len(tools) if tools else 0, tool_choice, len(messages), reasoning,
+                )
+                # Dump the first tool schema and all messages for debugging
+                if tools:
+                    logger.info("FIRST TOOL SCHEMA: %s", _json.dumps(tools[0], default=str))
+                logger.info("MESSAGES: %s", _json.dumps(kwargs["messages"], default=str)[:2000])
                 response = await client.chat.completions.create(**kwargs)
                 _circuit_breaker.record_success(endpoint_id)
                 message = response.choices[0].message
+                logger.info(
+                    "complete_with_tools result: finish_reason=%s, has_tool_calls=%s, content_len=%d",
+                    response.choices[0].finish_reason,
+                    bool(getattr(message, "tool_calls", None)),
+                    len(message.content or ""),
+                )
+                if not getattr(message, "tool_calls", None):
+                    logger.warning(
+                        "NO TOOL CALLS — model response: %s",
+                        (message.content or "")[:500],
+                    )
                 usage = getattr(response, "usage", None)
                 usage_dict = {}
                 if usage:

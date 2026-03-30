@@ -56,7 +56,7 @@ export default function MCPServersPage() {
 
   const fetchServers = useCallback(async () => {
     try {
-      const data = await apiFetch<MCPServerListResponse>("/api/v1/mcp-servers/");
+      const data = await apiFetch<MCPServerListResponse>("/api/v1/mcp-servers");
       setServers(data.servers);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load servers");
@@ -84,7 +84,7 @@ export default function MCPServersPage() {
     setFormLoading(true);
     setError("");
     try {
-      await apiFetch("/api/v1/mcp-servers/", {
+      await apiFetch("/api/v1/mcp-servers", {
         method: "POST",
         body: JSON.stringify({
           name,

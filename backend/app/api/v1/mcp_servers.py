@@ -29,6 +29,7 @@ async def create_mcp_server(
         "auth_type": body.auth_type,
         "auth_header_name": body.auth_header_name,
         "auth_credential_ref": body.auth_credential_ref,
+        "is_active": True,
     }
     server = await server_repo.create(tenant_id, server_data)
     return server
@@ -121,6 +122,10 @@ async def check_mcp_server_status(
         server["status_message"] = str(e)
     finally:
         await client.disconnect()
+
+    # Ensure is_active is set for discovery queries
+    if "is_active" not in server:
+        server["is_active"] = True
 
     updated = await server_repo.update(tenant_id, server_id, server)
     return updated
