@@ -65,6 +65,8 @@ A production-grade, multi-tenant AI Agent Platform deployed on Azure Kubernetes 
 
 The platform is organized into three layers: a **Control Plane** for management, a **Runtime Plane** for execution, and a shared **Data Layer** for persistence. Six Kubernetes pods (5 backend microservices + 1 frontend) run inside an AKS cluster behind an Application Gateway for Containers (AGC) ingress controller.
 
+![Azure High-Level Design](docs/architecture/azure-hld.drawio.png)
+
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                          EXTERNAL CLIENTS                               │
@@ -1473,7 +1475,7 @@ Full OpenAPI spec available at `/docs` (Swagger UI) and `/redoc` on each service
 |-------|-----------|---------|---------|
 | Backend Framework | FastAPI | 0.115+ | Async API, auto OpenAPI spec, Pydantic validation |
 | Language | Python | 3.12+ | AI/ML ecosystem native |
-| LLM Abstraction | LiteLLM | 1.63+ | 100+ provider support via unified interface |
+| LLM Abstraction | OpenAI Python SDK | 1.40+ | Unified client for Azure OpenAI, OpenAI, and OpenAI-compatible providers |
 | Frontend Framework | Next.js | 15 | App Router, SSR, standalone Docker output |
 | UI Library | React | 19 | Component architecture |
 | Component Library | Shadcn/ui + Tailwind | latest | Modern, accessible components |
