@@ -123,7 +123,34 @@ Press `Ctrl+C` to stop all services.
 
 ---
 
+## 📚 Companion Education Repository
+
+> **New to AI Agent Platforms?** The **[AI-Agent-Platform Education Hub](https://github.com/roie9876/AI-Agent-Platform)** is a companion repository with 17 in-depth chapters and 10 hands-on labs that teach all the concepts behind this codebase.
+
+| This Repo (Implementation) | Education Chapter | Lab |
+|---|---|---|
+| [§1 High-Level Architecture](#1-high-level-architecture) | [Ch 14 — HLD Full Architecture](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/14-hld-architecture.md) | — |
+| [§2 Control Plane](#2-control-plane--deep-dive) | [Ch 08 — Control Plane](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/08-control-plane.md) | — |
+| [§3 Runtime Plane](#3-runtime-plane--deep-dive) | [Ch 09 — Runtime Plane](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/09-runtime-plane.md) | — |
+| [§3.2 ReAct Loop](#32-agent-execution-lifecycle-react-loop) | [Ch 01 — Fundamentals](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/01-fundamentals.md) | [Lab 01](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-01-react-agent/README.md) |
+| [§3.3 Model Abstraction](#33-model-abstraction-layer--multi-model-routing) | [Ch 02 — Model Abstraction & Routing](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/02-model-abstraction-routing.md) | [Lab 02](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-02-model-routing/README.md) |
+| [§3.4 Memory + §3.7 RAG](#34-memory-management-short-term--long-term) | [Ch 03 — Memory Management & RAG](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/03-memory-management.md) | [Lab 03](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-03-memory-rag/README.md) |
+| [§3.5 Thread & State](#35-thread--state-management) | [Ch 04 — Thread & State Management](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/04-thread-state-management.md) | — |
+| [§3.9 Workflow Engine](#39-workflow-engine-pod) | [Ch 05 — Orchestration Patterns](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/05-orchestration.md) | [Lab 04](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-04-orchestration/README.md) |
+| [§2.7 Marketplace + §3.6 Tools + §3.8 MCP](#27-tool--agent-marketplace) | [Ch 06 — Tools & Marketplace](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/06-tools-marketplace.md) | [Lab 05](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-05-tools-safety/README.md) |
+| [§2.5 Policy Engine](#25-policy-engine--governance) | [Ch 07 — Policy & Governance](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/07-policy-governance.md) | [Lab 05](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-05-tools-safety/README.md) |
+| [§2.6 Evaluation Engine](#26-evaluation-engine) | [Ch 10 — Evaluation Engine](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/10-evaluation-engine.md) | [Lab 06](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-06-evaluation/README.md) |
+| [§2.8 Cost Dashboard + §6 Observability](#28-cost-observability-dashboard) | [Ch 11 — Observability & Cost](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/11-observability-cost.md) | [Lab 08](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-08-observability/README.md) |
+| [§4 Security Architecture](#4-security-architecture) | [Ch 12 — Security & Isolation](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/12-security-isolation.md) | — |
+| [§5 Scalability](#5-scalability--fault-tolerance) | [Ch 13 — Scalability Patterns](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/13-scalability.md) | — |
+| [§7 Microsoft Stack](#7-microsoft-product-architecture-mapping) | [Ch 15 — Microsoft Stack Mapping](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/15-microsoft-stack.md) | — |
+| [§3.8 MCP Proxy](#38-mcp-proxy-pod) | [Ch 16 — Agent Frameworks & Ecosystem](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/16-agent-frameworks.md) | [Lab 07](https://github.com/roie9876/AI-Agent-Platform/blob/main/labs/lab-07-frameworks/README.md) |
+
+---
+
 ## 1. High-Level Architecture
+
+> 📚 **Learn the concepts:** [HLD — Full Architecture (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/14-hld-architecture.md)
 
 ### 1.1 System-Level View
 
@@ -160,6 +187,8 @@ The architecture enforces a strict separation between **management** and **execu
 ---
 
 ## 2. Control Plane — Deep Dive
+
+> 📚 **Learn the concepts:** [Control Plane (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/08-control-plane.md)
 
 The Control Plane is the **management surface** of the platform. It is a single pod (`api-gateway`) running FastAPI that handles all administrative and configuration operations. No LLM calls or agent execution happen here.
 
@@ -268,11 +297,15 @@ Agents are the core entity of the platform. Each agent has:
 
 ### 2.5 Policy Engine & Governance
 
+> 📚 **Learn the concepts:** [Policy & Governance (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/07-policy-governance.md)
+
 The policy layer enforces rules at multiple levels:
 
 ![Policy Engine & Governance](docs/architecture/policy-engine.drawio.png)
 
 ### 2.6 Evaluation Engine
+
+> 📚 **Learn the concepts:** [Evaluation Engine (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/10-evaluation-engine.md)
 
 The evaluation engine measures agent quality through structured test suites:
 
@@ -298,6 +331,8 @@ Test Suite                    Evaluation Run
 
 ### 2.7 Tool & Agent Marketplace
 
+> 📚 **Learn the concepts:** [Tools & Marketplace (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/06-tools-marketplace.md)
+
 The marketplace enables sharing across tenants:
 
 - **Agent templates**: Pre-built agent configurations with system prompts and tool attachments
@@ -307,6 +342,8 @@ The marketplace enables sharing across tenants:
 - **Import**: One-click import creates a copy in the user's tenant (deduplicated)
 
 ### 2.8 Cost Observability Dashboard
+
+> 📚 **Learn the concepts:** [Observability & Cost (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/11-observability-cost.md)
 
 Every agent execution logs token usage and cost. The observability API surfaces this data:
 
@@ -330,6 +367,8 @@ Token counts are captured from the LLM response `usage` object and stored in the
 
 ## 3. Runtime Plane — Deep Dive
 
+> 📚 **Learn the concepts:** [Runtime Plane (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/09-runtime-plane.md)
+
 The Runtime Plane handles the actual execution of AI agents. It consists of four pods that work together: the **Agent Executor** orchestrates the core loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, and the **Workflow Engine** coordinates multi-agent flows.
 
 ### 3.1 Agent Executor Pod
@@ -345,6 +384,8 @@ The **primary execution engine** of the platform. This pod receives user message
 | Internal Execute | `POST /api/v1/internal/agents/{id}/execute` | Called by Workflow Engine |
 
 ### 3.2 Agent Execution Lifecycle (ReAct Loop)
+
+> 📚 **Learn the concepts:** [Fundamentals — What is an AI Agent? (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/01-fundamentals.md)
 
 When a user sends a message, the agent executor runs the **ReAct loop** — Reason (LLM thinks), Act (call tool), Observe (read result), Repeat.
 
@@ -413,6 +454,8 @@ sequenceDiagram
 
 ### 3.3 Model Abstraction Layer & Multi-Model Routing
 
+> 📚 **Learn the concepts:** [Model Abstraction & Routing (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/02-model-abstraction-routing.md)
+
 The model abstraction layer provides a **unified OpenAI-compatible interface** to 100+ LLM providers. Every model interaction, regardless of provider, goes through the same interface.
 
 ![Model Abstraction Layer](docs/architecture/model-abstraction.drawio.png)
@@ -442,6 +485,8 @@ stateDiagram-v2
 
 ### 3.4 Memory Management (Short-Term & Long-Term)
 
+> 📚 **Learn the concepts:** [Memory Management & RAG (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/03-memory-management.md)
+
 The platform implements two memory scopes:
 
 ![Memory Management](docs/architecture/memory-management.drawio.png)
@@ -467,6 +512,8 @@ The platform implements two memory scopes:
 5. Send to LLM
 
 ### 3.5 Thread & State Management
+
+> 📚 **Learn the concepts:** [Thread & State Management (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/04-thread-state-management.md)
 
 Threads are conversation containers. Each thread belongs to one agent and one tenant.
 
@@ -499,6 +546,8 @@ These logs power the observability dashboard and enable debugging of agent behav
 
 ### 3.6 Tool Executor Pod
 
+> 📚 **Learn the concepts:** [Tools & Marketplace (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/06-tools-marketplace.md)
+
 The tool executor manages the **tool registry**, **data source connections**, and **RAG retrieval**. It runs tools in sandboxed subprocesses with input validation and timeout protection.
 
 | Responsibility | Routes | Description |
@@ -524,6 +573,8 @@ The tool executor manages the **tool registry**, **data source connections**, an
 
 ### 3.7 RAG System (Retrieval-Augmented Generation)
 
+> 📚 **Learn the concepts:** [Memory Management & RAG (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/03-memory-management.md)
+
 The RAG pipeline runs at execution time, injecting relevant external knowledge into the agent's prompt before sending to the LLM.
 
 ![RAG System](docs/architecture/rag-system.drawio.png)
@@ -545,6 +596,8 @@ response = model_abstraction.chat_completion(prompt)
 ```
 
 ### 3.8 MCP Proxy Pod
+
+> 📚 **Learn the concepts:** [Tools & Marketplace (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/06-tools-marketplace.md) · [Agent Frameworks & Ecosystem (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/16-agent-frameworks.md)
 
 The MCP Proxy bridges the **Model Context Protocol** ecosystem to the platform. MCP is a standardized protocol for tool discovery and invocation across external services (Jira, GitHub, Slack, Confluence, etc.).
 
@@ -582,6 +635,8 @@ sequenceDiagram
 
 ### 3.9 Workflow Engine Pod
 
+> 📚 **Learn the concepts:** [Orchestration Patterns (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/05-orchestration.md)
+
 The workflow engine orchestrates **multi-agent workflows** as directed acyclic graphs (DAGs). Each node is an agent execution, and edges define data flow between agents.
 
 | Responsibility | Routes | Description |
@@ -611,6 +666,8 @@ Classifier──► Support Agent                             │
 ---
 
 ## 4. Security Architecture
+
+> 📚 **Learn the concepts:** [Security & Isolation (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/12-security-isolation.md)
 
 ### 4.1 Authentication Flow
 
@@ -645,6 +702,8 @@ Classifier──► Support Agent                             │
 
 ## 5. Scalability & Fault Tolerance
 
+> 📚 **Learn the concepts:** [Scalability Patterns (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/13-scalability.md)
+
 ### 5.1 Horizontal Pod Autoscaling
 
 All pods can be scaled horizontally. The current configuration runs 1 replica per service with the option for HPA based on CPU/memory metrics.
@@ -678,6 +737,8 @@ All 33 containers use `/tenant_id` as partition key:
 
 ## 6. Observability
 
+> 📚 **Learn the concepts:** [Observability & Cost (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/11-observability-cost.md)
+
 The platform uses **OpenTelemetry** for distributed tracing across all five microservices, with data exported to Azure Application Insights.
 
 ![Observability Stack](docs/architecture/observability.drawio.png)
@@ -697,6 +758,8 @@ The platform uses **OpenTelemetry** for distributed tracing across all five micr
 ---
 
 ## 7. Microsoft Product Architecture Mapping
+
+> 📚 **Learn the concepts:** [Microsoft Stack Mapping (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/15-microsoft-stack.md)
 
 ### 7.1 Logical-to-Physical Mapping
 
