@@ -4,6 +4,19 @@ A production-grade, multi-tenant AI Agent Platform deployed on Azure Kubernetes 
 
 **Core Value:** Go from zero to a working AI agent with tools, data sources, RAG, and multi-agent workflows — without writing infrastructure code or managing model deployments.
 
+## Quick Overview
+
+This platform empowers organizations to bring AI capabilities to their teams with enterprise-grade security, governance, and rapid deployment. Instead of building AI infrastructure from scratch, developers and product managers can use a centralized control plane to build, test, and deployed sophisticated AI agents.
+
+**Key capabilities include:**
+- **Create Custom AI Agents:** Configure agents with specific personas, instructions, and capabilities using any preferred underlying LLM.
+- **Equip Agents with Tools:** Connect agents directly to internal APIs, databases, or third-party services using integrated tools and the Model Context Protocol (MCP).
+- **Manage Multi-Tenant Workloads:** Safely host multiple teams or customers on the same platform with strict data, namespace, and runtime isolation.
+- **Orchestrate Complex Workflows:** Chain multiple specialized agents together to solve complex, multi-step business problems.
+- **Monitor and Evaluate:** Track token costs, monitor execution latency, and evaluate agent quality from a single pane of glass.
+
+![AI Platform User Interface](docs/architecture/ui.jpeg)
+
 ---
 
 ## Table of Contents
