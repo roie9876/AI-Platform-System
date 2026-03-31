@@ -3,6 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
 from app.repositories.agent_repo import AgentRepository, AgentConfigVersionRepository
+from app.repositories.config_repo import ModelEndpointRepository
+from app.repositories.tenant_repo import TenantRepository
+from app.services.openclaw_service import OpenClawService
 from app.api.v1.schemas import (
     AgentCreateRequest,
     AgentUpdateRequest,
@@ -10,11 +13,17 @@ from app.api.v1.schemas import (
     AgentListResponse,
     AgentConfigVersionResponse,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 agent_repo = AgentRepository()
 config_version_repo = AgentConfigVersionRepository()
+endpoint_repo = ModelEndpointRepository()
+tenant_repo = TenantRepository()
+openclaw_service = OpenClawService()
 
 
 def _build_config_snapshot(agent: dict) -> dict:
@@ -38,6 +47,7 @@ async def create_agent(
         "name": body.name,
         "description": body.description,
         "system_prompt": body.system_prompt,
+        "agent_type": body.agent_type,
         "model_endpoint_id": str(body.model_endpoint_id) if body.model_endpoint_id else None,
         "temperature": body.temperature,
         "max_tokens": body.max_tokens,
@@ -45,6 +55,11 @@ async def create_agent(
         "current_config_version": 1,
         "status": "active" if body.model_endpoint_id else "inactive",
     }
+
+    # Store OpenClaw config if provided
+    if body.agent_type == "openclaw" and body.openclaw_config:
+        agent_data["openclaw_config"] = body.openclaw_config.model_dump()
+
     agent = await agent_repo.create(tenant_id, agent_data)
 
     config_data = {
@@ -54,6 +69,40 @@ async def create_agent(
         "change_description": "Initial configuration",
     }
     await config_version_repo.create(tenant_id, config_data)
+
+    # Deploy OpenClaw instance if agent_type is "openclaw"
+    if body.agent_type == "openclaw":
+        try:
+            tenant = await tenant_repo.get(tenant_id, tenant_id)
+            if not tenant:
+                raise HTTPException(status_code=400, detail="Tenant not found")
+            slug = tenant["slug"]
+
+            # Resolve model endpoint details
+            model_ep = None
+            if body.model_endpoint_id:
+                model_ep = await endpoint_repo.get(tenant_id, str(body.model_endpoint_id))
+
+            instance_name = await openclaw_service.deploy_agent(
+                agent_id=agent["id"],
+                agent_name=body.name,
+                tenant_slug=slug,
+                system_prompt=body.system_prompt or "",
+                model_endpoint=model_ep,
+                openclaw_config=body.openclaw_config.model_dump() if body.openclaw_config else {},
+            )
+            agent["openclaw_instance_name"] = instance_name
+            agent["status"] = "active"
+            etag = agent.get("_etag")
+            agent = await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
+            logger.info("OpenClaw agent %s deployed as %s", agent["id"], instance_name)
+        except Exception as e:
+            logger.error("Failed to deploy OpenClaw instance for agent %s: %s", agent["id"], e)
+            agent["status"] = "error"
+            agent["status_message"] = str(e)
+            etag = agent.get("_etag")
+            await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
+
     return agent
 
 
@@ -129,6 +178,18 @@ async def delete_agent(
     agent = await agent_repo.get(tenant_id, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Delete OpenClaw instance if this is an OpenClaw agent
+    if agent.get("agent_type") == "openclaw" and agent.get("openclaw_instance_name"):
+        try:
+            tenant = await tenant_repo.get(tenant_id, tenant_id)
+            if tenant:
+                await openclaw_service.delete_agent(
+                    instance_name=agent["openclaw_instance_name"],
+                    tenant_slug=tenant["slug"],
+                )
+        except Exception as e:
+            logger.warning("Failed to delete OpenClaw instance %s: %s", agent.get("openclaw_instance_name"), e)
 
     versions = await config_version_repo.list_by_agent(tenant_id, agent_id)
     for v in versions:

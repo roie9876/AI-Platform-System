@@ -26,10 +26,19 @@ export default function NewAgentPage() {
     name: "",
     description: "",
     system_prompt: "",
+    agent_type: "standard" as "standard" | "openclaw",
     model_endpoint_id: "",
     temperature: 0.7,
     max_tokens: 1024,
     timeout_seconds: 30,
+    // OpenClaw-specific fields
+    telegram_enabled: false,
+    telegram_bot_token_secret: "",
+    telegram_allowed_users: "",
+    dm_policy: "allowlist" as "open" | "allowlist" | "pairing",
+    enable_web_browsing: true,
+    enable_shell: false,
+    enable_deep_research: false,
   });
 
   useEffect(() => {
@@ -44,14 +53,36 @@ export default function NewAgentPage() {
     setError("");
 
     try {
+      const payload: Record<string, unknown> = {
+        name: form.name,
+        description: form.description || null,
+        system_prompt: form.system_prompt || null,
+        agent_type: form.agent_type,
+        model_endpoint_id: form.model_endpoint_id || null,
+        temperature: form.temperature,
+        max_tokens: form.max_tokens,
+        timeout_seconds: form.timeout_seconds,
+      };
+
+      if (form.agent_type === "openclaw") {
+        payload.openclaw_config = {
+          channels: {
+            telegram_enabled: form.telegram_enabled,
+            telegram_bot_token_secret: form.telegram_bot_token_secret || null,
+            telegram_allowed_users: form.telegram_allowed_users
+              ? form.telegram_allowed_users.split(",").map((s: string) => s.trim())
+              : [],
+            dm_policy: form.dm_policy,
+          },
+          enable_web_browsing: form.enable_web_browsing,
+          enable_shell: form.enable_shell,
+          enable_deep_research: form.enable_deep_research,
+        };
+      }
+
       await apiFetch("/api/v1/agents", {
         method: "POST",
-        body: JSON.stringify({
-          ...form,
-          model_endpoint_id: form.model_endpoint_id || null,
-          description: form.description || null,
-          system_prompt: form.system_prompt || null,
-        }),
+        body: JSON.stringify(payload),
       });
       router.push("/dashboard/agents");
     } catch (err: unknown) {
@@ -84,6 +115,63 @@ export default function NewAgentPage() {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+        </div>
+
+        {/* Agent Type Selector */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Agent Type
+          </label>
+          <div className="flex gap-4">
+            <label
+              className={`flex-1 relative flex cursor-pointer rounded-lg border p-4 ${
+                form.agent_type === "standard"
+                  ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500"
+                  : "border-gray-300 hover:border-gray-400"
+              }`}
+            >
+              <input
+                type="radio"
+                name="agent_type"
+                value="standard"
+                checked={form.agent_type === "standard"}
+                onChange={() => setForm({ ...form, agent_type: "standard" })}
+                className="sr-only"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">
+                  Standard Agent
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Chat via web UI, platform tools, model endpoints
+                </span>
+              </div>
+            </label>
+            <label
+              className={`flex-1 relative flex cursor-pointer rounded-lg border p-4 ${
+                form.agent_type === "openclaw"
+                  ? "border-purple-500 bg-purple-50 ring-2 ring-purple-500"
+                  : "border-gray-300 hover:border-gray-400"
+              }`}
+            >
+              <input
+                type="radio"
+                name="agent_type"
+                value="openclaw"
+                checked={form.agent_type === "openclaw"}
+                onChange={() => setForm({ ...form, agent_type: "openclaw" })}
+                className="sr-only"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">
+                  OpenClaw Agent
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Autonomous — Telegram, web browsing, deep research, shell
+                </span>
+              </div>
+            </label>
+          </div>
         </div>
 
         <div>
@@ -131,6 +219,139 @@ export default function NewAgentPage() {
             ))}
           </select>
         </div>
+
+        {/* OpenClaw Configuration (shown only when OpenClaw type selected) */}
+        {form.agent_type === "openclaw" && (
+          <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-purple-900">
+              OpenClaw Configuration
+            </h3>
+
+            {/* Capabilities */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide">
+                Capabilities
+              </label>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.enable_web_browsing}
+                    onChange={(e) =>
+                      setForm({ ...form, enable_web_browsing: e.target.checked })
+                    }
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  Web Browsing
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.enable_shell}
+                    onChange={(e) =>
+                      setForm({ ...form, enable_shell: e.target.checked })
+                    }
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  Shell Access
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.enable_deep_research}
+                    onChange={(e) =>
+                      setForm({ ...form, enable_deep_research: e.target.checked })
+                    }
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  Deep Research (GPT-5.4)
+                </label>
+              </div>
+            </div>
+
+            {/* Telegram Channel */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.telegram_enabled}
+                  onChange={(e) =>
+                    setForm({ ...form, telegram_enabled: e.target.checked })
+                  }
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Enable Telegram Channel
+              </label>
+
+              {form.telegram_enabled && (
+                <div className="ml-6 space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Bot Token (Key Vault secret name)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. TELEGRAMBOTTOKEN"
+                      value={form.telegram_bot_token_secret}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          telegram_bot_token_secret: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Store the bot token in Key Vault, enter the secret name here
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Allowed Telegram User IDs
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1650447692, 1234567890"
+                      value={form.telegram_allowed_users}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          telegram_allowed_users: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      DM Access Policy
+                    </label>
+                    <select
+                      value={form.dm_policy}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          dm_policy: e.target.value as "open" | "allowlist" | "pairing",
+                        })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="allowlist">
+                        Allowlist (only specified user IDs)
+                      </option>
+                      <option value="pairing">
+                        Pairing (users request access via code)
+                      </option>
+                      <option value="open">Open (anyone can message)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

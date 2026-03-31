@@ -1,0 +1,74 @@
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: aiplatform-agent
+  namespace: aiplatform
+spec:
+  # Pull secrets (Telegram token, AI provider keys) from K8s Secret
+  envFrom:
+    - secretRef:
+        name: openclaw-api-keys
+
+  # Persistent storage for agent state, memory, and workspace
+  storage:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+  # Chromium sidecar for web scraping and deep research
+  chromium:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 1Gi
+
+  # Agent configuration
+  config:
+    raw:
+      # Telegram channel config
+      channels:
+        telegram:
+          enabled: true
+          dmPolicy: "allowlist"
+          allowFrom:
+            - "1650447692"
+
+      # Azure OpenAI via azure-openai-responses provider
+      # Ref: https://techcommunity.microsoft.com/blog/educatordeveloperblog/integrating-microsoft-foundry-with-openclaw-step-by-step-model-configuration/4495586
+      models:
+        providers:
+          azure-openai-responses:
+            baseUrl: "https://ai-platform-system.openai.azure.com/openai/v1"
+            apiKey: "${AZURE_API_KEY}"
+            api: "openai-responses"
+            authHeader: false
+            headers:
+              api-key: "${AZURE_API_KEY}"
+            models:
+              - id: "gpt-5.4"
+                name: "GPT-5.4 (Azure)"
+                reasoning: true
+                input: ["text", "image"]
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+                contextWindow: 400000
+                maxTokens: 16384
+                compat: { supportsStore: false }
+              - id: "gpt-4.1"
+                name: "GPT-4.1 (Azure)"
+                reasoning: false
+                input: ["text", "image"]
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+                contextWindow: 1047576
+                maxTokens: 32768
+                compat: { supportsStore: false }
+
+      # Agent defaults — use Azure-hosted model
+      agents:
+        defaults:
+          model:
+            primary: "azure-openai-responses/gpt-4.1"
+            research: "azure-openai-responses/gpt-5.4"
+
+      # Session scope per sender (each Telegram user gets own session)
+      session:
+        scope: "per-sender"

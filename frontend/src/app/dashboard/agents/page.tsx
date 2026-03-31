@@ -11,6 +11,7 @@ interface Agent {
   id: string;
   name: string;
   description: string | null;
+  agent_type: string;
   status: string;
   model_endpoint_id: string | null;
   current_config_version: number;
@@ -101,9 +102,16 @@ export default function AgentsPage() {
               className="block rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900 truncate">
-                  {agent.name}
-                </h3>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    {agent.name}
+                  </h3>
+                  {agent.agent_type === "openclaw" && (
+                    <span className="inline-flex items-center rounded-full bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+                      OpenClaw
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span
                     className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${

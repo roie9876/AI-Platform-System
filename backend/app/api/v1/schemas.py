@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from uuid import UUID
@@ -38,14 +38,33 @@ class ErrorResponse(BaseModel):
 
 # --- Agent Schemas ---
 
+class OpenClawChannelConfig(BaseModel):
+    """Channel configuration for OpenClaw agents."""
+    telegram_enabled: bool = False
+    telegram_bot_token_secret: Optional[str] = None  # Key Vault secret name
+    telegram_allowed_users: List[str] = []
+    dm_policy: Literal["open", "allowlist", "pairing"] = "allowlist"
+
+
+class OpenClawConfig(BaseModel):
+    """OpenClaw-specific configuration embedded in agent."""
+    channels: Optional[OpenClawChannelConfig] = None
+    enable_web_browsing: bool = True
+    enable_shell: bool = False
+    enable_deep_research: bool = False
+    mcp_server_urls: List[str] = []  # MCP server URLs for tool access
+
+
 class AgentCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     system_prompt: Optional[str] = None
+    agent_type: Literal["standard", "openclaw"] = "standard"
     model_endpoint_id: Optional[UUID] = None
     temperature: float = Field(default=0.7, ge=0, le=2)
     max_tokens: int = Field(default=1024, ge=1, le=128000)
     timeout_seconds: int = Field(default=30, ge=1, le=300)
+    openclaw_config: Optional[OpenClawConfig] = None
 
 
 class AgentUpdateRequest(BaseModel):
@@ -56,6 +75,7 @@ class AgentUpdateRequest(BaseModel):
     temperature: Optional[float] = Field(default=None, ge=0, le=2)
     max_tokens: Optional[int] = Field(default=None, ge=1, le=128000)
     timeout_seconds: Optional[int] = Field(default=None, ge=1, le=300)
+    openclaw_config: Optional[OpenClawConfig] = None
 
 
 class AgentResponse(BaseModel):
@@ -63,6 +83,7 @@ class AgentResponse(BaseModel):
     name: str
     description: Optional[str] = None
     system_prompt: Optional[str] = None
+    agent_type: str = "standard"
     status: str = "active"
     temperature: float = 0.7
     max_tokens: int = 1024
@@ -70,6 +91,8 @@ class AgentResponse(BaseModel):
     model_endpoint_id: Optional[UUID] = None
     current_config_version: int = 1
     tenant_id: Optional[UUID] = None
+    openclaw_config: Optional[OpenClawConfig] = None
+    openclaw_instance_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
