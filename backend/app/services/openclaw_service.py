@@ -56,6 +56,24 @@ class OpenClawService:
     #  Public API
     # ------------------------------------------------------------------ #
 
+    async def _get_kv_secret_as_list(self, secret_name: str) -> list[str]:
+        """Fetch a Key Vault secret and split by comma/space into a list."""
+        try:
+            from azure.identity import DefaultAzureCredential
+            from azure.keyvault.secrets import SecretClient
+
+            credential = DefaultAzureCredential()
+            kv_url = f"https://{KEY_VAULT_NAME}.vault.azure.net"
+            secret_client = SecretClient(vault_url=kv_url, credential=credential)
+            secret = secret_client.get_secret(secret_name)
+            value = secret.value or ""
+            # Split on comma, semicolon, or whitespace
+            items = [v.strip() for v in re.split(r"[,;\s]+", value) if v.strip()]
+            return items
+        except Exception as e:
+            logger.warning("Could not fetch Key Vault secret %s: %s", secret_name, e)
+            return []
+
     async def deploy_agent(
         self,
         agent_id: str,
@@ -183,11 +201,11 @@ class OpenClawService:
                 "dmPolicy": channels.get("dm_policy", "allowlist"),
             }
             allowed = channels.get("telegram_allowed_users", [])
+            if not allowed:
+                # Fetch default allowed users from Key Vault
+                allowed = await self._get_kv_secret_as_list("TELEGRAMALLOWFROM")
             if allowed:
                 channels_config["telegram"]["allowFrom"] = [str(u) for u in allowed]
-            else:
-                # Use Key Vault default — value is injected via CSI env var
-                channels_config["telegram"]["allowFrom"] = ["${TELEGRAM_ALLOW_FROM}"]
 
         # MCP servers
         mcp_servers: dict = {}
@@ -301,12 +319,6 @@ class OpenClawService:
             kv_objects.append(
                 {"objectName": token_secret, "objectType": "secret", "objectAlias": "TELEGRAM_BOT_TOKEN"}
             )
-            # Also pull allowed-from list if user didn't provide explicit IDs
-            allowed = channels.get("telegram_allowed_users", [])
-            if not allowed:
-                kv_objects.append(
-                    {"objectName": "TELEGRAMALLOWFROM", "objectType": "secret", "objectAlias": "TELEGRAM_ALLOW_FROM"}
-                )
 
         # Build the objects YAML string for CSI
         import json
