@@ -33,7 +33,7 @@ export default function NewAgentPage() {
     timeout_seconds: 30,
     // OpenClaw-specific fields
     telegram_enabled: false,
-    telegram_bot_token_secret: "",
+    telegram_bot_token_secret: "TELEGRAMBOTTOKEN",
     telegram_allowed_users: "",
     dm_policy: "allowlist" as "open" | "allowlist" | "pairing",
     enable_web_browsing: true,
@@ -291,7 +291,7 @@ export default function NewAgentPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. TELEGRAMBOTTOKEN"
+                      placeholder="TELEGRAMBOTTOKEN"
                       value={form.telegram_bot_token_secret}
                       onChange={(e) =>
                         setForm({
@@ -302,7 +302,7 @@ export default function NewAgentPage() {
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Store the bot token in Key Vault, enter the secret name here
+                      Default: TELEGRAMBOTTOKEN from Key Vault. Override only if using a different bot.
                     </p>
                   </div>
 
@@ -312,7 +312,7 @@ export default function NewAgentPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. 1650447692, 1234567890"
+                      placeholder="Leave empty to use TELEGRAMALLOWFROM from Key Vault"
                       value={form.telegram_allowed_users}
                       onChange={(e) =>
                         setForm({
@@ -322,6 +322,9 @@ export default function NewAgentPage() {
                       }
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Default: loaded from TELEGRAMALLOWFROM in Key Vault. Add IDs here to override.
+                    </p>
                   </div>
 
                   <div>

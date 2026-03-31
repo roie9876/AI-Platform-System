@@ -185,6 +185,9 @@ class OpenClawService:
             allowed = channels.get("telegram_allowed_users", [])
             if allowed:
                 channels_config["telegram"]["allowFrom"] = [str(u) for u in allowed]
+            else:
+                # Use Key Vault default — value is injected via CSI env var
+                channels_config["telegram"]["allowFrom"] = ["${TELEGRAM_ALLOW_FROM}"]
 
         # MCP servers
         mcp_servers: dict = {}
@@ -298,6 +301,12 @@ class OpenClawService:
             kv_objects.append(
                 {"objectName": token_secret, "objectType": "secret", "objectAlias": "TELEGRAM_BOT_TOKEN"}
             )
+            # Also pull allowed-from list if user didn't provide explicit IDs
+            allowed = channels.get("telegram_allowed_users", [])
+            if not allowed:
+                kv_objects.append(
+                    {"objectName": "TELEGRAMALLOWFROM", "objectType": "secret", "objectAlias": "TELEGRAM_ALLOW_FROM"}
+                )
 
         # Build the objects YAML string for CSI
         import json
