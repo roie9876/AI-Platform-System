@@ -91,11 +91,12 @@ async def create_agent(
                 model_endpoint=model_ep,
                 openclaw_config=body.openclaw_config.model_dump() if body.openclaw_config else {},
             )
-            agent["openclaw_instance_name"] = instance_name
+            agent["openclaw_instance_name"] = instance_name["instance_name"]
+            agent["openclaw_gateway_url"] = instance_name["gateway_url"]
             agent["status"] = "active"
             etag = agent.get("_etag")
             agent = await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
-            logger.info("OpenClaw agent %s deployed as %s", agent["id"], instance_name)
+            logger.info("OpenClaw agent %s deployed as %s", agent["id"], agent.get("openclaw_instance_name"))
         except Exception as e:
             logger.error("Failed to deploy OpenClaw instance for agent %s: %s", agent["id"], e)
             agent["status"] = "error"

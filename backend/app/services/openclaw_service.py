@@ -56,23 +56,54 @@ class OpenClawService:
     #  Public API
     # ------------------------------------------------------------------ #
 
+    def _get_kv_credential(self):
+        """Get a credential for Key Vault using the workload identity.
+
+        DefaultAzureCredential picks up AZURE_CLIENT_ID (the Entra app),
+        but Key Vault access is granted to the managed identity
+        (AZURE_WORKLOAD_CLIENT_ID).  We explicitly use that.
+        """
+        import os
+        from azure.identity import WorkloadIdentityCredential, DefaultAzureCredential
+
+        token_file = os.getenv("AZURE_FEDERATED_TOKEN_FILE")
+        if token_file and WORKLOAD_CLIENT_ID:
+            return WorkloadIdentityCredential(
+                client_id=WORKLOAD_CLIENT_ID,
+                tenant_id=TENANT_ID,
+                token_file_path=token_file,
+            )
+        return DefaultAzureCredential()
+
     async def _get_kv_secret_as_list(self, secret_name: str) -> list[str]:
         """Fetch a Key Vault secret and split by comma/space into a list."""
         try:
-            from azure.identity import DefaultAzureCredential
             from azure.keyvault.secrets import SecretClient
 
-            credential = DefaultAzureCredential()
+            credential = self._get_kv_credential()
             kv_url = f"https://{KEY_VAULT_NAME}.vault.azure.net"
             secret_client = SecretClient(vault_url=kv_url, credential=credential)
             secret = secret_client.get_secret(secret_name)
             value = secret.value or ""
-            # Split on comma, semicolon, or whitespace
             items = [v.strip() for v in re.split(r"[,;\s]+", value) if v.strip()]
             return items
         except Exception as e:
             logger.warning("Could not fetch Key Vault secret %s: %s", secret_name, e)
             return []
+
+    async def _get_kv_secret(self, secret_name: str) -> str:
+        """Fetch a single Key Vault secret value."""
+        try:
+            from azure.keyvault.secrets import SecretClient
+
+            credential = self._get_kv_credential()
+            kv_url = f"https://{KEY_VAULT_NAME}.vault.azure.net"
+            secret_client = SecretClient(vault_url=kv_url, credential=credential)
+            secret = secret_client.get_secret(secret_name)
+            return secret.value or ""
+        except Exception as e:
+            logger.warning("Could not fetch Key Vault secret %s: %s", secret_name, e)
+            return ""
 
     async def deploy_agent(
         self,
@@ -82,13 +113,23 @@ class OpenClawService:
         system_prompt: str,
         model_endpoint: Optional[dict],
         openclaw_config: Optional[dict],
-    ) -> str:
-        """Deploy an OpenClawInstance for the given agent.  Returns the instance name."""
-        instance_name = f"oc-{_sanitize_name(agent_name)}-{agent_id[:8]}"
+    ) -> dict:
+        """Deploy an OpenClawInstance for the given agent.
+
+        Returns a dict with instance_name and gateway_url.
+        """
+        safe_name = _sanitize_name(agent_name)[:40]
+        instance_name = f"oc-{safe_name}-{agent_id[:8]}".rstrip("-")
         namespace = f"tenant-{tenant_slug}"
 
         # Resolve model from the platform's model endpoint
         model_id, base_url = self._resolve_model(model_endpoint)
+
+        # If no base URL from model endpoint, fetch from Key Vault
+        if not base_url:
+            base_url = await self._get_kv_secret("azure-openai-api-base")
+            if base_url:
+                base_url = base_url.rstrip("/") + "/openai/v1"
 
         # Build the CR body
         cr = await self._build_cr(
@@ -101,21 +142,24 @@ class OpenClawService:
             openclaw_config=openclaw_config or {},
         )
 
-        # Build the CSI SecretProviderClass for this agent
-        spc = self._build_secret_provider_class(
-            instance_name=instance_name,
-            namespace=namespace,
-            openclaw_config=openclaw_config or {},
-        )
+        # Build K8s Secret with values from Key Vault (OpenClaw reads via envFrom)
+        secret_data = await self._build_k8s_secret(instance_name, openclaw_config or {})
 
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._apply_resources, namespace, instance_name, spc, cr)
+        await loop.run_in_executor(
+            None, self._apply_secret_and_cr, namespace, instance_name, secret_data, cr
+        )
+
+        gateway_url = f"http://{instance_name}.{namespace}.svc.cluster.local:18789"
 
         logger.info(
-            "Deployed OpenClaw instance %s in %s for agent %s",
-            instance_name, namespace, agent_id,
+            "Deployed OpenClaw instance %s in %s for agent %s (gateway: %s)",
+            instance_name, namespace, agent_id, gateway_url,
         )
-        return instance_name
+        return {
+            "instance_name": instance_name,
+            "gateway_url": gateway_url,
+        }
 
     async def update_agent(
         self,
@@ -128,6 +172,12 @@ class OpenClawService:
         """Update an existing OpenClawInstance CR."""
         namespace = f"tenant-{tenant_slug}"
         model_id, base_url = self._resolve_model(model_endpoint)
+
+        # If no base URL from model endpoint, fetch from Key Vault
+        if not base_url:
+            base_url = await self._get_kv_secret("azure-openai-api-base")
+            if base_url:
+                base_url = base_url.rstrip("/") + "/openai/v1"
 
         cr = await self._build_cr(
             instance_name=instance_name,
@@ -155,6 +205,9 @@ class OpenClawService:
     #  Model resolution
     # ------------------------------------------------------------------ #
 
+    # Reasoning-capable models (used for model spec in CR config)
+    _REASONING_MODELS = {"gpt-5.4", "gpt-5.2-codex", "o1", "o3", "o3-mini", "o4-mini"}
+
     @staticmethod
     def _resolve_model(endpoint: Optional[dict]) -> tuple[str, str]:
         """Map a platform ModelEndpoint to OpenClaw provider/model + base URL."""
@@ -167,8 +220,8 @@ class OpenClawService:
 
         if "azure" in provider:
             # Azure OpenAI — use the azure-openai-responses provider
-            base_url = api_base.rstrip("/")
-            if not base_url.endswith("/openai/v1"):
+            base_url = (api_base or "").rstrip("/")
+            if base_url and not base_url.endswith("/openai/v1"):
                 base_url = f"{base_url}/openai/v1"
             return f"azure-openai-responses/{model}", base_url
         else:
@@ -218,17 +271,17 @@ class OpenClawService:
         providers_config = {
             provider_name: {
                 "apiKey": "${AZURE_API_KEY}",
-                "api": "openai-responses",
+                "api": "openai-completions",
                 "authHeader": False,
                 "headers": {"api-key": "${AZURE_API_KEY}"},
                 "models": [
                     {
                         "id": model_name,
                         "name": f"{model_name} (Azure)",
-                        "reasoning": model_name in ("gpt-5.4", "gpt-5.2", "gpt-5.2-codex"),
+                        "reasoning": model_name in OpenClawService._REASONING_MODELS,
                         "input": ["text", "image"],
                         "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
-                        "contextWindow": 400000 if "5" in model_name else 1047576,
+                        "contextWindow": 1047576,
                         "maxTokens": 16384,
                         "compat": {"supportsStore": False},
                     }
@@ -256,20 +309,38 @@ class OpenClawService:
             "agents": {
                 "defaults": {
                     "model": {"primary": model_id},
-                    "systemPrompt": system_prompt,
                 }
             },
             "session": {"scope": "per-sender"},
+        }
+
+        # Gateway config — enable OpenAI-compatible HTTP endpoints so the
+        # platform can route playground chat through /v1/chat/completions.
+        # auth mode=none: gateway is bound to loopback (pod-internal only)
+        # and protected by NetworkPolicy, so no additional auth needed.
+        # The platform still sends X-Forwarded-User and X-Openclaw-Scopes
+        # headers for identity/scope propagation.
+        raw_config["gateway"] = {
+            "auth": {
+                "mode": "none",
+            },
+            "bind": "loopback",
+            "controlUi": {
+                "allowedOrigins": ["*"],
+                "dangerouslyDisableDeviceAuth": True,
+            },
+            "trustedProxies": ["127.0.0.0/8"],
+            "http": {
+                "endpoints": {
+                    "chatCompletions": {"enabled": True},
+                }
+            },
         }
 
         if channels_config:
             raw_config["channels"] = channels_config
         if mcp_servers:
             raw_config["agents"]["defaults"]["mcpServers"] = mcp_servers
-
-        # Deep research — allow agent to upgrade to gpt-5.4 for complex tasks
-        if openclaw_config.get("enable_deep_research") and "5.4" not in model_name:
-            raw_config["agents"]["defaults"]["model"]["research"] = f"{provider_name}/gpt-5.4"
 
         cr = {
             "apiVersion": f"{OPENCLAW_GROUP}/{OPENCLAW_VERSION}",
@@ -356,8 +427,89 @@ class OpenClawService:
         return spc
 
     # ------------------------------------------------------------------ #
+    #  K8s Secret builder (fetches values from Key Vault)
+    # ------------------------------------------------------------------ #
+
+    async def _build_k8s_secret(self, instance_name: str, openclaw_config: dict) -> dict:
+        """Fetch secrets from Key Vault and return K8s Secret data dict."""
+        import base64
+
+        api_key = await self._get_kv_secret("azure-openai-api-key")
+        if not api_key:
+            raise RuntimeError("Could not fetch azure-openai-api-key from Key Vault")
+
+        api_base = await self._get_kv_secret("azure-openai-api-base")
+
+        data = {
+            "AZURE_API_KEY": base64.b64encode(api_key.encode()).decode(),
+        }
+        if api_base:
+            data["AZURE_API_BASE"] = base64.b64encode(api_base.encode()).decode()
+
+        channels = openclaw_config.get("channels") or {}
+        if channels.get("telegram_enabled"):
+            token_secret = channels.get("telegram_bot_token_secret", "TELEGRAMBOTTOKEN")
+            bot_token = await self._get_kv_secret(token_secret)
+            if bot_token:
+                data["TELEGRAM_BOT_TOKEN"] = base64.b64encode(bot_token.encode()).decode()
+
+        return data
+
+    # ------------------------------------------------------------------ #
     #  K8s operations (run in thread pool)
     # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _apply_secret_and_cr(namespace: str, instance_name: str, secret_data: dict, cr: dict) -> None:
+        """Create/update K8s Secret + OpenClawInstance CR."""
+        from kubernetes import client
+
+        core_v1, custom_api = _get_k8s_clients()
+
+        # 1. Create or update K8s Secret
+        secret_name = f"{instance_name}-secrets"
+        secret_body = client.V1Secret(
+            api_version="v1",
+            kind="Secret",
+            metadata=client.V1ObjectMeta(name=secret_name, namespace=namespace),
+            type="Opaque",
+            data=secret_data,
+        )
+        try:
+            core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
+            logger.info("Created K8s Secret %s in %s", secret_name, namespace)
+        except client.ApiException as e:
+            if e.status == 409:
+                core_v1.replace_namespaced_secret(
+                    name=secret_name, namespace=namespace, body=secret_body
+                )
+                logger.info("Updated K8s Secret %s in %s", secret_name, namespace)
+            else:
+                raise
+
+        # 2. Apply OpenClawInstance CR
+        try:
+            custom_api.create_namespaced_custom_object(
+                group=OPENCLAW_GROUP,
+                version=OPENCLAW_VERSION,
+                namespace=namespace,
+                plural=OPENCLAW_PLURAL,
+                body=cr,
+            )
+            logger.info("Created OpenClawInstance %s", instance_name)
+        except client.ApiException as e:
+            if e.status == 409:
+                custom_api.patch_namespaced_custom_object(
+                    group=OPENCLAW_GROUP,
+                    version=OPENCLAW_VERSION,
+                    namespace=namespace,
+                    plural=OPENCLAW_PLURAL,
+                    name=instance_name,
+                    body=cr,
+                )
+                logger.info("Updated OpenClawInstance %s", instance_name)
+            else:
+                raise
 
     @staticmethod
     def _apply_resources(namespace: str, instance_name: str, spc: dict, cr: dict) -> None:
@@ -444,10 +596,10 @@ class OpenClawService:
 
     @staticmethod
     def _delete_resources(namespace: str, instance_name: str) -> None:
-        """Delete OpenClawInstance CR and SecretProviderClass."""
+        """Delete OpenClawInstance CR, K8s Secret, and SecretProviderClass."""
         from kubernetes import client
 
-        _, custom_api = _get_k8s_clients()
+        core_v1, custom_api = _get_k8s_clients()
 
         # Delete CR
         try:
@@ -463,7 +615,18 @@ class OpenClawService:
             if e.status != 404:
                 raise
 
-        # Delete SecretProviderClass
+        # Delete K8s Secret
+        try:
+            core_v1.delete_namespaced_secret(
+                name=f"{instance_name}-secrets",
+                namespace=namespace,
+            )
+            logger.info("Deleted Secret %s-secrets", instance_name)
+        except client.ApiException as e:
+            if e.status != 404:
+                raise
+
+        # Delete SecretProviderClass (legacy cleanup)
         try:
             custom_api.delete_namespaced_custom_object(
                 group="secrets-store.csi.x-k8s.io",

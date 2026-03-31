@@ -93,6 +93,7 @@ class AgentResponse(BaseModel):
     tenant_id: Optional[UUID] = None
     openclaw_config: Optional[OpenClawConfig] = None
     openclaw_instance_name: Optional[str] = None
+    openclaw_gateway_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

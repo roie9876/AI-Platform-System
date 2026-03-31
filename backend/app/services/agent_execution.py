@@ -243,6 +243,15 @@ class AgentExecutionService:
     ) -> AsyncGenerator[str, None]:
         start_time = time.monotonic()
 
+        # OpenClaw agents — route through the gateway's /v1/chat/completions
+        if agent.get("agent_type") == "openclaw":
+            async for event in self._execute_openclaw(
+                agent, user_message, tenant_id,
+                conversation_history, thread_id, user_id, start_time,
+            ):
+                yield event
+            return
+
         # Load primary endpoint
         model_endpoint_id = agent.get("model_endpoint_id")
         if not model_endpoint_id:
@@ -569,6 +578,190 @@ class AgentExecutionService:
             await _agent_repo.update(tenant_id, agent["id"], agent)
             logger.error("Unexpected agent execution error: %s", str(exc), exc_info=True)
             yield self._sse_error("An unexpected error occurred during execution")
+
+    async def _execute_openclaw(
+        self,
+        agent: dict,
+        user_message: str,
+        tenant_id: str,
+        conversation_history: Optional[List[Dict[str, str]]],
+        thread_id: Optional[str],
+        user_id: Optional[str],
+        start_time: float,
+    ) -> AsyncGenerator[str, None]:
+        """Route chat through OpenClaw gateway's /v1/chat/completions endpoint."""
+        import httpx
+
+        gateway_url = agent.get("openclaw_gateway_url")
+
+        if not gateway_url:
+            yield self._sse_error(
+                "OpenClaw gateway not configured. Please delete and recreate the agent."
+            )
+            return
+
+        # Build messages — send only the new user message.
+        # OpenClaw maintains its own session history; we use x-openclaw-session-key
+        # to route into the shared session so Playground and Telegram share context.
+        messages: List[Dict[str, Any]] = []
+
+        # Inject platform long-term memory as a system message
+        if thread_id:
+            try:
+                memories = await self._memory_service.retrieve_relevant(
+                    query=user_message,
+                    agent_id=agent["id"],
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    model_endpoint=None,
+                    top_k=5,
+                )
+                if memories:
+                    memory_text = "\n\n".join(
+                        m.get("content", "") if isinstance(m, dict) else m.content
+                        for m in memories
+                    )
+                    messages.append({
+                        "role": "system",
+                        "content": (
+                            "Relevant memories from past interactions (for context only "
+                            "— always use your tools to fetch live data rather than "
+                            "relying on these memories):\n\n"
+                            f"{memory_text}"
+                        ),
+                    })
+            except Exception:
+                logger.warning("Memory retrieval failed for openclaw thread %s", thread_id, exc_info=True)
+
+        messages.append({"role": "user", "content": user_message})
+
+        # Save user message to thread
+        if thread_id and user_id:
+            try:
+                seq_results = await _message_repo.query(
+                    tenant_id,
+                    "SELECT VALUE MAX(c.sequence_number) FROM c WHERE c.thread_id = @tid",
+                    [{"name": "@tid", "value": thread_id}],
+                )
+                next_seq = (seq_results[0] if seq_results and seq_results[0] is not None else 0) + 1
+                user_msg_id = str(uuid4())
+                await _message_repo.create(tenant_id, {
+                    "id": user_msg_id,
+                    "thread_id": thread_id,
+                    "role": "user",
+                    "content": user_message,
+                    "sequence_number": next_seq,
+                    "tenant_id": tenant_id,
+                })
+            except Exception:
+                logger.warning("Failed to save user message to thread %s", thread_id, exc_info=True)
+
+        # POST to OpenClaw gateway's OpenAI-compatible endpoint
+        url = f"{gateway_url}/v1/chat/completions"
+        headers = {
+            "X-Forwarded-User": "platform-operator",
+            "X-Openclaw-Scopes": "operator.write",
+            "X-Openclaw-Session-Key": "agent:main:main",
+            "X-Openclaw-Message-Channel": "platform",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": "openclaw",
+            "messages": messages,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+
+        collected_response = ""
+        usage_data: dict = {}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+                async with client.stream("POST", url, json=body, headers=headers) as response:
+                    if response.status_code != 200:
+                        error_body = await response.aread()
+                        logger.error(
+                            "OpenClaw gateway error %d: %s", response.status_code, error_body[:500]
+                        )
+                        yield self._sse_error(
+                            f"OpenClaw gateway returned {response.status_code}"
+                        )
+                        return
+
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[6:]
+                        if data.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            # Capture usage if present (final chunk)
+                            if chunk.get("usage"):
+                                usage_data = chunk["usage"]
+                            choices = chunk.get("choices", [])
+                            if not choices:
+                                continue
+                            delta = choices[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                collected_response += content
+                                yield self._sse_data(content, done=False)
+                        except json.JSONDecodeError:
+                            continue
+
+        except httpx.ConnectError as exc:
+            logger.error("Cannot reach OpenClaw gateway at %s: %s", url, exc)
+            yield self._sse_error("Cannot reach OpenClaw gateway — pod may not be ready")
+            return
+        except Exception as exc:
+            logger.error("OpenClaw execution error: %s", exc, exc_info=True)
+            yield self._sse_error("OpenClaw execution failed")
+            return
+
+        # Estimate tokens if usage not returned by gateway (~4 chars/token)
+        input_text = " ".join(m.get("content", "") for m in messages)
+        est_input = usage_data.get("prompt_tokens") or (len(input_text) // 4 + 1)
+        est_output = usage_data.get("completion_tokens") or (len(collected_response) // 4 + 1)
+
+        # Save assistant response to thread
+        if thread_id and user_id:
+            primary_endpoint = None
+            model_endpoint_id = agent.get("model_endpoint_id")
+            if model_endpoint_id:
+                primary_endpoint = await _endpoint_repo.get(tenant_id, model_endpoint_id)
+            await self._save_assistant_response(
+                tenant_id, thread_id, user_id, agent, collected_response,
+                [], start_time, primary_endpoint or {},
+                input_tokens=est_input, output_tokens=est_output,
+            )
+
+        # Store to platform memory for cross-thread recall
+        if thread_id and user_id and collected_response:
+            try:
+                if len(user_message) > 10:
+                    await self._memory_service.store_memory(
+                        agent_id=agent["id"],
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        content=f"User said: {user_message}",
+                        model_endpoint=None,
+                        memory_type="user_input",
+                        source_thread_id=thread_id,
+                    )
+                if len(collected_response) > 10:
+                    await self._memory_service.store_memory(
+                        agent_id=agent["id"],
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        content=f"Assistant replied: {collected_response[:500]}",
+                        model_endpoint=None,
+                        memory_type="assistant_response",
+                        source_thread_id=thread_id,
+                    )
+            except Exception:
+                logger.warning("Failed to store openclaw memory for thread %s", thread_id, exc_info=True)
+
+        yield self._sse_data("", done=True)
 
     async def _save_assistant_response(
         self,

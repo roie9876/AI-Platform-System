@@ -155,7 +155,7 @@ class TenantProvisioningService:
                     "limits.memory": "16Gi",
                     "pods": "20",
                     "services": "10",
-                    "persistentvolumeclaims": "5",
+                    "persistentvolumeclaims": "20",
                 }
             ),
         )
@@ -176,7 +176,7 @@ class TenantProvisioningService:
                         default={"cpu": "500m", "memory": "512Mi"},
                         default_request={"cpu": "100m", "memory": "128Mi"},
                         max={"cpu": "2", "memory": "4Gi"},
-                        min={"cpu": "50m", "memory": "64Mi"},
+                        min={"cpu": "5m", "memory": "8Mi"},
                     )
                 ]
             ),

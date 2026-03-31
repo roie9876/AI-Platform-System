@@ -96,6 +96,7 @@ Press `Ctrl+C` to stop all services.
   - [3.8 MCP Proxy Pod](#38-mcp-proxy-pod)
     - [3.8.1 MCP Servers](#381-mcp-servers)
   - [3.9 Workflow Engine Pod](#39-workflow-engine-pod)
+  - [3.10 OpenClaw Agent Runtime](#310-openclaw-agent-runtime)
 - [4. Security Architecture](#4-security-architecture)
   - [4.1 Authentication Flow](#41-authentication-flow)
   - [4.2 Tenant Isolation Model](#42-tenant-isolation-model)
@@ -165,7 +166,7 @@ The architecture enforces a strict separation between **management** and **execu
 
 | Property | Control Plane | Runtime Plane |
 |----------|--------------|---------------|
-| **Pods** | `api-gateway` | `agent-executor`, `tool-executor`, `mcp-proxy`, `mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `workflow-engine` |
+| **Pods** | `api-gateway` | `agent-executor`, `tool-executor`, `mcp-proxy`, `mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `workflow-engine`, `openclaw` (per-tenant) |
 | **Purpose** | Configuration, governance, admin ops | Agent execution, tool calls, LLM routing |
 | **Traffic Pattern** | Low frequency (admin CRUD) | High frequency (user conversations) |
 | **Latency Tolerance** | Seconds acceptable | Milliseconds critical (streaming) |
@@ -370,7 +371,7 @@ Token counts are captured from the LLM response `usage` object and stored in the
 
 > 📚 **Learn the concepts:** [Runtime Plane (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/09-runtime-plane.md)
 
-The Runtime Plane handles the actual execution of AI agents. It consists of seven pods that work together: the **Agent Executor** orchestrates the core loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, three **MCP servers** (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`) connect to external SaaS APIs, and the **Workflow Engine** coordinates multi-agent flows.
+The Runtime Plane handles the actual execution of AI agents. It consists of seven shared pods plus per-tenant **OpenClaw** pods: the **Agent Executor** orchestrates the core ReAct loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, three **MCP servers** (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`) connect to external SaaS APIs, the **Workflow Engine** coordinates multi-agent flows, and **OpenClaw** provides an autonomous agent runtime with native multi-channel support (Telegram, Slack, Discord).
 
 ### 3.1 Agent Executor Pod
 
@@ -673,6 +674,112 @@ Classifier──► Support Agent                             │
 ```
 
 **Execution flow:** The workflow engine traverses the DAG, calling the Agent Executor internally via `POST /api/v1/internal/agents/{agent_id}/execute` for each node, passing tenant context and thread state. Node outputs feed into downstream nodes via `output_mapping` defined on edges.
+
+### 3.10 OpenClaw Agent Runtime
+
+The platform supports **OpenClaw** as a first-class agent type alongside the built-in ReAct executor. OpenClaw is an autonomous agent runtime that runs as a Kubernetes-native sidecar — each agent gets its own `OpenClawInstance` Custom Resource (CR), managed by the OpenClaw Operator.
+
+**Why OpenClaw?** While the built-in Agent Executor handles standard ReAct-loop agents, OpenClaw provides a full-featured autonomous runtime with native multi-channel support (Telegram, Slack, Discord), persistent session management, built-in tool orchestration, and advanced agentic capabilities that go beyond simple request-response patterns.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  tenant-{slug} namespace                                        │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  OpenClaw StatefulSet Pod                                │   │
+│  │                                                          │   │
+│  │  ┌────────────┐  ┌──────────┐  ┌────────┐  ┌─────────┐ │   │
+│  │  │  openclaw   │  │ nginx    │  │ browser│  │ metrics │ │   │
+│  │  │  (gateway + │  │ (reverse │  │ (tool  │  │ (prom   │ │   │
+│  │  │   agent +   │  │  proxy)  │  │  exec) │  │  export)│ │   │
+│  │  │  telegram)  │  │          │  │        │  │         │ │   │
+│  │  └──────┬─────┘  └────┬─────┘  └────────┘  └─────────┘ │   │
+│  │         │              │                                 │   │
+│  │    ws://127.0.0.1:18789 (loopback only)                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  NetworkPolicy: egress DNS+443 only, ingress from namespace    │
+│  PVC: 10Gi persistent storage for sessions & workspace         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### How It Works
+
+1. **Deployment:** When a user creates an agent with `agent_type: "openclaw"` via the UI, the platform creates an `OpenClawInstance` CR in the tenant's namespace. The OpenClaw Operator watches for CRs and provisions a StatefulSet with 4 containers.
+
+2. **Configuration:** The CR includes the full agent config:
+   - **Model provider** — Azure OpenAI endpoint + API key (from Key Vault), using the `openai-completions` API
+   - **Channels** — Telegram bot token, allowlist of permitted sender IDs
+   - **MCP servers** — External tool servers the agent can call
+   - **Gateway** — HTTP chat completions endpoint for platform integration
+
+3. **Platform Integration (Playground):** The API Gateway routes chat messages to OpenClaw via its OpenAI-compatible `/v1/chat/completions` endpoint. Messages are streamed back as SSE chunks, rendered in real-time in the Playground UI.
+
+   ```
+   User (Playground) → API Gateway → OpenClaw /v1/chat/completions → SSE stream → UI
+   ```
+
+4. **Multi-Channel (Telegram):** OpenClaw natively polls Telegram via long-polling. Users message the bot directly — OpenClaw processes the message, calls tools, and replies in Telegram. A `per-sender` session scope ensures each user gets an isolated conversation.
+
+   ```
+   User (Telegram) → Telegram API → OpenClaw bot polling → Agent → Telegram reply
+   ```
+
+5. **Cross-Channel Delivery:** The agent can send messages across channels using the `sessions_send` tool. A message received in the Playground can trigger a Telegram notification, and vice versa.
+
+#### Key Configuration (OpenClawInstance CR)
+
+```yaml
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+spec:
+  config:
+    raw:
+      agents:
+        defaults:
+          model:
+            primary: azure-openai-responses/gpt-5.4
+      channels:
+        telegram:
+          enabled: true
+          dmPolicy: allowlist
+          allowFrom: ["<telegram-user-id>"]
+      gateway:
+        auth:
+          mode: none          # loopback-only, protected by NetworkPolicy
+        bind: loopback
+        http:
+          endpoints:
+            chatCompletions:
+              enabled: true
+      models:
+        providers:
+          azure-openai-responses:
+            api: openai-completions   # required for Azure reasoning models
+            baseUrl: https://<endpoint>.openai.azure.com/openai/v1
+            apiKey: ${AZURE_API_KEY}
+  envFrom:
+    - secretRef:
+        name: <instance>-secrets    # AZURE_API_KEY, TELEGRAM_BOT_TOKEN
+  storage:
+    persistence:
+      enabled: true
+      size: 10Gi
+```
+
+#### Platform ↔ OpenClaw Integration
+
+| Aspect | Implementation |
+|--------|---------------|
+| **Agent CRUD** | Platform creates/updates/deletes `OpenClawInstance` CRs via Kubernetes API |
+| **Chat** | API Gateway → `POST /v1/chat/completions` on OpenClaw's ClusterIP service |
+| **Auth** | Gateway `auth.mode: none` + loopback binding + NetworkPolicy isolation |
+| **Secrets** | Platform stores API keys in Key Vault, provisions them as K8s Secrets referenced via `envFrom` |
+| **Sessions** | OpenClaw manages its own session state on PVC; platform sends `X-Openclaw-Session-Key` header |
+| **Memory** | Platform retrieves relevant memories from Cosmos DB and injects them as context before sending to OpenClaw |
+| **Monitoring** | Prometheus metrics exported on port 9090, scraped by Azure Monitor |
 
 ---
 
