@@ -91,7 +91,7 @@ class OpenClawService:
         model_id, base_url = self._resolve_model(model_endpoint)
 
         # Build the CR body
-        cr = self._build_cr(
+        cr = await self._build_cr(
             instance_name=instance_name,
             namespace=namespace,
             agent_id=agent_id,
@@ -129,7 +129,7 @@ class OpenClawService:
         namespace = f"tenant-{tenant_slug}"
         model_id, base_url = self._resolve_model(model_endpoint)
 
-        cr = self._build_cr(
+        cr = await self._build_cr(
             instance_name=instance_name,
             namespace=namespace,
             agent_id="",
@@ -178,7 +178,7 @@ class OpenClawService:
     #  CR builders (zero secrets in YAML)
     # ------------------------------------------------------------------ #
 
-    def _build_cr(
+    async def _build_cr(
         self,
         instance_name: str,
         namespace: str,
