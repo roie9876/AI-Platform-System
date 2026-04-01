@@ -255,6 +255,13 @@ else
   echo "  App Insights connection string already populated (skipping)"
 fi
 
+if grep -q '${KEY_VAULT_NAME}' "${CONFIGMAP_FILE}"; then
+  sed -i '' "s|\${KEY_VAULT_NAME}|${KEY_VAULT_NAME}|g" "${CONFIGMAP_FILE}"
+  echo "  Updated Key Vault name in configmap"
+else
+  echo "  Key Vault name already populated in configmap (skipping)"
+fi
+
 # ─── Step 6b: Update K8s Ingress & ConfigMap with AGC values ──────────────────
 
 step "Update K8s Ingress & ConfigMap with AGC values"

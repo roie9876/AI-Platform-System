@@ -106,6 +106,15 @@ if [ -f "${CONFIGMAP_FILE}" ]; then
   else
     echo -e "  ${YELLOW}⚠${NC} App Insights connection string already populated (skipping)"
   fi
+
+  if grep -q '${KEY_VAULT_NAME}' "${CONFIGMAP_FILE}"; then
+    TMPFILE=$(mktemp)
+    sed 's|\${KEY_VAULT_NAME}|'"${KEY_VAULT_NAME}"'|g' "${CONFIGMAP_FILE}" > "${TMPFILE}"
+    mv "${TMPFILE}" "${CONFIGMAP_FILE}"
+    echo -e "  ${GREEN}✓${NC} Updated KEY_VAULT_NAME → ${KEY_VAULT_NAME}"
+  else
+    echo -e "  ${YELLOW}⚠${NC} KEY_VAULT_NAME already populated in configmap (skipping)"
+  fi
 else
   echo -e "  ${RED}✗${NC} ${CONFIGMAP_FILE} not found"
 fi

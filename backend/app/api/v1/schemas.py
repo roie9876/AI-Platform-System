@@ -41,14 +41,25 @@ class ErrorResponse(BaseModel):
 class OpenClawChannelConfig(BaseModel):
     """Channel configuration for OpenClaw agents."""
     telegram_enabled: bool = False
+    telegram_bot_token: Optional[str] = None  # Raw token (stored in Key Vault, never persisted in DB)
     telegram_bot_token_secret: Optional[str] = None  # Key Vault secret name
     telegram_allowed_users: List[str] = []
     dm_policy: Literal["open", "allowlist", "pairing"] = "allowlist"
 
 
+class OpenClawGmailConfig(BaseModel):
+    """Gmail configuration for OpenClaw agents."""
+    gmail_enabled: bool = False
+    gmail_email: Optional[str] = None
+    gmail_app_password: Optional[str] = None  # Raw app password (stored in Key Vault, never persisted in DB)
+    gmail_app_password_secret: Optional[str] = None  # Key Vault secret name (for existing secrets)
+    gmail_display_name: str = "OpenClaw Agent"
+
+
 class OpenClawConfig(BaseModel):
     """OpenClaw-specific configuration embedded in agent."""
     channels: Optional[OpenClawChannelConfig] = None
+    gmail: Optional[OpenClawGmailConfig] = None
     enable_web_browsing: bool = True
     enable_shell: bool = False
     enable_deep_research: bool = False
@@ -85,6 +96,7 @@ class AgentResponse(BaseModel):
     system_prompt: Optional[str] = None
     agent_type: str = "standard"
     status: str = "active"
+    status_message: Optional[str] = None
     temperature: float = 0.7
     max_tokens: int = 1024
     timeout_seconds: int = 30

@@ -58,7 +58,10 @@ async def create_agent(
 
     # Store OpenClaw config if provided
     if body.agent_type == "openclaw" and body.openclaw_config:
-        agent_data["openclaw_config"] = body.openclaw_config.model_dump()
+        oc_config = body.openclaw_config.model_dump()
+
+        # Gmail secrets are stored after tenant lookup (below) to include tenant prefix
+        agent_data["openclaw_config"] = oc_config
 
     agent = await agent_repo.create(tenant_id, agent_data)
 
@@ -78,6 +81,48 @@ async def create_agent(
                 raise HTTPException(status_code=400, detail="Tenant not found")
             slug = tenant["slug"]
 
+            # Handle Gmail: store app password in Key Vault with tenant prefix
+            oc_config = agent.get("openclaw_config") or {}
+            agent_slug = body.name.lower().replace(" ", "-")
+
+            # Handle Telegram: store bot token in Key Vault with tenant prefix
+            channels = oc_config.get("channels") or {}
+            if channels.get("telegram_enabled"):
+                raw_token = channels.pop("telegram_bot_token", None)
+                if raw_token:
+                    raw_token = raw_token.strip()
+                    secret_name = channels.get("telegram_bot_token_secret") or f"{slug}-telegram-bot-token-{agent_slug}"
+                    stored = await openclaw_service._set_kv_secret(secret_name, raw_token)
+                    if not stored:
+                        raise HTTPException(status_code=500, detail="Failed to store Telegram bot token in Key Vault")
+                    channels["telegram_bot_token_secret"] = secret_name
+                elif not channels.get("telegram_bot_token_secret"):
+                    channels["telegram_bot_token_secret"] = f"{slug}-telegram-bot-token"
+                oc_config["channels"] = channels
+
+            gmail = oc_config.get("gmail") or {}
+            if gmail.get("gmail_enabled") and gmail.get("gmail_email"):
+                raw_password = gmail.pop("gmail_app_password", None)
+                if raw_password:
+                    # Strip non-breaking spaces (U+00A0) and regular spaces
+                    # that Google's UI injects into app password display.
+                    import re as _re
+                    raw_password = _re.sub(r'[\s\u00a0]+', '', raw_password)
+                    secret_name = gmail.get("gmail_app_password_secret") or f"{slug}-gmail-app-password-{agent_slug}"
+                    stored = await openclaw_service._set_kv_secret(secret_name, raw_password)
+                    if not stored:
+                        raise HTTPException(status_code=500, detail="Failed to store Gmail app password in Key Vault")
+                    gmail["gmail_app_password_secret"] = secret_name
+                elif not gmail.get("gmail_app_password_secret"):
+                    gmail["gmail_app_password_secret"] = f"{slug}-gmail-app-password"
+                oc_config["gmail"] = gmail
+
+            # Persist updated config (with secret names, without raw values)
+            if channels.get("telegram_enabled") or (gmail.get("gmail_enabled") and gmail.get("gmail_email")):
+                agent["openclaw_config"] = oc_config
+                etag = agent.get("_etag")
+                agent = await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
+
             # Resolve model endpoint details
             model_ep = None
             if body.model_endpoint_id:
@@ -89,11 +134,11 @@ async def create_agent(
                 tenant_slug=slug,
                 system_prompt=body.system_prompt or "",
                 model_endpoint=model_ep,
-                openclaw_config=body.openclaw_config.model_dump() if body.openclaw_config else {},
+                openclaw_config=oc_config,
             )
             agent["openclaw_instance_name"] = instance_name["instance_name"]
             agent["openclaw_gateway_url"] = instance_name["gateway_url"]
-            agent["status"] = "active"
+            agent["status"] = "provisioning"
             etag = agent.get("_etag")
             agent = await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
             logger.info("OpenClaw agent %s deployed as %s", agent["id"], agent.get("openclaw_instance_name"))
@@ -114,6 +159,33 @@ async def list_agents(
     tenant_id: str = Depends(get_tenant_id),
 ):
     agents = await agent_repo.list_by_tenant(tenant_id)
+
+    # Check live pod status for provisioning OpenClaw agents
+    provisioning = [
+        a for a in agents
+        if a.get("agent_type") == "openclaw"
+        and a.get("status") == "provisioning"
+        and a.get("openclaw_instance_name")
+    ]
+    if provisioning:
+        tenant = await tenant_repo.get(tenant_id, tenant_id)
+        slug = tenant["slug"] if tenant else None
+        if slug:
+            for agent in provisioning:
+                try:
+                    pod_status = await openclaw_service.get_agent_status(
+                        agent["openclaw_instance_name"], slug
+                    )
+                    if pod_status["ready"]:
+                        agent["status"] = "active"
+                        agent["status_message"] = None
+                        etag = agent.get("_etag")
+                        await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
+                    else:
+                        agent["status_message"] = pod_status["message"]
+                except Exception:
+                    pass  # non-critical — keep provisioning status
+
     return AgentListResponse(agents=agents, total=len(agents))
 
 
@@ -127,6 +199,30 @@ async def get_agent(
     agent = await agent_repo.get(tenant_id, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Check live pod status for provisioning OpenClaw agents
+    if (
+        agent.get("agent_type") == "openclaw"
+        and agent.get("status") == "provisioning"
+        and agent.get("openclaw_instance_name")
+    ):
+        tenant = await tenant_repo.get(tenant_id, tenant_id)
+        slug = tenant["slug"] if tenant else None
+        if slug:
+            try:
+                pod_status = await openclaw_service.get_agent_status(
+                    agent["openclaw_instance_name"], slug
+                )
+                if pod_status["ready"]:
+                    agent["status"] = "active"
+                    agent["status_message"] = None
+                    etag = agent.get("_etag")
+                    await agent_repo.update(tenant_id, agent["id"], agent, etag=etag)
+                else:
+                    agent["status_message"] = pod_status["message"]
+            except Exception:
+                pass
+
     return agent
 
 

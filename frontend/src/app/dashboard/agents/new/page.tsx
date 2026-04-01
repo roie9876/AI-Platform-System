@@ -33,12 +33,21 @@ export default function NewAgentPage() {
     timeout_seconds: 30,
     // OpenClaw-specific fields
     telegram_enabled: false,
-    telegram_bot_token_secret: "TELEGRAMBOTTOKEN",
+    telegram_bot_token: "",
+    telegram_bot_token_secret: "",
+    telegram_use_existing_secret: false,
     telegram_allowed_users: "",
     dm_policy: "allowlist" as "open" | "allowlist" | "pairing",
     enable_web_browsing: true,
     enable_shell: false,
     enable_deep_research: false,
+    // Gmail fields
+    gmail_enabled: false,
+    gmail_email: "",
+    gmail_app_password: "",
+    gmail_app_password_secret: "",
+    gmail_display_name: "OpenClaw Agent",
+    gmail_use_existing_secret: true,
   });
 
   useEffect(() => {
@@ -68,12 +77,30 @@ export default function NewAgentPage() {
         payload.openclaw_config = {
           channels: {
             telegram_enabled: form.telegram_enabled,
-            telegram_bot_token_secret: form.telegram_bot_token_secret || null,
+            telegram_bot_token: form.telegram_use_existing_secret
+              ? null
+              : form.telegram_bot_token || null,
+            telegram_bot_token_secret: form.telegram_use_existing_secret
+              ? form.telegram_bot_token_secret || null
+              : null,
             telegram_allowed_users: form.telegram_allowed_users
               ? form.telegram_allowed_users.split(",").map((s: string) => s.trim())
               : [],
             dm_policy: form.dm_policy,
           },
+          gmail: form.gmail_enabled
+            ? {
+                gmail_enabled: true,
+                gmail_email: form.gmail_email || null,
+                gmail_app_password: form.gmail_use_existing_secret
+                  ? null
+                  : form.gmail_app_password || null,
+                gmail_app_password_secret: form.gmail_use_existing_secret
+                  ? form.gmail_app_password_secret || "gmail-app-password"
+                  : null,
+                gmail_display_name: form.gmail_display_name || "OpenClaw Agent",
+              }
+            : null,
           enable_web_browsing: form.enable_web_browsing,
           enable_shell: form.enable_shell,
           enable_deep_research: form.enable_deep_research,
@@ -285,25 +312,101 @@ export default function NewAgentPage() {
 
               {form.telegram_enabled && (
                 <div className="ml-6 space-y-3">
+                  {/* Bot Token Source */}
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Bot Token (Key Vault secret name)
+                    <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                      Bot Token
                     </label>
-                    <input
-                      type="text"
-                      placeholder="TELEGRAMBOTTOKEN"
-                      value={form.telegram_bot_token_secret}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          telegram_bot_token_secret: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Default: TELEGRAMBOTTOKEN from Key Vault. Override only if using a different bot.
-                    </p>
+                    <div className="flex gap-4 mb-3">
+                      <label
+                        className={`flex-1 relative flex cursor-pointer rounded-lg border p-3 ${
+                          form.telegram_use_existing_secret
+                            ? "border-purple-500 bg-purple-50 ring-1 ring-purple-500"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="telegram_token_source"
+                          checked={form.telegram_use_existing_secret}
+                          onChange={() =>
+                            setForm({ ...form, telegram_use_existing_secret: true })
+                          }
+                          className="sr-only"
+                        />
+                        <div>
+                          <span className="block text-xs font-medium text-gray-900">
+                            Use existing Key Vault secret
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            Reference a previously stored bot token
+                          </span>
+                        </div>
+                      </label>
+                      <label
+                        className={`flex-1 relative flex cursor-pointer rounded-lg border p-3 ${
+                          !form.telegram_use_existing_secret
+                            ? "border-purple-500 bg-purple-50 ring-1 ring-purple-500"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="telegram_token_source"
+                          checked={!form.telegram_use_existing_secret}
+                          onChange={() =>
+                            setForm({ ...form, telegram_use_existing_secret: false })
+                          }
+                          className="sr-only"
+                        />
+                        <div>
+                          <span className="block text-xs font-medium text-gray-900">
+                            Enter Bot Token
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            Paste token from @BotFather, stored in Key Vault
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {form.telegram_use_existing_secret ? (
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Secret name in Key Vault"
+                          value={form.telegram_bot_token_secret}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              telegram_bot_token_secret: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          The Key Vault secret name containing the bot token.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="password"
+                          placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                          value={form.telegram_bot_token}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              telegram_bot_token: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          From Telegram @BotFather. Will be securely stored in Azure Key Vault.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -312,7 +415,7 @@ export default function NewAgentPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="Leave empty to use TELEGRAMALLOWFROM from Key Vault"
+                      placeholder="Comma-separated: 123456789, 987654321"
                       value={form.telegram_allowed_users}
                       onChange={(e) =>
                         setForm({
@@ -323,7 +426,7 @@ export default function NewAgentPage() {
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Default: loaded from TELEGRAMALLOWFROM in Key Vault. Add IDs here to override.
+                      Comma-separated Telegram user IDs who can interact with the bot.
                     </p>
                   </div>
 
@@ -349,6 +452,153 @@ export default function NewAgentPage() {
                       </option>
                       <option value="open">Open (anyone can message)</option>
                     </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Gmail Integration */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.gmail_enabled}
+                  onChange={(e) =>
+                    setForm({ ...form, gmail_enabled: e.target.checked })
+                  }
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Enable Gmail Access
+              </label>
+
+              {form.gmail_enabled && (
+                <div className="ml-6 space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Gmail Address *
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="agent@gmail.com"
+                      value={form.gmail_email}
+                      onChange={(e) =>
+                        setForm({ ...form, gmail_email: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Display Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="OpenClaw Agent"
+                      value={form.gmail_display_name}
+                      onChange={(e) =>
+                        setForm({ ...form, gmail_display_name: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  {/* App Password Source */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                      App Password
+                    </label>
+                    <div className="flex gap-4 mb-3">
+                      <label
+                        className={`flex-1 relative flex cursor-pointer rounded-lg border p-3 ${
+                          form.gmail_use_existing_secret
+                            ? "border-purple-500 bg-purple-50 ring-1 ring-purple-500"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="gmail_password_source"
+                          checked={form.gmail_use_existing_secret}
+                          onChange={() =>
+                            setForm({ ...form, gmail_use_existing_secret: true })
+                          }
+                          className="sr-only"
+                        />
+                        <div>
+                          <span className="block text-xs font-medium text-gray-900">
+                            Use existing Key Vault secret
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            Re-use a previously stored app password
+                          </span>
+                        </div>
+                      </label>
+                      <label
+                        className={`flex-1 relative flex cursor-pointer rounded-lg border p-3 ${
+                          !form.gmail_use_existing_secret
+                            ? "border-purple-500 bg-purple-50 ring-1 ring-purple-500"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="gmail_password_source"
+                          checked={!form.gmail_use_existing_secret}
+                          onChange={() =>
+                            setForm({ ...form, gmail_use_existing_secret: false })
+                          }
+                          className="sr-only"
+                        />
+                        <div>
+                          <span className="block text-xs font-medium text-gray-900">
+                            Enter new App Password
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            Store a new password in Key Vault
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {form.gmail_use_existing_secret ? (
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="gmail-app-password"
+                          value={form.gmail_app_password_secret}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              gmail_app_password_secret: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Default: gmail-app-password from Key Vault.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="password"
+                          placeholder="xxxx xxxx xxxx xxxx"
+                          value={form.gmail_app_password}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              gmail_app_password: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          From Google Account → Security → 2-Step Verification → App Passwords.
+                          Will be securely stored in Azure Key Vault.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

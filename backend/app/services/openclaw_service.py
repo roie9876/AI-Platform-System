@@ -12,12 +12,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Azure infrastructure references
-KEY_VAULT_NAME = os.getenv("KEY_VAULT_NAME", "stumsft-aiplat-prod-kv")
-TENANT_ID = os.getenv("AZURE_TENANT_ID", "9dce4dc6-16c7-48c4-9f57-52897cc5a893")
+# Azure infrastructure references (populated from K8s ConfigMap/Secrets at runtime)
+KEY_VAULT_NAME = os.getenv("KEY_VAULT_NAME", "")
+TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
 WORKLOAD_CLIENT_ID = os.getenv(
     "AZURE_WORKLOAD_CLIENT_ID",
-    os.getenv("AZURE_CLIENT_ID", "0a33a4b9-824c-4ed4-9f4c-615ea40bd502"),
+    os.getenv("AZURE_CLIENT_ID", ""),
 )
 
 # OpenClaw CRD coordinates
@@ -104,6 +104,99 @@ class OpenClawService:
         except Exception as e:
             logger.warning("Could not fetch Key Vault secret %s: %s", secret_name, e)
             return ""
+
+    async def _set_kv_secret(self, secret_name: str, secret_value: str) -> bool:
+        """Store a secret in Key Vault. Returns True on success."""
+        try:
+            from azure.keyvault.secrets import SecretClient
+
+            credential = self._get_kv_credential()
+            kv_url = f"https://{KEY_VAULT_NAME}.vault.azure.net"
+            secret_client = SecretClient(vault_url=kv_url, credential=credential)
+            secret_client.set_secret(secret_name, secret_value)
+            logger.info("Stored secret %s in Key Vault", secret_name)
+            return True
+        except Exception as e:
+            logger.error("Could not store Key Vault secret %s: %s", secret_name, e)
+            return False
+
+    async def get_agent_status(self, instance_name: str, tenant_slug: str) -> dict:
+        """Check the live status of an OpenClaw agent pod.
+
+        Returns a dict with:
+          - phase: CR phase (e.g. "Running", "Pending")
+          - ready: bool — all containers running
+          - containers_ready: int
+          - containers_total: int
+          - message: human-readable status string
+        """
+        namespace = f"tenant-{tenant_slug}"
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, self._check_pod_status, namespace, instance_name
+        )
+
+    @staticmethod
+    def _check_pod_status(namespace: str, instance_name: str) -> dict:
+        """Check OpenClawInstance CR phase and pod container readiness."""
+        from kubernetes import client
+
+        core_v1, custom_api = _get_k8s_clients()
+
+        result = {
+            "phase": "Unknown",
+            "ready": False,
+            "containers_ready": 0,
+            "containers_total": 0,
+            "message": "Checking...",
+        }
+
+        # Check CR status
+        try:
+            cr = custom_api.get_namespaced_custom_object(
+                group=OPENCLAW_GROUP,
+                version=OPENCLAW_VERSION,
+                namespace=namespace,
+                plural=OPENCLAW_PLURAL,
+                name=instance_name,
+            )
+            status = cr.get("status", {})
+            result["phase"] = status.get("phase", "Pending")
+            result["ready"] = status.get("ready", False)
+        except client.ApiException:
+            result["message"] = "Instance not found"
+            return result
+
+        # Check pod readiness for container counts
+        try:
+            pods = core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app.kubernetes.io/instance={instance_name}",
+            )
+            if pods.items:
+                pod = pods.items[0]
+                statuses = pod.status.container_statuses or []
+                result["containers_total"] = len(statuses)
+                result["containers_ready"] = sum(
+                    1 for cs in statuses if cs.ready
+                )
+                if result["containers_ready"] == result["containers_total"] and result["containers_total"] > 0:
+                    result["ready"] = True
+                    result["message"] = "Running"
+                else:
+                    # Check for init containers still running
+                    init_statuses = pod.status.init_container_statuses or []
+                    pending_inits = [s.name for s in init_statuses if not s.ready]
+                    if pending_inits:
+                        result["message"] = "Initializing"
+                    else:
+                        result["message"] = f"Starting ({result['containers_ready']}/{result['containers_total']} ready)"
+            else:
+                result["message"] = "Waiting for pod"
+        except client.ApiException:
+            result["message"] = "Could not check pod"
+
+        return result
 
     async def deploy_agent(
         self,
@@ -368,6 +461,101 @@ class OpenClawService:
                 "persistence": {"enabled": True, "size": "1Gi"},
             }
 
+        # Gmail / Himalaya email skill
+        gmail_config = openclaw_config.get("gmail") or {}
+        gmail_email = gmail_config.get("gmail_email") or gmail_config.get("email")
+        if gmail_email:
+            skills = cr["spec"].get("skills", [])
+            if "himalaya" not in skills:
+                skills.append("himalaya")
+            cr["spec"]["skills"] = skills
+            cr["spec"]["runtimeDeps"] = {"pnpm": True}
+
+            display_name = gmail_config.get("gmail_display_name") or gmail_config.get("display_name", "OpenClaw Agent")
+
+            # Build himalaya TOML config.
+            # Use auth.cmd to resolve the password from the GMAIL_APP_PASSWORD
+            # env var at runtime (auth.raw doesn't expand env vars).
+            himalaya_toml = (
+                "[accounts.gmail]\n"
+                f'email = "{gmail_email}"\n'
+                f'display-name = "{display_name}"\n'
+                "default = true\n"
+                "\n"
+                'backend.type = "imap"\n'
+                'backend.host = "imap.gmail.com"\n'
+                "backend.port = 993\n"
+                'backend.encryption.type = "tls"\n'
+                f'backend.login = "{gmail_email}"\n'
+                'backend.auth.type = "password"\n'
+                'backend.auth.cmd = "printenv GMAIL_APP_PASSWORD"\n'
+                "\n"
+                'message.send.backend.type = "smtp"\n'
+                'message.send.backend.host = "smtp.gmail.com"\n'
+                "message.send.backend.port = 587\n"
+                'message.send.backend.encryption.type = "start-tls"\n'
+                f'message.send.backend.login = "{gmail_email}"\n'
+                'message.send.backend.auth.type = "password"\n'
+                'message.send.backend.auth.cmd = "printenv GMAIL_APP_PASSWORD"\n'
+                "\n"
+                'folder.sent.name = "[Gmail]/Sent Mail"\n'
+                'folder.drafts.name = "[Gmail]/Drafts"\n'
+                'folder.trash.name = "[Gmail]/Trash"\n'
+            )
+
+            # Place config as an initialFile (no '/' in key).
+            # HIMALAYA_CONFIG env var tells himalaya where to find its config
+            # since ~/.config is read-only in the container.
+            cr["spec"].setdefault("env", []).append(
+                {"name": "HIMALAYA_CONFIG", "value": "/home/openclaw/.openclaw/workspace/himalaya-config.toml"}
+            )
+
+            # Init container to download himalaya binary — the "himalaya"
+            # skill only ships documentation, not the actual CLI binary.
+            cr["spec"].setdefault("initContainers", []).append({
+                "name": "install-himalaya",
+                "image": "curlimages/curl:latest",
+                "command": ["sh", "-c",
+                    "curl -sL https://github.com/pimalaya/himalaya/releases/download/v1.2.0/himalaya.x86_64-linux.tgz "
+                    "| tar xz -C /shared-bin/ && chmod +x /shared-bin/himalaya"
+                ],
+                "volumeMounts": [{"name": "shared-bin", "mountPath": "/shared-bin"}],
+            })
+            cr["spec"].setdefault("extraVolumes", []).append(
+                {"name": "shared-bin", "emptyDir": {}}
+            )
+            cr["spec"].setdefault("extraVolumeMounts", []).append(
+                {"name": "shared-bin", "mountPath": "/home/openclaw/.openclaw/.local/bin/himalaya", "subPath": "himalaya"}
+            )
+
+            cr["spec"]["workspace"] = {
+                "initialFiles": {
+                    "himalaya-config.toml": himalaya_toml,
+                    "CLAUDE.md": (
+                        "# Agent Instructions\n\n"
+                        "## Email Access\n"
+                        f"You have access to the Gmail account {gmail_email} via the Himalaya CLI.\n"
+                        "ALWAYS use the `himalaya` command-line tool for any email operations "
+                        "— NEVER open Gmail in a browser.\n\n"
+                        "Common commands:\n"
+                        '- List unread emails: `himalaya envelope list --folder INBOX "not flag seen"`\n'
+                        "- List all emails: `himalaya envelope list --folder INBOX`\n"
+                        "- Read an email: `himalaya message read <id>`\n"
+                        '- Send an email: `himalaya message send "From: ' + gmail_email + '\nTo: <address>\nSubject: <subject>\n\n<body>"`\n'
+                        "- Reply to an email: `himalaya message reply <id>`\n"
+                        '- Search by sender: `himalaya envelope list --folder INBOX "from <pattern>"`\n'
+                        '- Search by subject: `himalaya envelope list --folder INBOX "subject <pattern>"`\n'
+                        "- List folders: `himalaya folder list`\n\n"
+                        "Important notes:\n"
+                        "- The FLAGS column shows IMAP flags: no flags = unread, `*` = flagged/starred\n"
+                        "- When sending, always include the From header\n"
+                        "- Gmail sent folder is `[Gmail]/Sent Mail`\n\n"
+                        "When asked about email, unread messages, or Gmail, use Himalaya immediately "
+                        "— do not browse to gmail.com.\n"
+                    ),
+                }
+            }
+
         return cr
 
     def _build_secret_provider_class(
@@ -452,6 +640,15 @@ class OpenClawService:
             bot_token = await self._get_kv_secret(token_secret)
             if bot_token:
                 data["TELEGRAM_BOT_TOKEN"] = base64.b64encode(bot_token.encode()).decode()
+
+        # Gmail app password
+        gmail_config = openclaw_config.get("gmail") or {}
+        gmail_email = gmail_config.get("gmail_email") or gmail_config.get("email")
+        if gmail_email:
+            gmail_secret = gmail_config.get("gmail_app_password_secret") or gmail_config.get("app_password_secret", "gmail-app-password")
+            gmail_pw = await self._get_kv_secret(gmail_secret)
+            if gmail_pw:
+                data["GMAIL_APP_PASSWORD"] = base64.b64encode(gmail_pw.encode()).decode()
 
         return data
 

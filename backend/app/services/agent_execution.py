@@ -635,6 +635,9 @@ class AgentExecutionService:
 
         messages.append({"role": "user", "content": user_message})
 
+        # Inject RAG context from attached data sources & Azure AI Search
+        rag_sources = await self._inject_rag_context(messages, agent, user_message, tenant_id)
+
         # Save user message to thread
         if thread_id and user_id:
             try:
@@ -675,6 +678,10 @@ class AgentExecutionService:
         collected_response = ""
         usage_data: dict = {}
         try:
+            # Emit sources event so the frontend knows what knowledge was used
+            if rag_sources:
+                yield self._sse_sources(rag_sources)
+
             async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
                 async with client.stream("POST", url, json=body, headers=headers) as response:
                     if response.status_code != 200:
@@ -731,7 +738,7 @@ class AgentExecutionService:
                 primary_endpoint = await _endpoint_repo.get(tenant_id, model_endpoint_id)
             await self._save_assistant_response(
                 tenant_id, thread_id, user_id, agent, collected_response,
-                [], start_time, primary_endpoint or {},
+                rag_sources, start_time, primary_endpoint or {},
                 input_tokens=est_input, output_tokens=est_output,
             )
 

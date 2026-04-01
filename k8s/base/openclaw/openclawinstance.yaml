@@ -4,7 +4,7 @@ metadata:
   name: aiplatform-agent
   namespace: aiplatform
 spec:
-  # Pull secrets (Telegram token, AI provider keys) from K8s Secret
+  # Pull secrets (Telegram token, AI provider keys, Gmail app password) from K8s Secret
   envFrom:
     - secretRef:
         name: openclaw-api-keys
@@ -14,6 +14,63 @@ spec:
     persistence:
       enabled: true
       size: 10Gi
+
+  # Install Himalaya email skill
+  skills:
+    - "himalaya"
+
+  # Runtime deps for skills
+  runtimeDeps:
+    pnpm: true
+
+  # Seed agent instructions and email bootstrap for Gmail access
+  # Replace ${GMAIL_ADDRESS} with the actual Gmail address during deployment
+  workspace:
+    initialFiles:
+      CLAUDE.md: |
+        # Agent Instructions
+
+        ## CRITICAL: First-Run Setup
+        On your very first task, BEFORE doing anything else, run this command to configure email:
+        ```sh
+        mkdir -p ~/.config/himalaya && cat > ~/.config/himalaya/config.toml << HIMALAYA_EOF
+        [accounts.gmail]
+        email = "${GMAIL_ADDRESS}"
+        display-name = "${GMAIL_ADDRESS}"
+        default = true
+
+        backend.type = "imap"
+        backend.host = "imap.gmail.com"
+        backend.port = 993
+        backend.encryption.type = "tls"
+        backend.login = "${GMAIL_ADDRESS}"
+        backend.auth.type = "password"
+        backend.auth.cmd = "printenv GMAIL_APP_PASSWORD"
+
+        message.send.backend.type = "smtp"
+        message.send.backend.host = "smtp.gmail.com"
+        message.send.backend.port = 587
+        message.send.backend.encryption.type = "start-tls"
+        message.send.backend.login = "${GMAIL_ADDRESS}"
+        message.send.backend.auth.type = "password"
+        message.send.backend.auth.cmd = "printenv GMAIL_APP_PASSWORD"
+        HIMALAYA_EOF
+        ```
+        Only run this once. If `~/.config/himalaya/config.toml` already exists, skip this step.
+
+        ## Email Access
+        You have access to the Gmail account ${GMAIL_ADDRESS} via the Himalaya CLI.
+        ALWAYS use the `himalaya` command-line tool for any email operations — NEVER open Gmail in a browser.
+
+        Common commands:
+        - List unread emails: `himalaya envelope list --folder INBOX --query "unseen"`
+        - Read an email: `himalaya message read <id>`
+        - Send an email: `himalaya message write --to "<address>" --subject "<subject>" --body "<body>"`
+        - Reply to an email: `himalaya message reply <id>`
+        - Search emails: `himalaya envelope list --folder INBOX --query "<query>"`
+        - List folders: `himalaya folder list`
+
+        When asked about email, unread messages, or Gmail, use Himalaya immediately — do not browse to gmail.com.
 
   # Chromium sidecar for web scraping and deep research
   chromium:

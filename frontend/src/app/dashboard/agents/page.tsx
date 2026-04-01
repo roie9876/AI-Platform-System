@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -13,6 +13,7 @@ interface Agent {
   description: string | null;
   agent_type: string;
   status: string;
+  status_message?: string | null;
   model_endpoint_id: string | null;
   current_config_version: number;
   updated_at: string;
@@ -25,6 +26,7 @@ interface AgentListResponse {
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
+  provisioning: "bg-blue-100 text-blue-800",
   inactive: "bg-gray-100 text-gray-800",
   error: "bg-red-100 text-red-800",
 };
@@ -48,12 +50,24 @@ export default function AgentsPage() {
     }
   };
 
-  useEffect(() => {
+  const fetchAgents = useCallback(() => {
     apiFetch<AgentListResponse>("/api/v1/agents")
       .then((data) => setAgents(data.agents))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [selectedTenantId]);
+
+  useEffect(() => {
+    fetchAgents();
+  }, [fetchAgents]);
+
+  // Poll every 5s while any agent is provisioning
+  useEffect(() => {
+    const hasProvisioning = agents.some((a) => a.status === "provisioning");
+    if (!hasProvisioning) return;
+    const interval = setInterval(fetchAgents, 5000);
+    return () => clearInterval(interval);
+  }, [agents, fetchAgents]);
 
   if (loading) {
     return (
@@ -114,10 +128,16 @@ export default function AgentsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                       statusColors[agent.status] || statusColors.inactive
                     }`}
                   >
+                    {agent.status === "provisioning" && (
+                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    )}
                     {agent.status}
                   </span>
                   <button
@@ -133,6 +153,11 @@ export default function AgentsPage() {
               {agent.description && (
                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                   {agent.description}
+                </p>
+              )}
+              {agent.status === "provisioning" && agent.status_message && (
+                <p className="text-xs text-blue-600 mb-2">
+                  {agent.status_message}
                 </p>
               )}
               <div className="flex items-center justify-between text-xs text-gray-400">
