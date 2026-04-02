@@ -829,8 +829,8 @@ class OpenClawService:
         if whatsapp.get("whatsapp_enabled"):
             wa_config: dict = {
                 "enabled": True,
-                "dmPolicy": whatsapp.get("whatsapp_dm_policy", "open"),
-                "groupPolicy": whatsapp.get("whatsapp_group_policy", "open"),
+                "dmPolicy": whatsapp.get("whatsapp_dm_policy", "allowlist"),
+                "groupPolicy": whatsapp.get("whatsapp_group_policy", "allowlist"),
                 "allowFrom": ["*"],
             }
             wa_allowed = whatsapp.get("whatsapp_allowed_phones", [])

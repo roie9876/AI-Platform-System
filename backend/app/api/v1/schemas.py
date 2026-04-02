@@ -80,8 +80,8 @@ class WhatsAppGroupRule(BaseModel):
 class OpenClawWhatsAppConfig(BaseModel):
     """WhatsApp configuration for OpenClaw agents."""
     whatsapp_enabled: bool = False
-    whatsapp_dm_policy: Literal["open", "allowlist", "pairing"] = "open"
-    whatsapp_group_policy: Literal["open", "allowlist"] = "open"
+    whatsapp_dm_policy: Literal["open", "allowlist", "pairing"] = "allowlist"
+    whatsapp_group_policy: Literal["open", "allowlist"] = "allowlist"
     whatsapp_allowed_phones: List[str] = []  # Phone numbers allowed to interact (DMs)
     whatsapp_group_rules: List[WhatsAppGroupRule] = []  # Per-group overrides
 

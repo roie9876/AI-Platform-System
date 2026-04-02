@@ -47,9 +47,9 @@ export default function NewAgentPage() {
 
   const [channels, setChannels] = useState<ChannelWizardState>({
     whatsapp_enabled: false,
-    whatsapp_dm_policy: "open",
+    whatsapp_dm_policy: "allowlist",
     whatsapp_allowed_phones: "",
-    whatsapp_group_policy: "open",
+    whatsapp_group_policy: "allowlist",
     whatsapp_group_rules: [],
     telegram_enabled: false,
     telegram_bot_token: "",

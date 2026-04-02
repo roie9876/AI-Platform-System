@@ -222,9 +222,9 @@ export default function AgentDetailPage() {
   });
   const [channels, setChannels] = useState<ChannelWizardState>({
     whatsapp_enabled: false,
-    whatsapp_dm_policy: "open",
+    whatsapp_dm_policy: "allowlist",
     whatsapp_allowed_phones: "",
-    whatsapp_group_policy: "open",
+    whatsapp_group_policy: "allowlist",
     whatsapp_group_rules: [],
     telegram_enabled: false,
     telegram_bot_token: "",
@@ -532,9 +532,9 @@ export default function AgentDetailPage() {
           });
           setChannels({
             whatsapp_enabled: !!wa.whatsapp_enabled,
-            whatsapp_dm_policy: (wa.whatsapp_dm_policy as ChannelWizardState["whatsapp_dm_policy"]) || "open",
+            whatsapp_dm_policy: (wa.whatsapp_dm_policy as ChannelWizardState["whatsapp_dm_policy"]) || "allowlist",
             whatsapp_allowed_phones: Array.isArray(wa.whatsapp_allowed_phones) ? wa.whatsapp_allowed_phones.join(", ") : "",
-            whatsapp_group_policy: (wa.whatsapp_group_policy as ChannelWizardState["whatsapp_group_policy"]) || "open",
+            whatsapp_group_policy: (wa.whatsapp_group_policy as ChannelWizardState["whatsapp_group_policy"]) || "allowlist",
             whatsapp_group_rules: wa.whatsapp_group_rules || [],
             telegram_enabled: !!ch.telegram_enabled,
             telegram_bot_token: "",
