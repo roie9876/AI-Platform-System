@@ -269,8 +269,8 @@ function GroupRulesEditor<T extends WhatsAppGroupRule | TelegramGroupRule>({
   const idField = channel === "whatsapp" ? "group_jid" : "group_id";
   const idPlaceholder =
     channel === "whatsapp"
-      ? "Group JID (e.g. 120363012345678@g.us) — paste after linking"
-      : "Group ID (e.g. -1001234567890)";
+      ? "120363012345678@g.us"
+      : "-1001234567890";
   const contactField = channel === "whatsapp" ? "allowed_phones" : "allowed_users";
   const contactPlaceholder =
     channel === "whatsapp"
@@ -285,14 +285,6 @@ function GroupRulesEditor<T extends WhatsAppGroupRule | TelegramGroupRule>({
         <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
           Per-Group Rules
         </span>
-        <button
-          type="button"
-          onClick={addRule}
-          className="flex items-center gap-1 rounded-md bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors"
-        >
-          <Plus className="h-3 w-3" />
-          Add Group Rule
-        </button>
       </div>
 
       {rules.length === 0 && (
@@ -302,7 +294,7 @@ function GroupRulesEditor<T extends WhatsAppGroupRule | TelegramGroupRule>({
             No per-group rules yet. The default policy above applies to all groups.
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Add rules to customize behavior for specific groups.
+            Select a group from the discovered list above to add a rule.
           </p>
         </div>
       )}
@@ -380,16 +372,9 @@ function GroupRulesEditor<T extends WhatsAppGroupRule | TelegramGroupRule>({
                     type="text"
                     placeholder={idPlaceholder}
                     value={(rule as unknown as Record<string, string>)[idField] || ""}
-                    onChange={(e) =>
-                      updateRule(idx, { [idField]: e.target.value } as Partial<T>)
-                    }
-                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    readOnly
+                    className="w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm font-mono text-gray-500 cursor-not-allowed"
                   />
-                  <p className="mt-1 text-xs text-gray-400">
-                    {channel === "whatsapp"
-                      ? "You can find this in the agent's WhatsApp session after linking."
-                      : "Forward a message from the group to @userinfobot on Telegram."}
-                  </p>
                 </div>
 
                 {/* Access policy */}
@@ -495,9 +480,11 @@ interface ChannelWizardProps {
   state: ChannelWizardState;
   onChange: (state: ChannelWizardState) => void;
   agentId?: string;
+  /** "create" hides group rules (groups unknown yet); "manage" shows everything */
+  mode?: "create" | "manage";
 }
 
-export function ChannelWizard({ state, onChange, agentId }: ChannelWizardProps) {
+export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: ChannelWizardProps) {
   const update = (patch: Partial<ChannelWizardState>) =>
     onChange({ ...state, ...patch });
 
@@ -652,8 +639,8 @@ export function ChannelWizard({ state, onChange, agentId }: ChannelWizardProps) 
               </div>
             </div>
 
-            {/* Discovered groups (live from agent) */}
-            {agentId && (
+            {/* Discovered groups (live from agent) — only in manage mode */}
+            {mode === "manage" && agentId && (
               <GroupPicker<WhatsAppGroupRule>
                 groups={discoveredGroups}
                 loading={groupsLoading}
@@ -664,12 +651,26 @@ export function ChannelWizard({ state, onChange, agentId }: ChannelWizardProps) 
               />
             )}
 
-            {/* Per-group rules */}
-            <GroupRulesEditor<WhatsAppGroupRule>
-              rules={state.whatsapp_group_rules}
-              onChange={(rules) => update({ whatsapp_group_rules: rules })}
-              channel="whatsapp"
-            />
+            {/* Per-group rules — only in manage mode */}
+            {mode === "manage" && (
+              <GroupRulesEditor<WhatsAppGroupRule>
+                rules={state.whatsapp_group_rules}
+                onChange={(rules) => update({ whatsapp_group_rules: rules })}
+                channel="whatsapp"
+              />
+            )}
+
+            {/* Hint — in create mode */}
+            {mode === "create" && (
+              <div className="flex gap-2 rounded-md bg-amber-50 border border-amber-200 p-3">
+                <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800">
+                  Per-group rules can be configured after deploying the agent.
+                  Once connected, you&apos;ll see your actual WhatsApp groups and
+                  can set policies for each one.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -819,8 +820,8 @@ export function ChannelWizard({ state, onChange, agentId }: ChannelWizardProps) 
               </div>
             )}
 
-            {/* Discovered groups (live from agent) */}
-            {agentId && (
+            {/* Discovered groups (live from agent) — only in manage mode */}
+            {mode === "manage" && agentId && (
               <GroupPicker<TelegramGroupRule>
                 groups={discoveredGroups}
                 loading={groupsLoading}
@@ -831,12 +832,26 @@ export function ChannelWizard({ state, onChange, agentId }: ChannelWizardProps) 
               />
             )}
 
-            {/* Per-group rules */}
-            <GroupRulesEditor<TelegramGroupRule>
-              rules={state.telegram_group_rules}
-              onChange={(rules) => update({ telegram_group_rules: rules })}
-              channel="telegram"
-            />
+            {/* Per-group rules — only in manage mode */}
+            {mode === "manage" && (
+              <GroupRulesEditor<TelegramGroupRule>
+                rules={state.telegram_group_rules}
+                onChange={(rules) => update({ telegram_group_rules: rules })}
+                channel="telegram"
+              />
+            )}
+
+            {/* Hint — in create mode */}
+            {mode === "create" && (
+              <div className="flex gap-2 rounded-md bg-amber-50 border border-amber-200 p-3">
+                <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800">
+                  Per-group rules can be configured after deploying the agent.
+                  Once connected, you&apos;ll see your Telegram groups and can
+                  set policies for each one.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

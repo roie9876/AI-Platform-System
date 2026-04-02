@@ -679,31 +679,53 @@ Classifier──► Support Agent                             │
 
 The platform supports **OpenClaw** as a first-class agent type alongside the built-in ReAct executor. OpenClaw is an autonomous agent runtime that runs as a Kubernetes-native sidecar — each agent gets its own `OpenClawInstance` Custom Resource (CR), managed by the OpenClaw Operator.
 
-**Why OpenClaw?** While the built-in Agent Executor handles standard ReAct-loop agents, OpenClaw provides a full-featured autonomous runtime with native multi-channel support (Telegram, Slack, Discord), persistent session management, built-in tool orchestration, and advanced agentic capabilities that go beyond simple request-response patterns.
+**Why OpenClaw?** While the built-in Agent Executor handles standard ReAct-loop agents, OpenClaw provides a full-featured autonomous runtime with native multi-channel support (Telegram, WhatsApp, Slack, Discord), persistent session management, built-in tool orchestration, email access, web browsing, deep research, and advanced agentic capabilities that go beyond simple request-response patterns.
+
+#### Capabilities & Integration Topology
+
+The diagram below shows all the channels, tools, and platform services the OpenClaw agent integrates with:
+
+![OpenClaw Agent Topology](docs/architecture/openclaw-topology.drawio.png)
+
+#### What Can an OpenClaw Agent Do?
+
+| Capability | Description |
+|-----------|-------------|
+| **Multi-Channel Messaging** | Communicate with users across **Telegram**, **WhatsApp**, **Slack**, **Discord**, and the **Web Playground** — all from a single agent instance. Each channel supports per-sender session isolation. |
+| **Autonomous Reasoning** | Execute complex, multi-step tasks without constant user interaction. The agent plans, reasons, and acts using a ReAct loop with tool orchestration. |
+| **Deep Research** | Leverage reasoning models (GPT-5.4) for in-depth analysis, multi-source synthesis, and complex problem-solving tasks. |
+| **Web Browsing** | Browse the live internet via a built-in Chromium sidecar. Scrape pages, extract data, and retrieve real-time information. |
+| **Email Access (Gmail)** | Read, search, and send emails via the Himalaya CLI skill — IMAP/SMTP integration with Gmail using app passwords stored in Key Vault. |
+| **MCP Tool Integration** | Connect to any MCP-compatible server: **Jira/Confluence** (Atlassian), **SharePoint**, **GitHub**, **Web Tools**, or custom servers. Tools are configured per agent. |
+| **RAG Retrieval** | Query your organization's knowledge base via Azure AI Search — hybrid vector + keyword search over uploaded documents and data sources. |
+| **Persistent Memory** | Hybrid vector + BM25 memory search across sessions. The agent remembers past conversations, user preferences, and context across interactions. |
+| **Cross-Channel Delivery** | Send messages across channels using the `sessions_send` tool. A message received in the Playground can trigger a Telegram notification, and vice versa. |
+| **Cross-Session Context** | Retrieve and share context across different channels — a WhatsApp conversation can inform a Telegram response for the same user. |
+| **Identity Mapping** | Map user identities across channels (Telegram user ID, WhatsApp phone number, Playground user) to a single profile (roadmap). |
+
+#### Communication Channels — Deep Dive
+
+| Channel | Protocol | Features |
+|---------|----------|----------|
+| **Web Playground** | SSE streaming via API Gateway → `/v1/chat/completions` | Real-time chat UI, source citations, conversation threads |
+| **Telegram** | Native bot long-polling | DM & group support, allowlist-based access control, per-group rules, require-mention option |
+| **WhatsApp** | QR-code device linking via WebSocket | DM & group support, per-group rules with custom instructions, phone allowlists, group-level blocking |
+| **Slack** | Native channel integration | Direct messages and channel conversations |
+| **Discord** | Native channel integration | Server and DM support |
+| **Email (Gmail)** | IMAP/SMTP via Himalaya CLI | Read, search, send, reply — agent accesses Gmail without a browser |
 
 #### Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  tenant-{slug} namespace                                        │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  OpenClaw StatefulSet Pod                                │   │
-│  │                                                          │   │
-│  │  ┌────────────┐  ┌──────────┐  ┌────────┐  ┌─────────┐ │   │
-│  │  │  openclaw   │  │ nginx    │  │ browser│  │ metrics │ │   │
-│  │  │  (gateway + │  │ (reverse │  │ (tool  │  │ (prom   │ │   │
-│  │  │   agent +   │  │  proxy)  │  │  exec) │  │  export)│ │   │
-│  │  │  telegram)  │  │          │  │        │  │         │ │   │
-│  │  └──────┬─────┘  └────┬─────┘  └────────┘  └─────────┘ │   │
-│  │         │              │                                 │   │
-│  │    ws://127.0.0.1:18789 (loopback only)                 │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  NetworkPolicy: egress DNS+443 only, ingress from namespace    │
-│  PVC: 10Gi persistent storage for sessions & workspace         │
-└─────────────────────────────────────────────────────────────────┘
-```
+Each OpenClaw agent runs as a **StatefulSet pod** with 4 containers in the tenant's Kubernetes namespace:
+
+| Container | Purpose |
+|-----------|---------|
+| `openclaw` | Core agent engine — gateway, ReAct loop, tool orchestration, channel polling, session & memory management |
+| `nginx` | Reverse proxy for internal routing |
+| `browser` | Chromium sidecar for web browsing and scraping |
+| `metrics` | Prometheus exporter for monitoring |
+
+All containers communicate via the loopback interface (`ws://127.0.0.1:18789`). The pod is isolated by NetworkPolicy (egress DNS+443 only, ingress from namespace only) and uses a 10Gi PVC for persistent session state and workspace files.
 
 #### How It Works
 
@@ -711,21 +733,14 @@ The platform supports **OpenClaw** as a first-class agent type alongside the bui
 
 2. **Configuration:** The CR includes the full agent config:
    - **Model provider** — Azure OpenAI endpoint + API key (from Key Vault), using the `openai-completions` API
-   - **Channels** — Telegram bot token, allowlist of permitted sender IDs
-   - **MCP servers** — External tool servers the agent can call
+   - **Channels** — Telegram bot token + allowlist, WhatsApp QR linking, Slack/Discord tokens
+   - **MCP servers** — External tool servers the agent can call (Jira, SharePoint, GitHub, custom)
+   - **Skills** — Email (Himalaya), web browsing (Chromium), custom skills
    - **Gateway** — HTTP chat completions endpoint for platform integration
 
-3. **Platform Integration (Playground):** The API Gateway routes chat messages to OpenClaw via its OpenAI-compatible `/v1/chat/completions` endpoint. Messages are streamed back as SSE chunks, rendered in real-time in the Playground UI.
+3. **Platform Integration (Playground):** The API Gateway routes chat messages to OpenClaw via WebSocket `chat.send`. Messages are streamed back as events, rendered in real-time in the Playground UI with source citations and RAG context.
 
-   ```
-   User (Playground) → API Gateway → OpenClaw /v1/chat/completions → SSE stream → UI
-   ```
-
-4. **Multi-Channel (Telegram):** OpenClaw natively polls Telegram via long-polling. Users message the bot directly — OpenClaw processes the message, calls tools, and replies in Telegram. A `per-sender` session scope ensures each user gets an isolated conversation.
-
-   ```
-   User (Telegram) → Telegram API → OpenClaw bot polling → Agent → Telegram reply
-   ```
+4. **Multi-Channel (Telegram/WhatsApp):** OpenClaw natively polls Telegram via long-polling and connects to WhatsApp via linked device. Users message the bot directly — OpenClaw processes the message, calls tools, and replies. A `per-sender` session scope ensures each user gets an isolated conversation.
 
 5. **Cross-Channel Delivery:** The agent can send messages across channels using the `sessions_send` tool. A message received in the Playground can trigger a Telegram notification, and vice versa.
 

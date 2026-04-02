@@ -323,7 +323,7 @@ export default function NewAgentPage() {
               <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide">
                 Messaging Channels
               </label>
-              <ChannelWizard state={channels} onChange={setChannels} />
+              <ChannelWizard state={channels} onChange={setChannels} mode="create" />
             </div>
 
             {/* Gmail Integration */}
