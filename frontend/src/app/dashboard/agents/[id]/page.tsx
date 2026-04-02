@@ -41,7 +41,7 @@ interface Agent {
   agent_type?: string;
   status: string;
   temperature: number;
-  max_tokens: number;
+  max_tokens: number | null;
   timeout_seconds: number;
   model_endpoint_id: string | null;
   current_config_version: number;

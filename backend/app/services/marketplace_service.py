@@ -102,7 +102,7 @@ class MarketplaceService:
             "description": template.get("description"),
             "system_prompt": template.get("system_prompt"),
             "temperature": config.get("temperature", 0),
-            "max_tokens": config.get("max_tokens", 128000),
+            "max_tokens": config.get("max_tokens", None),
             "timeout_seconds": config.get("timeout_seconds", 30),
             "status": "inactive",
             "tenant_id": tenant_id,

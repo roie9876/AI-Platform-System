@@ -428,7 +428,7 @@ async def rollback_agent(
     snapshot = version["config_snapshot"]
     agent["system_prompt"] = snapshot.get("system_prompt")
     agent["temperature"] = snapshot.get("temperature", 0)
-    agent["max_tokens"] = snapshot.get("max_tokens", 128000)
+    agent["max_tokens"] = snapshot.get("max_tokens", None)
     agent["timeout_seconds"] = snapshot.get("timeout_seconds", 30)
     agent["model_endpoint_id"] = snapshot.get("model_endpoint_id")
     agent["current_config_version"] = agent.get("current_config_version", 1) + 1

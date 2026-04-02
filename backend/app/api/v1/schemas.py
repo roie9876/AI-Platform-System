@@ -104,7 +104,7 @@ class AgentCreateRequest(BaseModel):
     agent_type: Literal["standard", "openclaw"] = "standard"
     model_endpoint_id: Optional[UUID] = None
     temperature: float = Field(default=0, ge=0, le=2)
-    max_tokens: int = Field(default=128000, ge=1, le=128000)
+    max_tokens: Optional[int] = Field(default=None, ge=1, le=128000)
     timeout_seconds: int = Field(default=30, ge=1, le=300)
     openclaw_config: Optional[OpenClawConfig] = None
 
@@ -129,7 +129,7 @@ class AgentResponse(BaseModel):
     status: str = "active"
     status_message: Optional[str] = None
     temperature: float = 0
-    max_tokens: int = 128000
+    max_tokens: Optional[int] = None
     timeout_seconds: int = 30
     model_endpoint_id: Optional[UUID] = None
     current_config_version: int = 1

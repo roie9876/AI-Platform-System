@@ -171,7 +171,7 @@ class ModelAbstractionService:
         messages: List[Dict[str, str]],
         endpoint: dict,
         temperature: float = 0,
-        max_tokens: int = 128000,
+        max_tokens: Optional[int] = None,
         timeout: int = 30,
         stream: bool = True,
     ) -> AsyncGenerator[str, None]:
@@ -193,11 +193,13 @@ class ModelAbstractionService:
         }
 
         if reasoning:
-            kwargs["max_completion_tokens"] = max_tokens
+            if max_tokens is not None:
+                kwargs["max_completion_tokens"] = max_tokens
             # Reasoning models don't accept temperature
         else:
             kwargs["temperature"] = temperature
-            kwargs["max_tokens"] = max_tokens
+            if max_tokens is not None:
+                kwargs["max_tokens"] = max_tokens
 
         if stream:
             kwargs["stream_options"] = {"include_usage": True}
@@ -245,7 +247,7 @@ class ModelAbstractionService:
         messages: List[Dict[str, str]],
         endpoints: List[dict],
         temperature: float = 0,
-        max_tokens: int = 128000,
+        max_tokens: Optional[int] = None,
         timeout: int = 30,
         stream: bool = True,
     ) -> AsyncGenerator[str, None]:
@@ -285,15 +287,13 @@ class ModelAbstractionService:
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
         temperature: float = 0,
-        max_tokens: int = 128000,
+        max_tokens: Optional[int] = None,
         timeout: int = 30,
     ) -> Dict[str, Any]:
         """Non-streaming completion that returns full response including tool_calls."""
         # Guard against None overrides from caller
         if temperature is None:
             temperature = 0
-        if max_tokens is None:
-            max_tokens = 128000
         if timeout is None:
             timeout = 60
         sorted_endpoints = sorted(endpoints, key=lambda e: e.get("priority", 0))
@@ -320,10 +320,12 @@ class ModelAbstractionService:
             }
 
             if reasoning:
-                kwargs["max_completion_tokens"] = max_tokens
+                if max_tokens is not None:
+                    kwargs["max_completion_tokens"] = max_tokens
             else:
                 kwargs["temperature"] = temperature
-                kwargs["max_tokens"] = max_tokens
+                if max_tokens is not None:
+                    kwargs["max_tokens"] = max_tokens
 
             if tools:
                 kwargs["tools"] = tools

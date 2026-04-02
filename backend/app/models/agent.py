@@ -12,7 +12,7 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     system_prompt = Column(Text, nullable=True)
     status = Column(String(50), default="inactive", nullable=False)
     temperature = Column(Float, default=0, nullable=False)
-    max_tokens = Column(Integer, default=128000, nullable=False)
+    max_tokens = Column(Integer, default=None, nullable=True)
     timeout_seconds = Column(Integer, default=30, nullable=False)
     current_config_version = Column(Integer, default=1, nullable=False)
     tenant_id = Column(

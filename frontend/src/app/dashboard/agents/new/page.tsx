@@ -30,7 +30,7 @@ export default function NewAgentPage() {
     agent_type: "standard" as "standard" | "openclaw",
     model_endpoint_id: "",
     temperature: 0,
-    max_tokens: 128000,
+    max_tokens: 0,
     timeout_seconds: 30,
     // OpenClaw-specific fields
     enable_web_browsing: true,
@@ -79,7 +79,7 @@ export default function NewAgentPage() {
         agent_type: form.agent_type,
         model_endpoint_id: form.model_endpoint_id || null,
         temperature: form.temperature,
-        max_tokens: form.max_tokens,
+        max_tokens: form.max_tokens || null,
         timeout_seconds: form.timeout_seconds,
       };
 
@@ -500,14 +500,18 @@ export default function NewAgentPage() {
             </label>
             <input
               type="number"
-              min={1}
+              min={0}
               max={128000}
-              value={form.max_tokens}
+              placeholder="Model default"
+              value={form.max_tokens || ""}
               onChange={(e) =>
-                setForm({ ...form, max_tokens: parseInt(e.target.value) || 128000 })
+                setForm({ ...form, max_tokens: parseInt(e.target.value) || 0 })
               }
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
+            <p className="mt-1 text-xs text-gray-400">
+              Leave empty to use the model&apos;s native max.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
