@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
 import {
   MessageCircle,
   Send,
@@ -496,13 +497,10 @@ export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: Cha
     if (!agentId) return;
     setGroupsLoading(true);
     try {
-      const res = await fetch(`/api/v1/agents/${agentId}/groups`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDiscoveredGroups(data.groups || []);
-      }
+      const data = await apiFetch<{ groups: DiscoveredGroup[] }>(
+        `/api/v1/agents/${agentId}/groups`
+      );
+      setDiscoveredGroups(data.groups || []);
     } catch {
       // silently fail — groups section just won't appear
     } finally {
