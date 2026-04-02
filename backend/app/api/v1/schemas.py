@@ -56,10 +56,19 @@ class OpenClawGmailConfig(BaseModel):
     gmail_display_name: str = "OpenClaw Agent"
 
 
+class OpenClawWhatsAppConfig(BaseModel):
+    """WhatsApp configuration for OpenClaw agents."""
+    whatsapp_enabled: bool = False
+    whatsapp_dm_policy: Literal["open", "allowlist", "pairing"] = "open"
+    whatsapp_group_policy: Literal["open", "allowlist"] = "open"
+    whatsapp_allowed_phones: List[str] = []  # Phone numbers allowed to interact
+
+
 class OpenClawConfig(BaseModel):
     """OpenClaw-specific configuration embedded in agent."""
     channels: Optional[OpenClawChannelConfig] = None
     gmail: Optional[OpenClawGmailConfig] = None
+    whatsapp: Optional[OpenClawWhatsAppConfig] = None
     enable_web_browsing: bool = True
     enable_shell: bool = False
     enable_deep_research: bool = False
@@ -106,6 +115,7 @@ class AgentResponse(BaseModel):
     openclaw_config: Optional[OpenClawConfig] = None
     openclaw_instance_name: Optional[str] = None
     openclaw_gateway_url: Optional[str] = None
+    whatsapp_status: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

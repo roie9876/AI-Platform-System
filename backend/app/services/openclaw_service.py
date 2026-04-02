@@ -5,9 +5,11 @@ bot tokens) live in Azure Key Vault and are mounted via CSI SecretProviderClass.
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
+import uuid
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -198,6 +200,283 @@ class OpenClawService:
 
         return result
 
+    async def get_pod_url(self, instance_name: str, tenant_slug: str, port: int = 18790) -> Optional[str]:
+        """Resolve the pod IP for an OpenClaw instance and return a direct URL.
+
+        This bypasses the K8s Service which has no endpoints when the pod
+        is not fully ready (e.g. WhatsApp not yet linked → readiness fails).
+        """
+        namespace = f"tenant-{tenant_slug}"
+        loop = asyncio.get_event_loop()
+        pod_ip = await loop.run_in_executor(
+            None, self._get_pod_ip, namespace, instance_name
+        )
+        if pod_ip:
+            return f"http://{pod_ip}:{port}"
+        return None
+
+    @staticmethod
+    def _get_pod_ip(namespace: str, instance_name: str) -> Optional[str]:
+        core_v1, _ = _get_k8s_clients()
+        try:
+            pods = core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app.kubernetes.io/instance={instance_name}",
+            )
+            if pods.items and pods.items[0].status.pod_ip:
+                return pods.items[0].status.pod_ip
+        except Exception:
+            pass
+        return None
+
+    # In-flight WhatsApp link sessions keyed by instance_name.
+    # Each entry is {"task": asyncio.Task, "status": "linking"|"connected"|"failed", "error": str|None}
+    _wa_link_sessions: dict = {}
+
+    async def get_whatsapp_qr(
+        self, instance_name: str, tenant_slug: str
+    ) -> dict:
+        """Connect to the OpenClaw gateway via WebSocket, retrieve
+        the WhatsApp Web login QR code, and keep the WS alive in a
+        background task so the pairing handshake can complete.
+
+        Returns a dict with ``qr_data_url`` (base64 PNG data-url) and
+        ``message`` on success, or raises on failure.
+        """
+        # Cancel any previous session for this instance
+        prev = self._wa_link_sessions.pop(instance_name, None)
+        if prev and not prev["task"].done():
+            prev["task"].cancel()
+
+        pod_url = await self.get_pod_url(instance_name, tenant_slug)
+        if not pod_url:
+            raise RuntimeError("Could not resolve OpenClaw pod IP")
+
+        # Convert http://ip:port to ws://ip:port
+        ws_url = pod_url.replace("http://", "ws://", 1) + "/"
+        origin = pod_url  # Origin header must match the gateway host
+
+        try:
+            import websockets  # type: ignore
+
+            ws = await websockets.connect(
+                ws_url,
+                additional_headers={"Origin": origin},
+                open_timeout=10,
+            )
+
+            try:
+                # 1. Read connect.challenge
+                raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                challenge = json.loads(raw)
+                if challenge.get("event") != "connect.challenge":
+                    await ws.close()
+                    raise RuntimeError(f"Unexpected first frame: {challenge.get('event')}")
+
+                # 2. Send JSON-RPC connect (no device key, no token needed
+                #    with auth.mode=none + dangerouslyDisableDeviceAuth)
+                connect_req = {
+                    "type": "req",
+                    "id": str(uuid.uuid4()),
+                    "method": "connect",
+                    "params": {
+                        "minProtocol": 3,
+                        "maxProtocol": 3,
+                        "client": {
+                            "id": "openclaw-control-ui",
+                            "version": "control-ui",
+                            "platform": "linux",
+                            "mode": "webchat",
+                            "instanceId": f"aiplatform-{instance_name}",
+                        },
+                        "role": "operator",
+                        "scopes": [
+                            "operator.admin",
+                            "operator.read",
+                            "operator.write",
+                            "operator.approvals",
+                            "operator.pairing",
+                        ],
+                        "caps": ["tool-events"],
+                        "userAgent": "aiplatform-proxy/1.0",
+                        "locale": "en-US",
+                    },
+                }
+                await ws.send(json.dumps(connect_req))
+                resp_raw = await asyncio.wait_for(ws.recv(), timeout=10)
+                connect_resp = json.loads(resp_raw)
+                if not connect_resp.get("ok"):
+                    await ws.close()
+                    err = connect_resp.get("error", {})
+                    raise RuntimeError(
+                        f"WS connect failed: {err.get('message', 'unknown')}"
+                    )
+
+                # 3. Request WhatsApp QR via web.login.start
+                login_req = {
+                    "type": "req",
+                    "id": str(uuid.uuid4()),
+                    "method": "web.login.start",
+                    "params": {"force": True, "timeoutMs": 30000},
+                }
+                await ws.send(json.dumps(login_req))
+
+                # Read responses, skipping events
+                qr_result = None
+                for _ in range(20):
+                    raw = await asyncio.wait_for(ws.recv(), timeout=35)
+                    msg = json.loads(raw)
+                    if msg.get("type") == "event":
+                        continue
+                    if msg.get("type") == "res":
+                        if msg.get("ok"):
+                            payload = msg.get("payload", {})
+                            qr_result = {
+                                "qr_data_url": payload.get("qrDataUrl"),
+                                "message": payload.get("message"),
+                            }
+                            break
+                        err = msg.get("error", {})
+                        await ws.close()
+                        raise RuntimeError(
+                            f"web.login.start failed: {err.get('message', 'unknown')}"
+                        )
+
+                if not qr_result:
+                    await ws.close()
+                    raise RuntimeError("No response received for web.login.start")
+
+                # 4. Keep WS alive in background — call web.login.wait
+                #    so the pairing handshake can complete (up to 2 minutes)
+                session = {"task": None, "status": "linking", "error": None}
+                task = asyncio.create_task(
+                    self._whatsapp_link_wait(ws, instance_name, session)
+                )
+                session["task"] = task
+                self._wa_link_sessions[instance_name] = session
+                logger.info(
+                    "WhatsApp QR returned for %s — background link session started",
+                    instance_name,
+                )
+                return qr_result
+
+            except Exception:
+                # On any error during QR retrieval, close the WS
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+                raise
+
+        except ImportError:
+            raise RuntimeError(
+                "websockets package not installed — add it to requirements.txt"
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError("Timeout waiting for OpenClaw gateway response")
+
+    async def _whatsapp_link_wait(
+        self, ws, instance_name: str, session: dict
+    ) -> None:
+        """Background task: call web.login.wait and keep the WS open so
+        the WhatsApp pairing handshake can complete."""
+        try:
+            wait_req = {
+                "type": "req",
+                "id": str(uuid.uuid4()),
+                "method": "web.login.wait",
+                "params": {"timeoutMs": 120000},
+            }
+            await ws.send(json.dumps(wait_req))
+
+            for _ in range(30):
+                raw = await asyncio.wait_for(ws.recv(), timeout=130)
+                msg = json.loads(raw)
+                if msg.get("type") == "event":
+                    logger.debug("WA link event: %s", msg.get("event"))
+                    continue
+                if msg.get("type") == "res":
+                    payload = msg.get("payload", {})
+                    if msg.get("ok") and payload.get("connected"):
+                        session["status"] = "connected"
+                        logger.info("WhatsApp linked successfully for %s", instance_name)
+                    else:
+                        session["status"] = "failed"
+                        err = msg.get("error", {})
+                        session["error"] = err.get("message", payload.get("message", "link failed"))
+                        logger.warning("WhatsApp link failed for %s: %s", instance_name, session["error"])
+                    return
+        except asyncio.CancelledError:
+            logger.info("WhatsApp link session cancelled for %s", instance_name)
+            session["status"] = "failed"
+            session["error"] = "cancelled"
+        except Exception as e:
+            logger.error("WhatsApp link wait error for %s: %s", instance_name, e)
+            session["status"] = "failed"
+            session["error"] = str(e)
+        finally:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+
+    def get_whatsapp_link_status(self, instance_name: str) -> dict:
+        """Return the current status of an in-flight WhatsApp link session."""
+        session = self._wa_link_sessions.get(instance_name)
+        if not session:
+            return {"status": "none"}
+        return {"status": session["status"], "error": session.get("error")}
+
+    async def get_channel_status(
+        self, instance_name: str, tenant_slug: str
+    ) -> dict:
+        """Query live channel status from the OpenClaw pod via WebSocket."""
+        pod_url = await self.get_pod_url(instance_name, tenant_slug)
+        if not pod_url:
+            return {}
+
+        ws_url = pod_url.replace("http://", "ws://", 1) + "/"
+        try:
+            import websockets
+
+            async with websockets.connect(
+                ws_url,
+                additional_headers={"Origin": pod_url},
+                open_timeout=5,
+                close_timeout=3,
+            ) as ws:
+                await asyncio.wait_for(ws.recv(), timeout=3)  # challenge
+                await ws.send(json.dumps({
+                    "type": "req", "id": str(uuid.uuid4()), "method": "connect",
+                    "params": {
+                        "minProtocol": 3, "maxProtocol": 3,
+                        "client": {"id": "openclaw-control-ui", "version": "control-ui",
+                                   "platform": "linux", "mode": "webchat",
+                                   "instanceId": f"status-{instance_name}"},
+                        "role": "operator",
+                        "scopes": ["operator.read"],
+                        "caps": [],
+                    },
+                }))
+                resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                if not resp.get("ok"):
+                    return {}
+
+                await ws.send(json.dumps({
+                    "type": "req", "id": str(uuid.uuid4()),
+                    "method": "channels.status", "params": {},
+                }))
+                for _ in range(10):
+                    msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                    if msg.get("type") == "event":
+                        continue
+                    if msg.get("type") == "res" and msg.get("ok"):
+                        return msg.get("payload", {})
+                    break
+        except Exception as e:
+            logger.debug("channel status check failed for %s: %s", instance_name, e)
+        return {}
+
     async def deploy_agent(
         self,
         agent_id: str,
@@ -249,10 +528,122 @@ class OpenClawService:
             "Deployed OpenClaw instance %s in %s for agent %s (gateway: %s)",
             instance_name, namespace, agent_id, gateway_url,
         )
+
+        # Launch background task to auto-approve device pairing once pod is ready
+        asyncio.ensure_future(
+            self._auto_approve_devices(instance_name, namespace)
+        )
+
         return {
             "instance_name": instance_name,
             "gateway_url": gateway_url,
         }
+
+    async def _auto_approve_devices(
+        self, instance_name: str, namespace: str, timeout_s: int = 300
+    ) -> None:
+        """Wait for the OpenClaw pod to be ready, then approve pending device pairing requests.
+
+        The OpenClaw CLI inside the container auto-registers as a device on first
+        startup but requires manual approval.  Without approval the agent's
+        built-in tools (e.g. WhatsApp message send) fail with 'pairing required'.
+        """
+        import time
+
+        pod_name = f"{instance_name}-0"
+        deadline = time.monotonic() + timeout_s
+
+        # 1. Poll until the pod is Running + Ready
+        loop = asyncio.get_event_loop()
+        while time.monotonic() < deadline:
+            try:
+                ready = await loop.run_in_executor(
+                    None, self._is_pod_ready, namespace, pod_name
+                )
+                if ready:
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(5)
+        else:
+            logger.warning(
+                "Timed out waiting for pod %s/%s to be ready for device approval",
+                namespace, pod_name,
+            )
+            return
+
+        # 2. Wait an extra 10s for the CLI to register its device pairing request
+        await asyncio.sleep(10)
+
+        # 3. List pending devices and approve them
+        try:
+            output = await loop.run_in_executor(
+                None,
+                self._exec_in_pod,
+                namespace,
+                pod_name,
+                ["openclaw", "devices", "list", "--json"],
+            )
+            import json as _json
+            devices = _json.loads(output) if output.strip() else {}
+            pending = devices.get("pending", [])
+            if not pending:
+                logger.info("No pending device pairing in %s/%s", namespace, pod_name)
+                return
+            for dev in pending:
+                req_id = dev.get("requestId") or dev.get("id", "")
+                if not req_id:
+                    continue
+                await loop.run_in_executor(
+                    None,
+                    self._exec_in_pod,
+                    namespace,
+                    pod_name,
+                    ["openclaw", "devices", "approve", req_id],
+                )
+                logger.info(
+                    "Auto-approved device pairing %s in %s/%s",
+                    req_id, namespace, pod_name,
+                )
+        except Exception:
+            logger.warning(
+                "Failed to auto-approve devices in %s/%s",
+                namespace, pod_name, exc_info=True,
+            )
+
+    @staticmethod
+    def _is_pod_ready(namespace: str, pod_name: str) -> bool:
+        """Check if a pod is Running and all containers are Ready."""
+        core_v1, _ = _get_k8s_clients()
+        pod = core_v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+        if pod.status.phase != "Running":
+            return False
+        for cs in (pod.status.container_statuses or []):
+            if not cs.ready:
+                return False
+        return True
+
+    @staticmethod
+    def _exec_in_pod(
+        namespace: str, pod_name: str, command: list[str], container: str = "openclaw"
+    ) -> str:
+        """Execute a command inside a pod and return stdout."""
+        from kubernetes.stream import stream as k8s_stream
+
+        core_v1, _ = _get_k8s_clients()
+        resp = k8s_stream(
+            core_v1.connect_get_namespaced_pod_exec,
+            name=pod_name,
+            namespace=namespace,
+            container=container,
+            command=command,
+            stderr=True,
+            stdin=False,
+            stdout=True,
+            tty=False,
+            _preload_content=True,
+        )
+        return resp
 
     async def update_agent(
         self,
@@ -353,6 +744,21 @@ class OpenClawService:
             if allowed:
                 channels_config["telegram"]["allowFrom"] = [str(u) for u in allowed]
 
+        # WhatsApp channel — uses QR-code session linking (no static secret)
+        whatsapp = openclaw_config.get("whatsapp") or {}
+        if whatsapp.get("whatsapp_enabled"):
+            wa_config: dict = {
+                "enabled": True,
+                "dmPolicy": whatsapp.get("whatsapp_dm_policy", "open"),
+                "groupPolicy": whatsapp.get("whatsapp_group_policy", "open"),
+                "allowFrom": ["*"],
+                "groups": {"*": {"requireMention": False}},
+            }
+            wa_allowed = whatsapp.get("whatsapp_allowed_phones", [])
+            if wa_allowed:
+                wa_config["allowFrom"] = [str(p) for p in wa_allowed]
+            channels_config["whatsapp"] = wa_config
+
         # MCP servers
         mcp_servers: dict = {}
         for url in openclaw_config.get("mcp_server_urls", []):
@@ -402,9 +808,19 @@ class OpenClawService:
             "agents": {
                 "defaults": {
                     "model": {"primary": model_id},
+                    "memorySearch": {
+                        "enabled": True,
+                        "experimental": {"sessionMemory": True},
+                    },
                 }
             },
-            "session": {"scope": "per-sender"},
+            "session": {
+                "scope": "per-sender",
+                "dmScope": "per-peer",
+            },
+            "tools": {
+                "sessions": {"visibility": "agent"},
+            },
         }
 
         # Gateway config — enable OpenAI-compatible HTTP endpoints so the

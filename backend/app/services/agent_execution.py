@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import time
+from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from uuid import uuid4
 
@@ -579,6 +581,198 @@ class AgentExecutionService:
             logger.error("Unexpected agent execution error: %s", str(exc), exc_info=True)
             yield self._sse_error("An unexpected error occurred during execution")
 
+    @asynccontextmanager
+    async def _openclaw_ws_session(self, gateway_url: str, instance_name: str = "", tenant_slug: str = ""):
+        """Open authenticated WS to OpenClaw gateway and fetch cross-session context.
+
+        Yields a tuple (context_string, ws_connection) where ws_connection
+        can be reused for chat.send to route completions via WS instead of
+        HTTP.  The WS is kept alive until the context-manager exits.
+        """
+        context = ""
+        ws = None
+
+        try:
+            import websockets  # type: ignore
+        except ImportError:
+            yield ""
+            return
+
+        ws_url = gateway_url.replace("http://", "ws://", 1) + "/"
+        origin = gateway_url
+
+        # Read the gateway token from K8s secret for Bearer auth
+        gw_token = ""
+        if instance_name:
+            try:
+                from app.services.openclaw_service import _get_k8s_clients
+                core_v1, _ = _get_k8s_clients()
+                namespace = f"tenant-{tenant_slug}" if tenant_slug else "tenant-eng"
+                secret_name = f"{instance_name}-gateway-token"
+                loop = asyncio.get_event_loop()
+                secret = await loop.run_in_executor(
+                    None,
+                    lambda: core_v1.read_namespaced_secret(secret_name, namespace),
+                )
+                import base64
+                gw_token = base64.b64decode(secret.data.get("token", "")).decode()
+            except Exception:
+                logger.debug("Could not read gateway token for %s", instance_name)
+
+        extra_headers = {"Origin": origin}
+        if gw_token:
+            extra_headers["Authorization"] = f"Bearer {gw_token}"
+
+        async def _ws_req(ws_conn, method: str, params: dict, timeout: int = 5) -> dict:
+            """Send a WS JSON-RPC request and return the response, skipping events."""
+            rid = str(uuid4())
+            await ws_conn.send(json.dumps({"type": "req", "id": rid, "method": method, "params": params}))
+            for _ in range(20):
+                raw = await asyncio.wait_for(ws_conn.recv(), timeout=timeout)
+                msg = json.loads(raw)
+                if msg.get("type") == "event":
+                    continue
+                if msg.get("id") == rid or msg.get("type") == "res":
+                    return msg
+            return {"ok": False}
+
+        # Open WS and build context — errors are non-fatal
+        try:
+            ws = await websockets.connect(
+                ws_url,
+                additional_headers=extra_headers,
+                open_timeout=5,
+                close_timeout=3,
+            )
+            # 1. Challenge + connect handshake
+            await asyncio.wait_for(ws.recv(), timeout=3)
+            resp = await _ws_req(ws, "connect", {
+                "minProtocol": 3,
+                "maxProtocol": 3,
+                "client": {
+                    "id": "openclaw-control-ui",
+                    "version": "control-ui",
+                    "platform": "linux",
+                    "mode": "webchat",
+                    "instanceId": f"aiplatform-ctx-{uuid4().hex[:8]}",
+                },
+                "role": "operator",
+                "scopes": ["operator.admin", "operator.read"],
+                "caps": [],
+                "userAgent": "aiplatform-proxy/1.0",
+                "locale": "en-US",
+            })
+            if not resp.get("ok"):
+                raise RuntimeError("connect handshake failed")
+
+            # 2. Fetch session list
+            list_resp = await _ws_req(ws, "sessions.list", {})
+            sessions: list = list_resp.get("payload", {}).get("sessions", []) if list_resp.get("ok") else []
+
+            other_sessions = [s for s in sessions if s.get("key") not in ("main", "agent:main:main")]
+
+            if other_sessions:
+                # 3. Build context from session metadata
+                context_parts: list[str] = []
+                for session in other_sessions[:5]:
+                    skey = session.get("key", "")
+                    channel = session.get("channel") or "unknown"
+                    kind = session.get("kind", "")
+                    label = channel
+                    if "whatsapp" in skey:
+                        label = "WhatsApp"
+                    elif "telegram" in skey:
+                        label = "Telegram"
+                    elif "discord" in skey:
+                        label = "Discord"
+                    context_parts.append(
+                        f"- Active {label} session (type={kind}): {skey}"
+                    )
+
+                # 4. Fetch actual message content from each channel session
+                def _extract_messages(msgs, limit=10):
+                    lines = []
+                    for m in msgs[-limit:]:
+                        role = m.get("role", "?")
+                        sender = m.get("senderName") or m.get("sender") or role
+                        contents = m.get("content", [])
+                        if isinstance(contents, str):
+                            text = contents[:300]
+                        elif isinstance(contents, list):
+                            text = " ".join(
+                                c.get("text", "")[:300]
+                                for c in contents
+                                if isinstance(c, dict) and c.get("type") == "text"
+                            )
+                        else:
+                            text = ""
+                        if text.strip():
+                            lines.append(f"  [{sender}]: {text.strip()}")
+                    return lines
+
+                channel_messages: dict[str, list[str]] = {}
+                for session in other_sessions[:5]:
+                    skey = session.get("key", "")
+                    label = context_parts[other_sessions.index(session)].split(":")[0].strip("- ")
+                    try:
+                        sess_resp = await _ws_req(
+                            ws, "sessions.get",
+                            {"sessionKey": skey, "limit": 10},
+                            timeout=5,
+                        )
+                        if sess_resp.get("ok"):
+                            msgs = sess_resp.get("payload", {}).get("messages", [])
+                            lines = _extract_messages(msgs)
+                            if lines:
+                                channel_messages[label + " (" + skey + ")"] = lines
+                    except Exception:
+                        pass
+
+                # 5. Also fetch main session recent messages
+                main_ctx_lines: list[str] = []
+                try:
+                    main_resp = await _ws_req(ws, "sessions.get", {"sessionKey": "agent:main:main", "limit": 5}, timeout=5)
+                    if main_resp.get("ok"):
+                        msgs = main_resp.get("payload", {}).get("messages", [])
+                        main_ctx_lines = _extract_messages(msgs, limit=5)
+                except Exception:
+                    pass
+
+                context = (
+                    "You are connected to an OpenClaw agent with active sessions "
+                    "on multiple channels. Below are the actual recent messages "
+                    "from each channel — you can read and reference them directly.\n\n"
+                    "Active channel sessions:\n"
+                    + "\n".join(context_parts)
+                )
+
+                for ch_label, msg_lines in channel_messages.items():
+                    context += (
+                        f"\n\nRecent messages from {ch_label}:\n"
+                        + "\n".join(msg_lines)
+                    )
+
+                if main_ctx_lines:
+                    context += (
+                        "\n\nRecent webchat (main session) messages:\n"
+                        + "\n".join(main_ctx_lines)
+                    )
+
+            logger.debug("OpenClaw WS session opened, context len=%d", len(context))
+
+        except Exception as exc:
+            logger.debug("Failed to set up OpenClaw WS session: %s", exc)
+
+        # Yield context + ws for chat.send routing
+        try:
+            yield context, ws
+        finally:
+            if ws:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+
     async def _execute_openclaw(
         self,
         agent: dict,
@@ -589,8 +783,7 @@ class AgentExecutionService:
         user_id: Optional[str],
         start_time: float,
     ) -> AsyncGenerator[str, None]:
-        """Route chat through OpenClaw gateway's /v1/chat/completions endpoint."""
-        import httpx
+        """Route chat through OpenClaw gateway via WS chat.send."""
 
         gateway_url = agent.get("openclaw_gateway_url")
 
@@ -633,142 +826,214 @@ class AgentExecutionService:
             except Exception:
                 logger.warning("Memory retrieval failed for openclaw thread %s", thread_id, exc_info=True)
 
-        messages.append({"role": "user", "content": user_message})
+        # Inject cross-session context (WhatsApp, Telegram, etc.)
+        # The WS connection is kept alive during the completion so the
+        # gateway sees a "paired" device and the agent's built-in
+        # sessions tools can connect successfully.
+        instance_name = agent.get("openclaw_instance_name", "")
+        tenant_slug = ""
+        if gateway_url and ".tenant-" in gateway_url:
+            tenant_slug = gateway_url.split(".tenant-")[1].split(".")[0]
 
-        # Inject RAG context from attached data sources & Azure AI Search
-        rag_sources = await self._inject_rag_context(messages, agent, user_message, tenant_id)
-
-        # Save user message to thread
-        if thread_id and user_id:
-            try:
-                seq_results = await _message_repo.query(
-                    tenant_id,
-                    "SELECT VALUE MAX(c.sequence_number) FROM c WHERE c.thread_id = @tid",
-                    [{"name": "@tid", "value": thread_id}],
-                )
-                next_seq = (seq_results[0] if seq_results and seq_results[0] is not None else 0) + 1
-                user_msg_id = str(uuid4())
-                await _message_repo.create(tenant_id, {
-                    "id": user_msg_id,
-                    "thread_id": thread_id,
-                    "role": "user",
-                    "content": user_message,
-                    "sequence_number": next_seq,
-                    "tenant_id": tenant_id,
+        async with self._openclaw_ws_session(
+            gateway_url, instance_name=instance_name, tenant_slug=tenant_slug
+        ) as (session_ctx, ws_conn):
+            if session_ctx:
+                messages.append({
+                    "role": "system",
+                    "content": session_ctx,
                 })
-            except Exception:
-                logger.warning("Failed to save user message to thread %s", thread_id, exc_info=True)
 
-        # POST to OpenClaw gateway's OpenAI-compatible endpoint
-        url = f"{gateway_url}/v1/chat/completions"
-        headers = {
-            "X-Forwarded-User": "platform-operator",
-            "X-Openclaw-Scopes": "operator.write",
-            "X-Openclaw-Session-Key": "agent:main:main",
-            "X-Openclaw-Message-Channel": "platform",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "model": "openclaw",
-            "messages": messages,
-            "stream": True,
-            "stream_options": {"include_usage": True},
-        }
+            messages.append({"role": "user", "content": user_message})
 
-        collected_response = ""
-        usage_data: dict = {}
-        try:
-            # Emit sources event so the frontend knows what knowledge was used
-            if rag_sources:
-                yield self._sse_sources(rag_sources)
+            # Inject RAG context from attached data sources & Azure AI Search
+            rag_sources = await self._inject_rag_context(messages, agent, user_message, tenant_id)
 
-            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
-                async with client.stream("POST", url, json=body, headers=headers) as response:
-                    if response.status_code != 200:
-                        error_body = await response.aread()
-                        logger.error(
-                            "OpenClaw gateway error %d: %s", response.status_code, error_body[:500]
-                        )
-                        yield self._sse_error(
-                            f"OpenClaw gateway returned {response.status_code}"
-                        )
+            # Save user message to thread
+            if thread_id and user_id:
+                try:
+                    seq_results = await _message_repo.query(
+                        tenant_id,
+                        "SELECT VALUE MAX(c.sequence_number) FROM c WHERE c.thread_id = @tid",
+                        [{"name": "@tid", "value": thread_id}],
+                    )
+                    next_seq = (seq_results[0] if seq_results and seq_results[0] is not None else 0) + 1
+                    user_msg_id = str(uuid4())
+                    await _message_repo.create(tenant_id, {
+                        "id": user_msg_id,
+                        "thread_id": thread_id,
+                        "role": "user",
+                        "content": user_message,
+                        "sequence_number": next_seq,
+                        "tenant_id": tenant_id,
+                    })
+                except Exception:
+                    logger.warning("Failed to save user message to thread %s", thread_id, exc_info=True)
+
+            # Route via WS chat.send instead of HTTP POST to bypass
+            # gateway auth/scope issues with the HTTP endpoint.
+            if not ws_conn:
+                yield self._sse_error(
+                    "WebSocket connection to OpenClaw not established"
+                )
+                return
+
+            # Build enriched message: prepend system context (memory, RAG,
+            # session ctx) so the OpenClaw agent sees it in the user message.
+            system_parts: list[str] = []
+            for m in messages:
+                if m["role"] == "system" and m.get("content"):
+                    system_parts.append(m["content"])
+
+            enriched_message = user_message
+            if system_parts:
+                enriched_message = (
+                    "<platform_context>\n"
+                    + "\n\n".join(system_parts)
+                    + "\n</platform_context>\n\n"
+                    + user_message
+                )
+
+            run_id = f"platform-{uuid4().hex[:12]}"
+            req_id = str(uuid4())
+            collected_response = ""
+
+            try:
+                await ws_conn.send(json.dumps({
+                    "type": "req",
+                    "id": req_id,
+                    "method": "chat.send",
+                    "params": {
+                        "message": enriched_message,
+                        "sessionKey": "agent:main:main",
+                        "idempotencyKey": run_id,
+                    },
+                }))
+
+                # Wait for chat.send confirmation
+                confirmed = False
+                for _ in range(20):
+                    raw = await asyncio.wait_for(ws_conn.recv(), timeout=10)
+                    msg = json.loads(raw)
+                    if msg.get("id") == req_id:
+                        if not msg.get("ok"):
+                            err = msg.get("error", {})
+                            yield self._sse_error(
+                                f"chat.send failed: {err.get('message', 'unknown error')}"
+                            )
+                            return
+                        run_id = msg.get("payload", {}).get("runId", run_id)
+                        confirmed = True
+                        break
+                    # Skip events (health, tick, etc.)
+
+                if not confirmed:
+                    yield self._sse_error("chat.send did not confirm")
+                    return
+
+                # Emit sources so the frontend knows what knowledge was used
+                if rag_sources:
+                    yield self._sse_sources(rag_sources)
+
+                # Listen for streaming events from the agent
+                while True:
+                    raw = await asyncio.wait_for(ws_conn.recv(), timeout=120)
+                    msg = json.loads(raw)
+
+                    if msg.get("type") != "event":
+                        continue
+
+                    event_name = msg.get("event", "")
+                    payload = msg.get("payload", {})
+
+                    # Only process events for our runId
+                    if payload.get("runId") != run_id:
+                        continue
+
+                    if event_name == "agent":
+                        stream = payload.get("stream", "")
+                        data = payload.get("data", {})
+
+                        if stream == "assistant":
+                            delta = data.get("delta", "")
+                            if delta:
+                                collected_response += delta
+                                yield self._sse_data(delta, done=False)
+
+                        elif stream == "lifecycle" and data.get("phase") == "end":
+                            break
+
+                    elif event_name == "chat" and payload.get("state") == "final":
+                        # Extract full text from final message if we missed deltas
+                        if not collected_response:
+                            final_msg = payload.get("message", {})
+                            for part in (final_msg.get("content") or []):
+                                if isinstance(part, dict) and part.get("type") == "text":
+                                    collected_response += part.get("text", "")
+                            if collected_response:
+                                yield self._sse_data(collected_response, done=False)
+                        break
+
+            except asyncio.TimeoutError:
+                if not collected_response:
+                    yield self._sse_error("OpenClaw response timed out")
+                    return
+            except Exception as exc:
+                if "ConnectionClosed" in type(exc).__name__:
+                    logger.error("OpenClaw WS closed during streaming: %s", exc)
+                    if not collected_response:
+                        yield self._sse_error("OpenClaw connection lost during response")
+                        return
+                else:
+                    logger.error("OpenClaw WS execution error: %s", exc, exc_info=True)
+                    if not collected_response:
+                        yield self._sse_error("OpenClaw execution failed")
                         return
 
-                    async for line in response.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
-                        data = line[6:]
-                        if data.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data)
-                            # Capture usage if present (final chunk)
-                            if chunk.get("usage"):
-                                usage_data = chunk["usage"]
-                            choices = chunk.get("choices", [])
-                            if not choices:
-                                continue
-                            delta = choices[0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                collected_response += content
-                                yield self._sse_data(content, done=False)
-                        except json.JSONDecodeError:
-                            continue
+            # Estimate tokens (~4 chars/token)
+            input_text = enriched_message
+            est_input = len(input_text) // 4 + 1
+            est_output = len(collected_response) // 4 + 1
 
-        except httpx.ConnectError as exc:
-            logger.error("Cannot reach OpenClaw gateway at %s: %s", url, exc)
-            yield self._sse_error("Cannot reach OpenClaw gateway — pod may not be ready")
-            return
-        except Exception as exc:
-            logger.error("OpenClaw execution error: %s", exc, exc_info=True)
-            yield self._sse_error("OpenClaw execution failed")
-            return
+            # Save assistant response to thread
+            if thread_id and user_id:
+                primary_endpoint = None
+                model_endpoint_id = agent.get("model_endpoint_id")
+                if model_endpoint_id:
+                    primary_endpoint = await _endpoint_repo.get(tenant_id, model_endpoint_id)
+                await self._save_assistant_response(
+                    tenant_id, thread_id, user_id, agent, collected_response,
+                    rag_sources, start_time, primary_endpoint or {},
+                    input_tokens=est_input, output_tokens=est_output,
+                )
 
-        # Estimate tokens if usage not returned by gateway (~4 chars/token)
-        input_text = " ".join(m.get("content", "") for m in messages)
-        est_input = usage_data.get("prompt_tokens") or (len(input_text) // 4 + 1)
-        est_output = usage_data.get("completion_tokens") or (len(collected_response) // 4 + 1)
+            # Store to platform memory for cross-thread recall
+            if thread_id and user_id and collected_response:
+                try:
+                    if len(user_message) > 10:
+                        await self._memory_service.store_memory(
+                            agent_id=agent["id"],
+                            user_id=user_id,
+                            tenant_id=tenant_id,
+                            content=f"User said: {user_message}",
+                            model_endpoint=None,
+                            memory_type="user_input",
+                            source_thread_id=thread_id,
+                        )
+                    if len(collected_response) > 10:
+                        await self._memory_service.store_memory(
+                            agent_id=agent["id"],
+                            user_id=user_id,
+                            tenant_id=tenant_id,
+                            content=f"Assistant replied: {collected_response[:500]}",
+                            model_endpoint=None,
+                            memory_type="assistant_response",
+                            source_thread_id=thread_id,
+                        )
+                except Exception:
+                    logger.warning("Failed to store openclaw memory for thread %s", thread_id, exc_info=True)
 
-        # Save assistant response to thread
-        if thread_id and user_id:
-            primary_endpoint = None
-            model_endpoint_id = agent.get("model_endpoint_id")
-            if model_endpoint_id:
-                primary_endpoint = await _endpoint_repo.get(tenant_id, model_endpoint_id)
-            await self._save_assistant_response(
-                tenant_id, thread_id, user_id, agent, collected_response,
-                rag_sources, start_time, primary_endpoint or {},
-                input_tokens=est_input, output_tokens=est_output,
-            )
-
-        # Store to platform memory for cross-thread recall
-        if thread_id and user_id and collected_response:
-            try:
-                if len(user_message) > 10:
-                    await self._memory_service.store_memory(
-                        agent_id=agent["id"],
-                        user_id=user_id,
-                        tenant_id=tenant_id,
-                        content=f"User said: {user_message}",
-                        model_endpoint=None,
-                        memory_type="user_input",
-                        source_thread_id=thread_id,
-                    )
-                if len(collected_response) > 10:
-                    await self._memory_service.store_memory(
-                        agent_id=agent["id"],
-                        user_id=user_id,
-                        tenant_id=tenant_id,
-                        content=f"Assistant replied: {collected_response[:500]}",
-                        model_endpoint=None,
-                        memory_type="assistant_response",
-                        source_thread_id=thread_id,
-                    )
-            except Exception:
-                logger.warning("Failed to store openclaw memory for thread %s", thread_id, exc_info=True)
-
-        yield self._sse_data("", done=True)
+            yield self._sse_data("", done=True)
 
     async def _save_assistant_response(
         self,

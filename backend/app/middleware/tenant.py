@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 
 from fastapi import HTTPException, Request
@@ -22,6 +23,11 @@ PUBLIC_PATHS = {
 # In-memory tenant status cache with 60-second TTL
 _tenant_status_cache: dict[str, tuple[str, float]] = {}
 _CACHE_TTL = 60
+
+# In-memory slug → UUID cache (TTL same as tenant status)
+_slug_to_id_cache: dict[str, tuple[str, float]] = {}
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 
 _STATUS_RESPONSES = {
     "suspended": (403, "Tenant is suspended. Contact platform administrator."),
@@ -49,12 +55,11 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 request.state.user_id = user_context["user_id"]
                 request.state.tenant_id = user_context["tenant_id"]
 
-                # Skip tenant status check for:
-                # 1. Platform admin endpoints (tenants CRUD)
-                # 2. Requests with X-Tenant-Id header (will use app tenant)
+                # Override tenant context from X-Tenant-Id header.
+                # Accepts a UUID (tenant id) or a slug (resolved to UUID).
                 x_tenant_id = request.headers.get("X-Tenant-Id")
                 if x_tenant_id:
-                    request.state.tenant_id = x_tenant_id
+                    request.state.tenant_id = await _resolve_tenant_id(x_tenant_id)
             elif not request.url.path.startswith("/api/v1/internal"):
                 # Token was provided but is invalid — reject immediately
                 # (skip for internal inter-service calls that forward tokens)
@@ -65,6 +70,40 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 )
 
         return await call_next(request)
+
+
+async def _resolve_tenant_id(value: str) -> str:
+    """Resolve a tenant slug to its UUID. If already a UUID, return as-is."""
+    if _UUID_RE.match(value):
+        return value
+
+    now = time.time()
+    cached = _slug_to_id_cache.get(value)
+    if cached:
+        tid, cached_at = cached
+        if (now - cached_at) < _CACHE_TTL:
+            return tid
+
+    repo = TenantRepository()
+    # get_by_slug may return a deleted tenant if slug was re-used.
+    # Query directly for active tenant with this slug.
+    container = await repo._container()
+    if container:
+        results = []
+        async for item in container.query_items(
+            query="SELECT c.id, c.status FROM c WHERE c.slug = @slug",
+            parameters=[{"name": "@slug", "value": value}],
+        ):
+            results.append(item)
+        # Prefer active tenant; fall back to any match
+        active = [r for r in results if r.get("status") == "active"]
+        tenant = (active or results or [None])[0]
+        if tenant:
+            _slug_to_id_cache[value] = (tenant["id"], now)
+            return tenant["id"]
+
+    # Slug not found — return as-is and let downstream handle the error
+    return value
 
 
 async def _check_tenant_status(tenant_id: str) -> JSONResponse | None:

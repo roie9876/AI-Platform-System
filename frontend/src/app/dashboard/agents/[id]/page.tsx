@@ -11,7 +11,7 @@ import { AgentMonitorPanel } from "@/components/agent/agent-monitor-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
-import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip } from "lucide-react";
+import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip, Smartphone } from "lucide-react";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 import { CodeExecutionBlock, type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
 
@@ -37,12 +37,37 @@ interface Agent {
   name: string;
   description: string | null;
   system_prompt: string | null;
+  agent_type?: string;
   status: string;
   temperature: number;
   max_tokens: number;
   timeout_seconds: number;
   model_endpoint_id: string | null;
   current_config_version: number;
+  whatsapp_status?: string | null;
+  openclaw_config?: {
+    channels?: {
+      telegram_enabled?: boolean;
+      telegram_bot_token_secret?: string;
+      telegram_allowed_users?: string[];
+      dm_policy?: string;
+    };
+    gmail?: {
+      gmail_enabled?: boolean;
+      gmail_email?: string;
+      gmail_app_password_secret?: string;
+      gmail_display_name?: string;
+    };
+    whatsapp?: {
+      whatsapp_enabled?: boolean;
+      whatsapp_dm_policy?: string;
+      whatsapp_allowed_phones?: string[];
+      whatsapp_group_policy?: string;
+    };
+    enable_web_browsing?: boolean;
+    enable_shell?: boolean;
+    enable_deep_research?: boolean;
+  } | null;
 }
 
 interface ModelEndpoint {
@@ -174,6 +199,35 @@ export default function AgentDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [chatFile, setChatFile] = useState<File | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [whatsappQrUrl, setWhatsappQrUrl] = useState<string | null>(null);
+  const [whatsappLinking, setWhatsappLinking] = useState(false);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const [whatsappLinkStatus, setWhatsappLinkStatus] = useState<string | null>(null);
+  const whatsappPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Channel config editing state
+  const [channelForm, setChannelForm] = useState({
+    telegram_enabled: false,
+    telegram_bot_token: "",
+    telegram_bot_token_secret: "",
+    telegram_use_existing_secret: true,
+    telegram_allowed_users: "",
+    dm_policy: "allowlist" as string,
+    gmail_enabled: false,
+    gmail_email: "",
+    gmail_app_password: "",
+    gmail_app_password_secret: "",
+    gmail_display_name: "OpenClaw Agent",
+    gmail_use_existing_secret: true,
+    whatsapp_enabled: false,
+    whatsapp_dm_policy: "open" as string,
+    whatsapp_allowed_phones: "",
+    whatsapp_group_policy: "open" as string,
+    enable_web_browsing: true,
+    enable_shell: false,
+    enable_deep_research: false,
+  });
+  const [channelsDirty, setChannelsDirty] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -376,18 +430,65 @@ export default function AgentDetailPage() {
       if (selectedEndpointId !== (agent.model_endpoint_id || "")) {
         body.model_endpoint_id = selectedEndpointId || null;
       }
+
+      // Include channel config if dirty (OpenClaw agents)
+      if (channelsDirty && agent.agent_type === "openclaw") {
+        body.openclaw_config = {
+          channels: {
+            telegram_enabled: channelForm.telegram_enabled,
+            telegram_bot_token: channelForm.telegram_use_existing_secret
+              ? null
+              : channelForm.telegram_bot_token || null,
+            telegram_bot_token_secret: channelForm.telegram_use_existing_secret
+              ? channelForm.telegram_bot_token_secret || null
+              : null,
+            telegram_allowed_users: channelForm.telegram_allowed_users
+              ? channelForm.telegram_allowed_users.split(",").map((s: string) => s.trim())
+              : [],
+            dm_policy: channelForm.dm_policy,
+          },
+          gmail: channelForm.gmail_enabled
+            ? {
+                gmail_enabled: true,
+                gmail_email: channelForm.gmail_email || null,
+                gmail_app_password: channelForm.gmail_use_existing_secret
+                  ? null
+                  : channelForm.gmail_app_password || null,
+                gmail_app_password_secret: channelForm.gmail_use_existing_secret
+                  ? channelForm.gmail_app_password_secret || null
+                  : null,
+                gmail_display_name: channelForm.gmail_display_name || "OpenClaw Agent",
+              }
+            : null,
+          whatsapp: channelForm.whatsapp_enabled
+            ? {
+                whatsapp_enabled: true,
+                whatsapp_dm_policy: channelForm.whatsapp_dm_policy,
+                whatsapp_allowed_phones: channelForm.whatsapp_allowed_phones
+                  ? channelForm.whatsapp_allowed_phones.split(",").map((s: string) => s.trim())
+                  : [],
+                whatsapp_group_policy: channelForm.whatsapp_group_policy,
+              }
+            : null,
+          enable_web_browsing: channelForm.enable_web_browsing,
+          enable_shell: channelForm.enable_shell,
+          enable_deep_research: channelForm.enable_deep_research,
+        };
+      }
+
       if (Object.keys(body).length === 0) return;
       const updated = await apiFetch<Agent>(`/api/v1/agents/${agentId}`, {
         method: "PUT",
         body: JSON.stringify(body),
       });
       setAgent(updated);
+      setChannelsDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setIsSaving(false);
     }
-  }, [agent, agentId, isSaving, systemPrompt, selectedEndpointId]);
+  }, [agent, agentId, isSaving, systemPrompt, selectedEndpointId, channelsDirty, channelForm]);
 
   const handleChatStop = useCallback(() => {
     abortRef.current?.abort();
@@ -403,6 +504,34 @@ export default function AgentDetailPage() {
         setEndpoints(endpointsData.endpoints);
         setSystemPrompt(agentData.system_prompt || "");
         setSelectedEndpointId(agentData.model_endpoint_id || "");
+        // Initialize channel form from existing config
+        if (agentData.agent_type === "openclaw" && agentData.openclaw_config) {
+          const oc = agentData.openclaw_config;
+          const ch = oc.channels || {};
+          const gm = oc.gmail || {};
+          const wa = oc.whatsapp || {};
+          setChannelForm({
+            telegram_enabled: !!ch.telegram_enabled,
+            telegram_bot_token: "",
+            telegram_bot_token_secret: ch.telegram_bot_token_secret || "",
+            telegram_use_existing_secret: true,
+            telegram_allowed_users: Array.isArray(ch.telegram_allowed_users) ? ch.telegram_allowed_users.join(", ") : "",
+            dm_policy: ch.dm_policy || "allowlist",
+            gmail_enabled: !!gm.gmail_enabled,
+            gmail_email: gm.gmail_email || "",
+            gmail_app_password: "",
+            gmail_app_password_secret: gm.gmail_app_password_secret || "",
+            gmail_display_name: gm.gmail_display_name || "OpenClaw Agent",
+            gmail_use_existing_secret: true,
+            whatsapp_enabled: !!wa.whatsapp_enabled,
+            whatsapp_dm_policy: wa.whatsapp_dm_policy || "allowlist",
+            whatsapp_allowed_phones: Array.isArray(wa.whatsapp_allowed_phones) ? wa.whatsapp_allowed_phones.join(", ") : "",
+            whatsapp_group_policy: wa.whatsapp_group_policy || "open",
+            enable_web_browsing: oc.enable_web_browsing !== false,
+            enable_shell: !!oc.enable_shell,
+            enable_deep_research: !!oc.enable_deep_research,
+          });
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -736,6 +865,166 @@ export default function AgentDetailPage() {
       {/* Knowledge */}
       <KnowledgeSection agentId={agentId} />
 
+      {/* Channels (OpenClaw agents) */}
+      {agent.agent_type === "openclaw" && (
+        <CollapsibleSection title="Channels" defaultOpen={false}>
+          <div className="space-y-4">
+            {/* Capabilities */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Capabilities</label>
+              <div className="flex flex-wrap gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                  <input type="checkbox" checked={channelForm.enable_web_browsing}
+                    onChange={(e) => { setChannelForm({ ...channelForm, enable_web_browsing: e.target.checked }); setChannelsDirty(true); }}
+                    className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
+                  Web Browsing
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                  <input type="checkbox" checked={channelForm.enable_shell}
+                    onChange={(e) => { setChannelForm({ ...channelForm, enable_shell: e.target.checked }); setChannelsDirty(true); }}
+                    className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
+                  Shell
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                  <input type="checkbox" checked={channelForm.enable_deep_research}
+                    onChange={(e) => { setChannelForm({ ...channelForm, enable_deep_research: e.target.checked }); setChannelsDirty(true); }}
+                    className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
+                  Deep Research
+                </label>
+              </div>
+            </div>
+
+            {/* Telegram */}
+            <div className="space-y-2 border-t border-gray-100 pt-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input type="checkbox" checked={channelForm.telegram_enabled}
+                  onChange={(e) => { setChannelForm({ ...channelForm, telegram_enabled: e.target.checked }); setChannelsDirty(true); }}
+                  className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
+                Telegram
+              </label>
+              {channelForm.telegram_enabled && (
+                <div className="ml-5 space-y-2">
+                  <div className="flex gap-3">
+                    <label className={`flex-1 cursor-pointer rounded-md border p-2 text-xs ${channelForm.telegram_use_existing_secret ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]" : "border-gray-200"}`}>
+                      <input type="radio" className="sr-only" checked={channelForm.telegram_use_existing_secret}
+                        onChange={() => { setChannelForm({ ...channelForm, telegram_use_existing_secret: true }); setChannelsDirty(true); }} />
+                      <span className="font-medium">Existing KV Secret</span>
+                    </label>
+                    <label className={`flex-1 cursor-pointer rounded-md border p-2 text-xs ${!channelForm.telegram_use_existing_secret ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]" : "border-gray-200"}`}>
+                      <input type="radio" className="sr-only" checked={!channelForm.telegram_use_existing_secret}
+                        onChange={() => { setChannelForm({ ...channelForm, telegram_use_existing_secret: false }); setChannelsDirty(true); }} />
+                      <span className="font-medium">Enter Token</span>
+                    </label>
+                  </div>
+                  {channelForm.telegram_use_existing_secret ? (
+                    <input type="text" placeholder="KV secret name" value={channelForm.telegram_bot_token_secret}
+                      onChange={(e) => { setChannelForm({ ...channelForm, telegram_bot_token_secret: e.target.value }); setChannelsDirty(true); }}
+                      className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  ) : (
+                    <input type="password" placeholder="Bot token from @BotFather" value={channelForm.telegram_bot_token}
+                      onChange={(e) => { setChannelForm({ ...channelForm, telegram_bot_token: e.target.value }); setChannelsDirty(true); }}
+                      className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  )}
+                  <input type="text" placeholder="Allowed user IDs (comma-separated)" value={channelForm.telegram_allowed_users}
+                    onChange={(e) => { setChannelForm({ ...channelForm, telegram_allowed_users: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  <select value={channelForm.dm_policy}
+                    onChange={(e) => { setChannelForm({ ...channelForm, dm_policy: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs">
+                    <option value="allowlist">Allowlist</option>
+                    <option value="pairing">Pairing</option>
+                    <option value="open">Open</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Gmail */}
+            <div className="space-y-2 border-t border-gray-100 pt-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input type="checkbox" checked={channelForm.gmail_enabled}
+                  onChange={(e) => { setChannelForm({ ...channelForm, gmail_enabled: e.target.checked }); setChannelsDirty(true); }}
+                  className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
+                Gmail
+              </label>
+              {channelForm.gmail_enabled && (
+                <div className="ml-5 space-y-2">
+                  <input type="email" placeholder="agent@gmail.com" value={channelForm.gmail_email}
+                    onChange={(e) => { setChannelForm({ ...channelForm, gmail_email: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  <input type="text" placeholder="Display name" value={channelForm.gmail_display_name}
+                    onChange={(e) => { setChannelForm({ ...channelForm, gmail_display_name: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  <div className="flex gap-3">
+                    <label className={`flex-1 cursor-pointer rounded-md border p-2 text-xs ${channelForm.gmail_use_existing_secret ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]" : "border-gray-200"}`}>
+                      <input type="radio" className="sr-only" checked={channelForm.gmail_use_existing_secret}
+                        onChange={() => { setChannelForm({ ...channelForm, gmail_use_existing_secret: true }); setChannelsDirty(true); }} />
+                      <span className="font-medium">Existing KV Secret</span>
+                    </label>
+                    <label className={`flex-1 cursor-pointer rounded-md border p-2 text-xs ${!channelForm.gmail_use_existing_secret ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]" : "border-gray-200"}`}>
+                      <input type="radio" className="sr-only" checked={!channelForm.gmail_use_existing_secret}
+                        onChange={() => { setChannelForm({ ...channelForm, gmail_use_existing_secret: false }); setChannelsDirty(true); }} />
+                      <span className="font-medium">Enter Password</span>
+                    </label>
+                  </div>
+                  {channelForm.gmail_use_existing_secret ? (
+                    <input type="text" placeholder="gmail-app-password" value={channelForm.gmail_app_password_secret}
+                      onChange={(e) => { setChannelForm({ ...channelForm, gmail_app_password_secret: e.target.value }); setChannelsDirty(true); }}
+                      className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  ) : (
+                    <input type="password" placeholder="xxxx xxxx xxxx xxxx" value={channelForm.gmail_app_password}
+                      onChange={(e) => { setChannelForm({ ...channelForm, gmail_app_password: e.target.value }); setChannelsDirty(true); }}
+                      className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* WhatsApp */}
+            <div className="space-y-2 border-t border-gray-100 pt-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input type="checkbox" checked={channelForm.whatsapp_enabled}
+                  onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_enabled: e.target.checked }); setChannelsDirty(true); }}
+                  className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
+                WhatsApp
+              </label>
+              {channelForm.whatsapp_enabled && (
+                <div className="ml-5 space-y-2">
+                  <div className="rounded-md bg-amber-50 border border-amber-200 p-2">
+                    <p className="text-[10px] text-amber-800">
+                      <strong>QR Linking:</strong> After saving, use the WhatsApp section below to scan a QR code.
+                    </p>
+                  </div>
+                  <input type="text" placeholder="Allowed phones (+972..., +1...)" value={channelForm.whatsapp_allowed_phones}
+                    onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_allowed_phones: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
+                  <select value={channelForm.whatsapp_dm_policy}
+                    onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_dm_policy: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs">
+                    <option value="allowlist">Allowlist</option>
+                    <option value="pairing">Pairing</option>
+                    <option value="open">Open</option>
+                  </select>
+                  <label className="text-xs text-gray-700">Group Policy</label>
+                  <select value={channelForm.whatsapp_group_policy}
+                    onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_group_policy: e.target.value }); setChannelsDirty(true); }}
+                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs">
+                    <option value="open">Open (respond to all group messages)</option>
+                    <option value="allowlist">Allowlist (require @mention)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {channelsDirty && (
+              <p className="text-xs text-amber-600 font-medium">
+                Unsaved changes — click Save to deploy updated config
+              </p>
+            )}
+          </div>
+        </CollapsibleSection>
+      )}
+
       {/* Memory */}
       <CollapsibleSection
         title="Memory"
@@ -878,6 +1167,140 @@ export default function AgentDetailPage() {
           </a>
         </div>
       </CollapsibleSection>
+
+      {/* WhatsApp Linking (OpenClaw agents with WhatsApp enabled) */}
+      {agent.agent_type === "openclaw" && agent.openclaw_config?.whatsapp?.whatsapp_enabled && (
+        <CollapsibleSection title="WhatsApp" defaultOpen={true}>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium text-gray-700">
+                {agent.whatsapp_status === "connected"
+                  ? "Connected"
+                  : agent.whatsapp_status === "pending_link"
+                  ? "Pending Link"
+                  : "Not Linked"}
+              </span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full ${
+                  agent.whatsapp_status === "connected"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {agent.whatsapp_status === "connected" ? "Active" : "Setup Required"}
+              </span>
+            </div>
+
+            {agent.whatsapp_status !== "connected" && (
+              <>
+                <p className="text-xs text-gray-500">
+                  Scan the QR code with WhatsApp on your phone to link this agent.
+                </p>
+                <button
+                  type="button"
+                  disabled={whatsappLinking}
+                  onClick={async () => {
+                    setWhatsappLinking(true);
+                    setWhatsappError(null);
+                    setWhatsappLinkStatus(null);
+                    // Clear any existing poll
+                    if (whatsappPollRef.current) {
+                      clearInterval(whatsappPollRef.current);
+                      whatsappPollRef.current = null;
+                    }
+                    try {
+                      const data = await apiFetch<{ qr_data: string }>(
+                        `/api/v1/agents/${agentId}/whatsapp/link`
+                      );
+                      setWhatsappQrUrl(data.qr_data);
+                      setWhatsappLinkStatus("linking");
+                      // Poll for link completion every 3 seconds
+                      const poll = setInterval(async () => {
+                        try {
+                          const status = await apiFetch<{ status: string; error?: string }>(
+                            `/api/v1/agents/${agentId}/whatsapp/link-status`
+                          );
+                          if (status.status === "connected") {
+                            clearInterval(poll);
+                            whatsappPollRef.current = null;
+                            setWhatsappLinkStatus("connected");
+                            setWhatsappQrUrl(null);
+                          } else if (status.status === "failed") {
+                            clearInterval(poll);
+                            whatsappPollRef.current = null;
+                            setWhatsappLinkStatus("failed");
+                            setWhatsappError(status.error || "Linking failed");
+                          }
+                        } catch {
+                          // Polling error — ignore, will retry
+                        }
+                      }, 3000);
+                      whatsappPollRef.current = poll;
+                      // Auto-stop polling after 2.5 minutes
+                      setTimeout(() => {
+                        if (whatsappPollRef.current === poll) {
+                          clearInterval(poll);
+                          whatsappPollRef.current = null;
+                        }
+                      }, 150000);
+                    } catch (err: unknown) {
+                      setWhatsappError(
+                        err instanceof Error ? err.message : "Failed to get QR code"
+                      );
+                    } finally {
+                      setWhatsappLinking(false);
+                    }
+                  }}
+                  className="w-full rounded-md bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {whatsappLinking ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Getting QR Code...
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="h-3.5 w-3.5" />
+                      Link WhatsApp
+                    </>
+                  )}
+                </button>
+
+                {whatsappQrUrl && (
+                  <div className="rounded-md border border-gray-200 bg-white p-4 flex flex-col items-center gap-2">
+                    <img
+                      src={whatsappQrUrl}
+                      alt="WhatsApp QR Code"
+                      className="w-48 h-48"
+                    />
+                    <p className="text-xs text-gray-400 text-center">
+                      Open WhatsApp → Settings → Linked Devices → Link a Device
+                    </p>
+                    {whatsappLinkStatus === "linking" && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Waiting for you to scan...
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {whatsappLinkStatus === "connected" && (
+                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-center">
+                    <p className="text-sm font-medium text-green-700">WhatsApp linked successfully!</p>
+                    <p className="text-xs text-green-600 mt-1">Reload the page to see updated status.</p>
+                  </div>
+                )}
+
+                {whatsappError && (
+                  <p className="text-xs text-red-600">{whatsappError}</p>
+                )}
+              </>
+            )}
+          </div>
+        </CollapsibleSection>
+      )}
     </div>
   );
 

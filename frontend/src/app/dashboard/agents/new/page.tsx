@@ -48,6 +48,11 @@ export default function NewAgentPage() {
     gmail_app_password_secret: "",
     gmail_display_name: "OpenClaw Agent",
     gmail_use_existing_secret: true,
+    // WhatsApp fields
+    whatsapp_enabled: false,
+    whatsapp_dm_policy: "open" as "open" | "allowlist" | "pairing",
+    whatsapp_allowed_phones: "",
+    whatsapp_group_policy: "open" as "open" | "allowlist",
   });
 
   useEffect(() => {
@@ -99,6 +104,16 @@ export default function NewAgentPage() {
                   ? form.gmail_app_password_secret || "gmail-app-password"
                   : null,
                 gmail_display_name: form.gmail_display_name || "OpenClaw Agent",
+              }
+            : null,
+          whatsapp: form.whatsapp_enabled
+            ? {
+                whatsapp_enabled: true,
+                whatsapp_dm_policy: form.whatsapp_dm_policy,
+                whatsapp_allowed_phones: form.whatsapp_allowed_phones
+                  ? form.whatsapp_allowed_phones.split(",").map((s: string) => s.trim())
+                  : [],
+                whatsapp_group_policy: form.whatsapp_group_policy,
               }
             : null,
           enable_web_browsing: form.enable_web_browsing,
@@ -599,6 +614,96 @@ export default function NewAgentPage() {
                         </p>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* WhatsApp Channel */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.whatsapp_enabled}
+                  onChange={(e) =>
+                    setForm({ ...form, whatsapp_enabled: e.target.checked })
+                  }
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Enable WhatsApp Channel
+              </label>
+
+              {form.whatsapp_enabled && (
+                <div className="ml-6 space-y-3">
+                  <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+                    <p className="text-xs text-amber-800">
+                      <strong>QR Code Linking Required:</strong> After deploying the agent,
+                      you&apos;ll need to link WhatsApp by scanning a QR code from the agent
+                      detail page. No token or password needed — the session persists on the
+                      agent&apos;s storage.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Allowed Phone Numbers
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Comma-separated: +972501234567, +14155551234"
+                      value={form.whatsapp_allowed_phones}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          whatsapp_allowed_phones: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      International format with country code. Users who can chat with the bot.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      DM Access Policy
+                    </label>
+                    <select
+                      value={form.whatsapp_dm_policy}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          whatsapp_dm_policy: e.target.value as "open" | "allowlist" | "pairing",
+                        })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="allowlist">
+                        Allowlist (only specified phone numbers)
+                      </option>
+                      <option value="pairing">
+                        Pairing (users request access via code)
+                      </option>
+                      <option value="open">Open (anyone can message)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Group Policy</label>
+                    <select
+                      value={form.whatsapp_group_policy}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          whatsapp_group_policy: e.target.value as "open" | "allowlist",
+                        })
+                      }
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    >
+                      <option value="open">Open (respond to all group messages)</option>
+                      <option value="allowlist">Allowlist (require @mention)</option>
+                    </select>
                   </div>
                 </div>
               )}
