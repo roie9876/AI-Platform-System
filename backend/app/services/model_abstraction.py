@@ -170,8 +170,8 @@ class ModelAbstractionService:
         self,
         messages: List[Dict[str, str]],
         endpoint: dict,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        temperature: float = 0,
+        max_tokens: int = 128000,
         timeout: int = 30,
         stream: bool = True,
     ) -> AsyncGenerator[str, None]:
@@ -244,8 +244,8 @@ class ModelAbstractionService:
         self,
         messages: List[Dict[str, str]],
         endpoints: List[dict],
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        temperature: float = 0,
+        max_tokens: int = 128000,
         timeout: int = 30,
         stream: bool = True,
     ) -> AsyncGenerator[str, None]:
@@ -284,16 +284,16 @@ class ModelAbstractionService:
         endpoints: List[dict],
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        temperature: float = 0,
+        max_tokens: int = 128000,
         timeout: int = 30,
     ) -> Dict[str, Any]:
         """Non-streaming completion that returns full response including tool_calls."""
         # Guard against None overrides from caller
         if temperature is None:
-            temperature = 0.7
+            temperature = 0
         if max_tokens is None:
-            max_tokens = 4096
+            max_tokens = 128000
         if timeout is None:
             timeout = 60
         sorted_endpoints = sorted(endpoints, key=lambda e: e.get("priority", 0))

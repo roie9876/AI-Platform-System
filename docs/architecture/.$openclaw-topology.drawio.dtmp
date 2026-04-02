@@ -37,17 +37,23 @@
         <mxCell id="core-title" value="OpenClaw Agent Runtime" style="text;html=1;fontSize=17;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" parent="1" vertex="1">
           <mxGeometry x="540" y="98" width="380" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="oc-agent" value="openclaw&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;Gateway + Agent Engine&lt;br&gt;ReAct loop · tool orchestration&lt;br&gt;Session &amp; memory management&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF6D00;strokeColor=#BF360C;fontColor=#ffffff;fontStyle=1;fontSize=12;spacingTop=4;" parent="1" vertex="1">
+        <mxCell id="pod-box" value="StatefulSet Pod  ·  4 containers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#BF360C;verticalAlign=bottom;fontSize=10;fontStyle=3;fontColor=#BF360C;align=center;strokeWidth=2;dashed=1;dashPattern=5 3;arcSize=6;spacingBottom=4;" vertex="1" parent="1">
+          <mxGeometry x="455" y="130" width="545" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-agent" value="📦 openclaw&lt;br&gt;&lt;font style=&quot;font-size:10px;font-weight:normal;&quot;&gt;Gateway + Agent Engine&lt;br&gt;ReAct loop · tool orchestration&lt;br&gt;Session &amp; memory management&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF6D00;strokeColor=#BF360C;fontColor=#ffffff;fontStyle=1;fontSize=12;spacingTop=4;" parent="1" vertex="1">
           <mxGeometry x="465" y="140" width="260" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="oc-nginx" value="nginx&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Reverse proxy&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4DB6AC;strokeColor=#00695C;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
-          <mxGeometry x="745" y="140" width="110" height="40" as="geometry" />
+        <mxCell id="sidecar-label" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;sidecars ↓&lt;/font&gt;" style="text;html=1;fontSize=9;fontStyle=3;align=center;fillColor=none;strokeColor=none;fontColor=#00695C;" vertex="1" parent="1">
+          <mxGeometry x="790" y="192" width="250" height="14" as="geometry" />
         </mxCell>
-        <mxCell id="oc-browser" value="Chromium&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Web browsing&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4DB6AC;strokeColor=#00695C;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
-          <mxGeometry x="745" y="190" width="110" height="40" as="geometry" />
+        <mxCell id="oc-nginx" value="🔀 nginx&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Reverse proxy&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4DB6AC;strokeColor=#00695C;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="745" y="146" width="110" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="oc-metrics" value="Metrics&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Prometheus&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4DB6AC;strokeColor=#00695C;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
-          <mxGeometry x="875" y="140" width="110" height="40" as="geometry" />
+        <mxCell id="oc-browser" value="🌐 Chromium&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Web browsing&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4DB6AC;strokeColor=#00695C;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="745" y="192" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-metrics" value="📊 Metrics&lt;br&gt;&lt;font style=&quot;font-size:9px;font-weight:normal;&quot;&gt;Prometheus&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4DB6AC;strokeColor=#00695C;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="875" y="146" width="110" height="40" as="geometry" />
         </mxCell>
         <mxCell id="loopback-label" value="ws://127.0.0.1:18789 (loopback)" style="text;html=1;fontSize=9;fontStyle=2;align=center;fillColor=none;strokeColor=none;fontColor=#666666;" parent="1" vertex="1">
           <mxGeometry x="580" y="228" width="180" height="15" as="geometry" />

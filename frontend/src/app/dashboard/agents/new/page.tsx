@@ -29,8 +29,8 @@ export default function NewAgentPage() {
     system_prompt: "",
     agent_type: "standard" as "standard" | "openclaw",
     model_endpoint_id: "",
-    temperature: 0.7,
-    max_tokens: 1024,
+    temperature: 0,
+    max_tokens: 128000,
     timeout_seconds: 30,
     // OpenClaw-specific fields
     enable_web_browsing: true,
@@ -504,7 +504,7 @@ export default function NewAgentPage() {
               max={128000}
               value={form.max_tokens}
               onChange={(e) =>
-                setForm({ ...form, max_tokens: parseInt(e.target.value) || 1024 })
+                setForm({ ...form, max_tokens: parseInt(e.target.value) || 128000 })
               }
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
