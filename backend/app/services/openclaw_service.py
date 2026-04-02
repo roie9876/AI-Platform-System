@@ -182,9 +182,26 @@ class OpenClawService:
                 result["containers_ready"] = sum(
                     1 for cs in statuses if cs.ready
                 )
+
+                # Identify which containers are NOT ready
+                not_ready_names = [cs.name for cs in statuses if not cs.ready]
+
                 if result["containers_ready"] == result["containers_total"] and result["containers_total"] > 0:
                     result["ready"] = True
                     result["message"] = "Running"
+                elif pod.status.phase == "Running" and result["containers_ready"] >= 1:
+                    # The WhatsApp bridge container stays not-ready until QR is
+                    # scanned.  Treat the agent as operationally ready when the
+                    # core containers are up and only channel bridges are pending.
+                    bridge_names = {"whatsapp", "wa-bridge", "whatsapp-bridge", "wa"}
+                    only_bridges_pending = all(
+                        n.lower() in bridge_names for n in not_ready_names
+                    )
+                    if only_bridges_pending:
+                        result["ready"] = True
+                        result["message"] = "Running (WhatsApp awaiting link)"
+                    else:
+                        result["message"] = f"Starting ({result['containers_ready']}/{result['containers_total']} ready)"
                 else:
                     # Check for init containers still running
                     init_statuses = pod.status.init_container_statuses or []
@@ -827,15 +844,20 @@ class OpenClawService:
         # WhatsApp channel — uses QR-code session linking (no static secret)
         whatsapp = openclaw_config.get("whatsapp") or {}
         if whatsapp.get("whatsapp_enabled"):
+            dm_policy = whatsapp.get("whatsapp_dm_policy", "allowlist")
+            group_policy = whatsapp.get("whatsapp_group_policy", "allowlist")
             wa_config: dict = {
                 "enabled": True,
-                "dmPolicy": whatsapp.get("whatsapp_dm_policy", "allowlist"),
-                "groupPolicy": whatsapp.get("whatsapp_group_policy", "allowlist"),
-                "allowFrom": ["*"],
+                "dmPolicy": dm_policy,
+                "groupPolicy": group_policy,
             }
             wa_allowed = whatsapp.get("whatsapp_allowed_phones", [])
-            if wa_allowed:
+            if dm_policy == "open":
+                wa_config["allowFrom"] = ["*"]
+            elif wa_allowed:
                 wa_config["allowFrom"] = [str(p) for p in wa_allowed]
+            else:
+                wa_config["allowFrom"] = []
 
             # Per-group rules: each rule can override policy, requireMention, allowFrom
             group_rules = whatsapp.get("whatsapp_group_rules", [])
@@ -859,8 +881,10 @@ class OpenClawService:
                         entry["instructions"] = rule_instructions
                     groups_cfg[gid] = entry
             if not groups_cfg:
-                # Default: respond to all groups without requiring @mention
-                groups_cfg = {"*": {"requireMention": False}}
+                if group_policy == "open":
+                    # Open policy: respond to all groups without requiring @mention
+                    groups_cfg = {"*": {"requireMention": False}}
+                # else: allowlist with no rules = agent responds to no groups
             wa_config["groups"] = groups_cfg
             channels_config["whatsapp"] = wa_config
 
