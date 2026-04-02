@@ -14,6 +14,7 @@ import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
 import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip, Smartphone } from "lucide-react";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 import { CodeExecutionBlock, type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
+import { ChannelWizard, type ChannelWizardState, type WhatsAppGroupRule, type TelegramGroupRule } from "@/components/agent/channel-wizard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -63,7 +64,9 @@ interface Agent {
       whatsapp_dm_policy?: string;
       whatsapp_allowed_phones?: string[];
       whatsapp_group_policy?: string;
+      whatsapp_group_rules?: WhatsAppGroupRule[];
     };
+    telegram_group_rules?: TelegramGroupRule[];
     enable_web_browsing?: boolean;
     enable_shell?: boolean;
     enable_deep_research?: boolean;
@@ -207,25 +210,29 @@ export default function AgentDetailPage() {
 
   // Channel config editing state
   const [channelForm, setChannelForm] = useState({
-    telegram_enabled: false,
-    telegram_bot_token: "",
-    telegram_bot_token_secret: "",
-    telegram_use_existing_secret: true,
-    telegram_allowed_users: "",
-    dm_policy: "allowlist" as string,
     gmail_enabled: false,
     gmail_email: "",
     gmail_app_password: "",
     gmail_app_password_secret: "",
     gmail_display_name: "OpenClaw Agent",
     gmail_use_existing_secret: true,
-    whatsapp_enabled: false,
-    whatsapp_dm_policy: "open" as string,
-    whatsapp_allowed_phones: "",
-    whatsapp_group_policy: "open" as string,
     enable_web_browsing: true,
     enable_shell: false,
     enable_deep_research: false,
+  });
+  const [channels, setChannels] = useState<ChannelWizardState>({
+    whatsapp_enabled: false,
+    whatsapp_dm_policy: "open",
+    whatsapp_allowed_phones: "",
+    whatsapp_group_policy: "open",
+    whatsapp_group_rules: [],
+    telegram_enabled: false,
+    telegram_bot_token: "",
+    telegram_bot_token_secret: "",
+    telegram_use_existing_secret: true,
+    telegram_allowed_users: "",
+    dm_policy: "allowlist",
+    telegram_group_rules: [],
   });
   const [channelsDirty, setChannelsDirty] = useState(false);
 
@@ -435,18 +442,19 @@ export default function AgentDetailPage() {
       if (channelsDirty && agent.agent_type === "openclaw") {
         body.openclaw_config = {
           channels: {
-            telegram_enabled: channelForm.telegram_enabled,
-            telegram_bot_token: channelForm.telegram_use_existing_secret
+            telegram_enabled: channels.telegram_enabled,
+            telegram_bot_token: channels.telegram_use_existing_secret
               ? null
-              : channelForm.telegram_bot_token || null,
-            telegram_bot_token_secret: channelForm.telegram_use_existing_secret
-              ? channelForm.telegram_bot_token_secret || null
+              : channels.telegram_bot_token || null,
+            telegram_bot_token_secret: channels.telegram_use_existing_secret
+              ? channels.telegram_bot_token_secret || null
               : null,
-            telegram_allowed_users: channelForm.telegram_allowed_users
-              ? channelForm.telegram_allowed_users.split(",").map((s: string) => s.trim())
+            telegram_allowed_users: channels.telegram_allowed_users
+              ? channels.telegram_allowed_users.split(",").map((s: string) => s.trim())
               : [],
-            dm_policy: channelForm.dm_policy,
+            dm_policy: channels.dm_policy,
           },
+          telegram_group_rules: channels.telegram_group_rules,
           gmail: channelForm.gmail_enabled
             ? {
                 gmail_enabled: true,
@@ -460,14 +468,15 @@ export default function AgentDetailPage() {
                 gmail_display_name: channelForm.gmail_display_name || "OpenClaw Agent",
               }
             : null,
-          whatsapp: channelForm.whatsapp_enabled
+          whatsapp: channels.whatsapp_enabled
             ? {
                 whatsapp_enabled: true,
-                whatsapp_dm_policy: channelForm.whatsapp_dm_policy,
-                whatsapp_allowed_phones: channelForm.whatsapp_allowed_phones
-                  ? channelForm.whatsapp_allowed_phones.split(",").map((s: string) => s.trim())
+                whatsapp_dm_policy: channels.whatsapp_dm_policy,
+                whatsapp_allowed_phones: channels.whatsapp_allowed_phones
+                  ? channels.whatsapp_allowed_phones.split(",").map((s: string) => s.trim())
                   : [],
-                whatsapp_group_policy: channelForm.whatsapp_group_policy,
+                whatsapp_group_policy: channels.whatsapp_group_policy,
+                whatsapp_group_rules: channels.whatsapp_group_rules,
               }
             : null,
           enable_web_browsing: channelForm.enable_web_browsing,
@@ -511,25 +520,29 @@ export default function AgentDetailPage() {
           const gm = oc.gmail || {};
           const wa = oc.whatsapp || {};
           setChannelForm({
-            telegram_enabled: !!ch.telegram_enabled,
-            telegram_bot_token: "",
-            telegram_bot_token_secret: ch.telegram_bot_token_secret || "",
-            telegram_use_existing_secret: true,
-            telegram_allowed_users: Array.isArray(ch.telegram_allowed_users) ? ch.telegram_allowed_users.join(", ") : "",
-            dm_policy: ch.dm_policy || "allowlist",
             gmail_enabled: !!gm.gmail_enabled,
             gmail_email: gm.gmail_email || "",
             gmail_app_password: "",
             gmail_app_password_secret: gm.gmail_app_password_secret || "",
             gmail_display_name: gm.gmail_display_name || "OpenClaw Agent",
             gmail_use_existing_secret: true,
-            whatsapp_enabled: !!wa.whatsapp_enabled,
-            whatsapp_dm_policy: wa.whatsapp_dm_policy || "allowlist",
-            whatsapp_allowed_phones: Array.isArray(wa.whatsapp_allowed_phones) ? wa.whatsapp_allowed_phones.join(", ") : "",
-            whatsapp_group_policy: wa.whatsapp_group_policy || "open",
             enable_web_browsing: oc.enable_web_browsing !== false,
             enable_shell: !!oc.enable_shell,
             enable_deep_research: !!oc.enable_deep_research,
+          });
+          setChannels({
+            whatsapp_enabled: !!wa.whatsapp_enabled,
+            whatsapp_dm_policy: (wa.whatsapp_dm_policy as ChannelWizardState["whatsapp_dm_policy"]) || "open",
+            whatsapp_allowed_phones: Array.isArray(wa.whatsapp_allowed_phones) ? wa.whatsapp_allowed_phones.join(", ") : "",
+            whatsapp_group_policy: (wa.whatsapp_group_policy as ChannelWizardState["whatsapp_group_policy"]) || "open",
+            whatsapp_group_rules: wa.whatsapp_group_rules || [],
+            telegram_enabled: !!ch.telegram_enabled,
+            telegram_bot_token: "",
+            telegram_bot_token_secret: ch.telegram_bot_token_secret || "",
+            telegram_use_existing_secret: true,
+            telegram_allowed_users: Array.isArray(ch.telegram_allowed_users) ? ch.telegram_allowed_users.join(", ") : "",
+            dm_policy: (ch.dm_policy as ChannelWizardState["dm_policy"]) || "allowlist",
+            telegram_group_rules: oc.telegram_group_rules || [],
           });
         }
       })
@@ -894,49 +907,13 @@ export default function AgentDetailPage() {
               </div>
             </div>
 
-            {/* Telegram */}
-            <div className="space-y-2 border-t border-gray-100 pt-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input type="checkbox" checked={channelForm.telegram_enabled}
-                  onChange={(e) => { setChannelForm({ ...channelForm, telegram_enabled: e.target.checked }); setChannelsDirty(true); }}
-                  className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
-                Telegram
-              </label>
-              {channelForm.telegram_enabled && (
-                <div className="ml-5 space-y-2">
-                  <div className="flex gap-3">
-                    <label className={`flex-1 cursor-pointer rounded-md border p-2 text-xs ${channelForm.telegram_use_existing_secret ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]" : "border-gray-200"}`}>
-                      <input type="radio" className="sr-only" checked={channelForm.telegram_use_existing_secret}
-                        onChange={() => { setChannelForm({ ...channelForm, telegram_use_existing_secret: true }); setChannelsDirty(true); }} />
-                      <span className="font-medium">Existing KV Secret</span>
-                    </label>
-                    <label className={`flex-1 cursor-pointer rounded-md border p-2 text-xs ${!channelForm.telegram_use_existing_secret ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]" : "border-gray-200"}`}>
-                      <input type="radio" className="sr-only" checked={!channelForm.telegram_use_existing_secret}
-                        onChange={() => { setChannelForm({ ...channelForm, telegram_use_existing_secret: false }); setChannelsDirty(true); }} />
-                      <span className="font-medium">Enter Token</span>
-                    </label>
-                  </div>
-                  {channelForm.telegram_use_existing_secret ? (
-                    <input type="text" placeholder="KV secret name" value={channelForm.telegram_bot_token_secret}
-                      onChange={(e) => { setChannelForm({ ...channelForm, telegram_bot_token_secret: e.target.value }); setChannelsDirty(true); }}
-                      className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
-                  ) : (
-                    <input type="password" placeholder="Bot token from @BotFather" value={channelForm.telegram_bot_token}
-                      onChange={(e) => { setChannelForm({ ...channelForm, telegram_bot_token: e.target.value }); setChannelsDirty(true); }}
-                      className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
-                  )}
-                  <input type="text" placeholder="Allowed user IDs (comma-separated)" value={channelForm.telegram_allowed_users}
-                    onChange={(e) => { setChannelForm({ ...channelForm, telegram_allowed_users: e.target.value }); setChannelsDirty(true); }}
-                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
-                  <select value={channelForm.dm_policy}
-                    onChange={(e) => { setChannelForm({ ...channelForm, dm_policy: e.target.value }); setChannelsDirty(true); }}
-                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs">
-                    <option value="allowlist">Allowlist</option>
-                    <option value="pairing">Pairing</option>
-                    <option value="open">Open</option>
-                  </select>
-                </div>
-              )}
+            {/* WhatsApp + Telegram via Channel Wizard */}
+            <div className="border-t border-gray-100 pt-3">
+              <ChannelWizard
+                state={channels}
+                onChange={(s) => { setChannels(s); setChannelsDirty(true); }}
+                agentId={agentId}
+              />
             </div>
 
             {/* Gmail */}
@@ -976,42 +953,6 @@ export default function AgentDetailPage() {
                       onChange={(e) => { setChannelForm({ ...channelForm, gmail_app_password: e.target.value }); setChannelsDirty(true); }}
                       className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
                   )}
-                </div>
-              )}
-            </div>
-
-            {/* WhatsApp */}
-            <div className="space-y-2 border-t border-gray-100 pt-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input type="checkbox" checked={channelForm.whatsapp_enabled}
-                  onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_enabled: e.target.checked }); setChannelsDirty(true); }}
-                  className="rounded border-gray-300 text-[#7C3AED] focus:ring-[#7C3AED]" />
-                WhatsApp
-              </label>
-              {channelForm.whatsapp_enabled && (
-                <div className="ml-5 space-y-2">
-                  <div className="rounded-md bg-amber-50 border border-amber-200 p-2">
-                    <p className="text-[10px] text-amber-800">
-                      <strong>QR Linking:</strong> After saving, use the WhatsApp section below to scan a QR code.
-                    </p>
-                  </div>
-                  <input type="text" placeholder="Allowed phones (+972..., +1...)" value={channelForm.whatsapp_allowed_phones}
-                    onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_allowed_phones: e.target.value }); setChannelsDirty(true); }}
-                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs" />
-                  <select value={channelForm.whatsapp_dm_policy}
-                    onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_dm_policy: e.target.value }); setChannelsDirty(true); }}
-                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs">
-                    <option value="allowlist">Allowlist</option>
-                    <option value="pairing">Pairing</option>
-                    <option value="open">Open</option>
-                  </select>
-                  <label className="text-xs text-gray-700">Group Policy</label>
-                  <select value={channelForm.whatsapp_group_policy}
-                    onChange={(e) => { setChannelForm({ ...channelForm, whatsapp_group_policy: e.target.value }); setChannelsDirty(true); }}
-                    className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs">
-                    <option value="open">Open (respond to all group messages)</option>
-                    <option value="allowlist">Allowlist (require @mention)</option>
-                  </select>
                 </div>
               )}
             </div>

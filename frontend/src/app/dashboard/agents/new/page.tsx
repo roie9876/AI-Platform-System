@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { ChannelWizard, type ChannelWizardState, type WhatsAppGroupRule, type TelegramGroupRule } from "@/components/agent/channel-wizard";
 
 interface ModelEndpoint {
   id: string;
@@ -32,12 +33,6 @@ export default function NewAgentPage() {
     max_tokens: 1024,
     timeout_seconds: 30,
     // OpenClaw-specific fields
-    telegram_enabled: false,
-    telegram_bot_token: "",
-    telegram_bot_token_secret: "",
-    telegram_use_existing_secret: false,
-    telegram_allowed_users: "",
-    dm_policy: "allowlist" as "open" | "allowlist" | "pairing",
     enable_web_browsing: true,
     enable_shell: false,
     enable_deep_research: false,
@@ -48,11 +43,21 @@ export default function NewAgentPage() {
     gmail_app_password_secret: "",
     gmail_display_name: "OpenClaw Agent",
     gmail_use_existing_secret: true,
-    // WhatsApp fields
+  });
+
+  const [channels, setChannels] = useState<ChannelWizardState>({
     whatsapp_enabled: false,
-    whatsapp_dm_policy: "open" as "open" | "allowlist" | "pairing",
+    whatsapp_dm_policy: "open",
     whatsapp_allowed_phones: "",
-    whatsapp_group_policy: "open" as "open" | "allowlist",
+    whatsapp_group_policy: "open",
+    whatsapp_group_rules: [],
+    telegram_enabled: false,
+    telegram_bot_token: "",
+    telegram_bot_token_secret: "",
+    telegram_use_existing_secret: false,
+    telegram_allowed_users: "",
+    dm_policy: "allowlist",
+    telegram_group_rules: [],
   });
 
   useEffect(() => {
@@ -81,17 +86,18 @@ export default function NewAgentPage() {
       if (form.agent_type === "openclaw") {
         payload.openclaw_config = {
           channels: {
-            telegram_enabled: form.telegram_enabled,
-            telegram_bot_token: form.telegram_use_existing_secret
+            telegram_enabled: channels.telegram_enabled,
+            telegram_bot_token: channels.telegram_use_existing_secret
               ? null
-              : form.telegram_bot_token || null,
-            telegram_bot_token_secret: form.telegram_use_existing_secret
-              ? form.telegram_bot_token_secret || null
+              : channels.telegram_bot_token || null,
+            telegram_bot_token_secret: channels.telegram_use_existing_secret
+              ? channels.telegram_bot_token_secret || null
               : null,
-            telegram_allowed_users: form.telegram_allowed_users
-              ? form.telegram_allowed_users.split(",").map((s: string) => s.trim())
+            telegram_allowed_users: channels.telegram_allowed_users
+              ? channels.telegram_allowed_users.split(",").map((s: string) => s.trim())
               : [],
-            dm_policy: form.dm_policy,
+            dm_policy: channels.dm_policy,
+            telegram_group_rules: channels.telegram_group_rules,
           },
           gmail: form.gmail_enabled
             ? {
@@ -106,14 +112,15 @@ export default function NewAgentPage() {
                 gmail_display_name: form.gmail_display_name || "OpenClaw Agent",
               }
             : null,
-          whatsapp: form.whatsapp_enabled
+          whatsapp: channels.whatsapp_enabled
             ? {
                 whatsapp_enabled: true,
-                whatsapp_dm_policy: form.whatsapp_dm_policy,
-                whatsapp_allowed_phones: form.whatsapp_allowed_phones
-                  ? form.whatsapp_allowed_phones.split(",").map((s: string) => s.trim())
+                whatsapp_dm_policy: channels.whatsapp_dm_policy,
+                whatsapp_allowed_phones: channels.whatsapp_allowed_phones
+                  ? channels.whatsapp_allowed_phones.split(",").map((s: string) => s.trim())
                   : [],
-                whatsapp_group_policy: form.whatsapp_group_policy,
+                whatsapp_group_policy: channels.whatsapp_group_policy,
+                whatsapp_group_rules: channels.whatsapp_group_rules,
               }
             : null,
           enable_web_browsing: form.enable_web_browsing,
@@ -311,165 +318,12 @@ export default function NewAgentPage() {
               </div>
             </div>
 
-            {/* Telegram Channel */}
-            <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.telegram_enabled}
-                  onChange={(e) =>
-                    setForm({ ...form, telegram_enabled: e.target.checked })
-                  }
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-                Enable Telegram Channel
+            {/* Messaging Channels */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide">
+                Messaging Channels
               </label>
-
-              {form.telegram_enabled && (
-                <div className="ml-6 space-y-3">
-                  {/* Bot Token Source */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                      Bot Token
-                    </label>
-                    <div className="flex gap-4 mb-3">
-                      <label
-                        className={`flex-1 relative flex cursor-pointer rounded-lg border p-3 ${
-                          form.telegram_use_existing_secret
-                            ? "border-purple-500 bg-purple-50 ring-1 ring-purple-500"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="telegram_token_source"
-                          checked={form.telegram_use_existing_secret}
-                          onChange={() =>
-                            setForm({ ...form, telegram_use_existing_secret: true })
-                          }
-                          className="sr-only"
-                        />
-                        <div>
-                          <span className="block text-xs font-medium text-gray-900">
-                            Use existing Key Vault secret
-                          </span>
-                          <span className="mt-0.5 block text-xs text-gray-500">
-                            Reference a previously stored bot token
-                          </span>
-                        </div>
-                      </label>
-                      <label
-                        className={`flex-1 relative flex cursor-pointer rounded-lg border p-3 ${
-                          !form.telegram_use_existing_secret
-                            ? "border-purple-500 bg-purple-50 ring-1 ring-purple-500"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="telegram_token_source"
-                          checked={!form.telegram_use_existing_secret}
-                          onChange={() =>
-                            setForm({ ...form, telegram_use_existing_secret: false })
-                          }
-                          className="sr-only"
-                        />
-                        <div>
-                          <span className="block text-xs font-medium text-gray-900">
-                            Enter Bot Token
-                          </span>
-                          <span className="mt-0.5 block text-xs text-gray-500">
-                            Paste token from @BotFather, stored in Key Vault
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-
-                    {form.telegram_use_existing_secret ? (
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Secret name in Key Vault"
-                          value={form.telegram_bot_token_secret}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              telegram_bot_token_secret: e.target.value,
-                            })
-                          }
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          The Key Vault secret name containing the bot token.
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <input
-                          type="password"
-                          placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                          value={form.telegram_bot_token}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              telegram_bot_token: e.target.value,
-                            })
-                          }
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          From Telegram @BotFather. Will be securely stored in Azure Key Vault.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Allowed Telegram User IDs
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Comma-separated: 123456789, 987654321"
-                      value={form.telegram_allowed_users}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          telegram_allowed_users: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Comma-separated Telegram user IDs who can interact with the bot.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      DM Access Policy
-                    </label>
-                    <select
-                      value={form.dm_policy}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          dm_policy: e.target.value as "open" | "allowlist" | "pairing",
-                        })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="allowlist">
-                        Allowlist (only specified user IDs)
-                      </option>
-                      <option value="pairing">
-                        Pairing (users request access via code)
-                      </option>
-                      <option value="open">Open (anyone can message)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
+              <ChannelWizard state={channels} onChange={setChannels} />
             </div>
 
             {/* Gmail Integration */}
@@ -619,95 +473,6 @@ export default function NewAgentPage() {
               )}
             </div>
 
-            {/* WhatsApp Channel */}
-            <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.whatsapp_enabled}
-                  onChange={(e) =>
-                    setForm({ ...form, whatsapp_enabled: e.target.checked })
-                  }
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-                Enable WhatsApp Channel
-              </label>
-
-              {form.whatsapp_enabled && (
-                <div className="ml-6 space-y-3">
-                  <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
-                    <p className="text-xs text-amber-800">
-                      <strong>QR Code Linking Required:</strong> After deploying the agent,
-                      you&apos;ll need to link WhatsApp by scanning a QR code from the agent
-                      detail page. No token or password needed — the session persists on the
-                      agent&apos;s storage.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Allowed Phone Numbers
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Comma-separated: +972501234567, +14155551234"
-                      value={form.whatsapp_allowed_phones}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          whatsapp_allowed_phones: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      International format with country code. Users who can chat with the bot.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      DM Access Policy
-                    </label>
-                    <select
-                      value={form.whatsapp_dm_policy}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          whatsapp_dm_policy: e.target.value as "open" | "allowlist" | "pairing",
-                        })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="allowlist">
-                        Allowlist (only specified phone numbers)
-                      </option>
-                      <option value="pairing">
-                        Pairing (users request access via code)
-                      </option>
-                      <option value="open">Open (anyone can message)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">Group Policy</label>
-                    <select
-                      value={form.whatsapp_group_policy}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          whatsapp_group_policy: e.target.value as "open" | "allowlist",
-                        })
-                      }
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                    >
-                      <option value="open">Open (respond to all group messages)</option>
-                      <option value="allowlist">Allowlist (require @mention)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )}
 

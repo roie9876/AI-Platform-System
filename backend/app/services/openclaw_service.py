@@ -477,6 +477,86 @@ class OpenClawService:
             logger.debug("channel status check failed for %s: %s", instance_name, e)
         return {}
 
+    async def list_groups(
+        self, instance_name: str, tenant_slug: str
+    ) -> list[dict]:
+        """Return WhatsApp & Telegram groups the agent is currently in.
+
+        Connects to the OpenClaw pod via WebSocket, calls ``sessions.list``,
+        and filters for group-type sessions.  Each returned dict contains:
+        ``key``, ``display_name``, ``channel`` ("whatsapp"|"telegram"),
+        and ``group_id`` (JID or numeric Telegram group id).
+        """
+        pod_url = await self.get_pod_url(instance_name, tenant_slug)
+        if not pod_url:
+            return []
+
+        ws_url = pod_url.replace("http://", "ws://", 1) + "/"
+        try:
+            import websockets
+
+            async with websockets.connect(
+                ws_url,
+                additional_headers={"Origin": pod_url},
+                open_timeout=5,
+                close_timeout=3,
+            ) as ws:
+                await asyncio.wait_for(ws.recv(), timeout=3)  # challenge
+                await ws.send(json.dumps({
+                    "type": "req", "id": str(uuid.uuid4()), "method": "connect",
+                    "params": {
+                        "minProtocol": 3, "maxProtocol": 3,
+                        "client": {"id": "openclaw-control-ui", "version": "control-ui",
+                                   "platform": "linux", "mode": "webchat",
+                                   "instanceId": f"groups-{instance_name}"},
+                        "role": "operator",
+                        "scopes": ["operator.read"],
+                        "caps": [],
+                    },
+                }))
+                resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                if not resp.get("ok"):
+                    return []
+
+                await ws.send(json.dumps({
+                    "type": "req", "id": str(uuid.uuid4()),
+                    "method": "sessions.list", "params": {},
+                }))
+                for _ in range(10):
+                    msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                    if msg.get("type") == "event":
+                        continue
+                    if msg.get("type") == "res" and msg.get("ok"):
+                        sessions = msg.get("payload", {}).get("sessions", [])
+                        groups: list[dict] = []
+                        for s in sessions:
+                            if s.get("kind") != "group":
+                                continue
+                            key = s.get("key", "")
+                            channel = s.get("channel") or ""
+                            # Derive group_id from the session key
+                            # WhatsApp: "whatsapp:120363012345@g.us" → "120363012345@g.us"
+                            # Telegram: "telegram:-1001234567890" → "-1001234567890"
+                            group_id = key.split(":", 1)[1] if ":" in key else key
+                            if not channel:
+                                if "whatsapp" in key:
+                                    channel = "whatsapp"
+                                elif "telegram" in key:
+                                    channel = "telegram"
+                            groups.append({
+                                "key": key,
+                                "display_name": s.get("displayName") or s.get("name") or group_id,
+                                "channel": channel,
+                                "group_id": group_id,
+                                "message_count": s.get("messageCount", 0),
+                                "last_message_at": s.get("lastMessageAt"),
+                            })
+                        return groups
+                    break
+        except Exception as e:
+            logger.debug("list_groups failed for %s: %s", instance_name, e)
+        return []
+
     async def deploy_agent(
         self,
         agent_id: str,
@@ -752,11 +832,36 @@ class OpenClawService:
                 "dmPolicy": whatsapp.get("whatsapp_dm_policy", "open"),
                 "groupPolicy": whatsapp.get("whatsapp_group_policy", "open"),
                 "allowFrom": ["*"],
-                "groups": {"*": {"requireMention": False}},
             }
             wa_allowed = whatsapp.get("whatsapp_allowed_phones", [])
             if wa_allowed:
                 wa_config["allowFrom"] = [str(p) for p in wa_allowed]
+
+            # Per-group rules: each rule can override policy, requireMention, allowFrom
+            group_rules = whatsapp.get("whatsapp_group_rules", [])
+            groups_cfg: dict = {}
+            if group_rules:
+                for rule in group_rules:
+                    gid = rule.get("group_jid") or rule.get("group_name", "")
+                    if not gid:
+                        continue
+                    if rule.get("policy") == "blocked":
+                        groups_cfg[gid] = {"blocked": True}
+                        continue
+                    entry: dict = {
+                        "requireMention": rule.get("require_mention", False),
+                    }
+                    rule_phones = rule.get("allowed_phones", [])
+                    if rule.get("policy") == "allowlist" and rule_phones:
+                        entry["allowFrom"] = [str(p) for p in rule_phones]
+                    rule_instructions = rule.get("instructions", "")
+                    if rule_instructions:
+                        entry["instructions"] = rule_instructions
+                    groups_cfg[gid] = entry
+            if not groups_cfg:
+                # Default: respond to all groups without requiring @mention
+                groups_cfg = {"*": {"requireMention": False}}
+            wa_config["groups"] = groups_cfg
             channels_config["whatsapp"] = wa_config
 
         # MCP servers

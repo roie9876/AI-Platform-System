@@ -38,6 +38,16 @@ class ErrorResponse(BaseModel):
 
 # --- Agent Schemas ---
 
+class TelegramGroupRule(BaseModel):
+    """Per-group rule for Telegram."""
+    group_name: str = ""  # Human-readable label (for UI only)
+    group_id: str = ""  # Telegram group/supergroup ID
+    policy: Literal["open", "allowlist", "blocked"] = "open"
+    require_mention: bool = True
+    allowed_users: List[str] = []
+    instructions: str = ""  # Per-group agent instructions (appended to system prompt)
+
+
 class OpenClawChannelConfig(BaseModel):
     """Channel configuration for OpenClaw agents."""
     telegram_enabled: bool = False
@@ -45,6 +55,7 @@ class OpenClawChannelConfig(BaseModel):
     telegram_bot_token_secret: Optional[str] = None  # Key Vault secret name
     telegram_allowed_users: List[str] = []
     dm_policy: Literal["open", "allowlist", "pairing"] = "allowlist"
+    telegram_group_rules: List[TelegramGroupRule] = []  # Per-group overrides
 
 
 class OpenClawGmailConfig(BaseModel):
@@ -56,12 +67,23 @@ class OpenClawGmailConfig(BaseModel):
     gmail_display_name: str = "OpenClaw Agent"
 
 
+class WhatsAppGroupRule(BaseModel):
+    """Per-group rule for WhatsApp."""
+    group_name: str = ""  # Human-readable label (for UI only)
+    group_jid: str = ""  # WhatsApp group JID (e.g. "120363012345678@g.us") or leave empty to add later
+    policy: Literal["open", "allowlist", "blocked"] = "open"
+    require_mention: bool = False
+    allowed_phones: List[str] = []  # Only used when policy = "allowlist"
+    instructions: str = ""  # Per-group agent instructions (appended to system prompt)
+
+
 class OpenClawWhatsAppConfig(BaseModel):
     """WhatsApp configuration for OpenClaw agents."""
     whatsapp_enabled: bool = False
     whatsapp_dm_policy: Literal["open", "allowlist", "pairing"] = "open"
     whatsapp_group_policy: Literal["open", "allowlist"] = "open"
-    whatsapp_allowed_phones: List[str] = []  # Phone numbers allowed to interact
+    whatsapp_allowed_phones: List[str] = []  # Phone numbers allowed to interact (DMs)
+    whatsapp_group_rules: List[WhatsAppGroupRule] = []  # Per-group overrides
 
 
 class OpenClawConfig(BaseModel):

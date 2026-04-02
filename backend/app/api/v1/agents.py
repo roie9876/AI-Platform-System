@@ -497,3 +497,34 @@ async def whatsapp_link_status(
         return {"status": "none"}
 
     return openclaw_service.get_whatsapp_link_status(instance_name)
+
+
+@router.get("/{agent_id}/groups")
+async def list_agent_groups(
+    agent_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Return WhatsApp & Telegram groups the agent is currently connected to."""
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    if agent.get("agent_type") != "openclaw":
+        return {"groups": []}
+
+    instance_name = agent.get("openclaw_instance_name")
+    if not instance_name:
+        return {"groups": []}
+
+    tenant = await tenant_repo.get(tenant_id, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=400, detail="Tenant not found")
+
+    try:
+        groups = await openclaw_service.list_groups(instance_name, tenant["slug"])
+        return {"groups": groups}
+    except Exception as e:
+        logger.warning("Failed to list groups for %s: %s", instance_name, e)
+        return {"groups": [], "error": str(e)}
