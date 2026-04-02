@@ -141,7 +141,29 @@ function GroupPicker<T extends WhatsAppGroupRule | TelegramGroupRule>({
   );
 
   if (channelGroups.length === 0 && !loading) {
-    return null;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            Discovered Groups
+          </span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="flex items-center gap-1 rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 transition-colors"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Refresh
+          </button>
+        </div>
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50/50 p-4">
+          <Users className="h-5 w-5 text-gray-400" />
+          <span className="text-xs text-gray-500 text-center">
+            No groups discovered yet. Make sure WhatsApp is linked, then click Refresh.
+          </span>
+        </div>
+      </div>
+    );
   }
 
   return (
