@@ -857,7 +857,11 @@ class OpenClawService:
             elif wa_allowed:
                 wa_config["allowFrom"] = [str(p) for p in wa_allowed]
             else:
-                wa_config["allowFrom"] = []
+                # OpenClaw requires at least one entry in allowFrom for
+                # "allowlist" mode.  When no phones are configured yet,
+                # use "pairing" mode which blocks all DMs until approved
+                # — effectively the same as an empty allowlist.
+                wa_config["dmPolicy"] = "pairing"
 
             # Per-group rules: each rule can override policy, requireMention, allowFrom
             group_rules = whatsapp.get("whatsapp_group_rules", [])
@@ -885,7 +889,8 @@ class OpenClawService:
                     # Open policy: respond to all groups without requiring @mention
                     groups_cfg = {"*": {"requireMention": False}}
                 # else: allowlist with no rules = agent responds to no groups
-            wa_config["groups"] = groups_cfg
+            if groups_cfg:
+                wa_config["groups"] = groups_cfg
             channels_config["whatsapp"] = wa_config
 
         # MCP servers
