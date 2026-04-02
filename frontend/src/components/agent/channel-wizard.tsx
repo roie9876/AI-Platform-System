@@ -564,112 +564,103 @@ export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: Cha
             <div className="flex gap-2 rounded-md bg-green-50 border border-green-200 p-3">
               <Info className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
               <p className="text-xs text-green-800">
-                After deploying the agent, link WhatsApp by scanning a QR code
-                from the agent detail page. The session persists on the
-                agent&apos;s storage — no token or password needed.
+                {mode === "create"
+                  ? "After deploying, link WhatsApp by scanning a QR code from the agent page. You'll then be able to browse your groups and set per-group policies."
+                  : "Link WhatsApp by scanning a QR code. The session persists on the agent's storage — no token or password needed."}
               </p>
             </div>
 
-            {/* DM Policy */}
-            <div>
-              <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                Direct Messages — Who can message the agent privately?
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                <PolicyCard
-                  value="open"
-                  selected={state.whatsapp_dm_policy === "open"}
-                  onClick={() => update({ whatsapp_dm_policy: "open" })}
-                  description="Anyone who has the phone number can send a direct message."
-                />
-                <PolicyCard
-                  value="allowlist"
-                  selected={state.whatsapp_dm_policy === "allowlist"}
-                  onClick={() => update({ whatsapp_dm_policy: "allowlist" })}
-                  description="Only phone numbers you specify below can send direct messages."
-                />
-                <PolicyCard
-                  value="pairing"
-                  selected={state.whatsapp_dm_policy === "pairing"}
-                  onClick={() => update({ whatsapp_dm_policy: "pairing" })}
-                  description="Users request access with a code. You approve each one."
-                />
-              </div>
-            </div>
-
-            {/* Allowed phones (for DMs) */}
-            {state.whatsapp_dm_policy === "allowlist" && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Approved phone numbers (for direct messages)
-                </label>
-                <input
-                  type="text"
-                  placeholder="+972501234567, +14155551234"
-                  value={state.whatsapp_allowed_phones}
-                  onChange={(e) =>
-                    update({ whatsapp_allowed_phones: e.target.value })
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  International format with country code, comma-separated.
-                </p>
-              </div>
-            )}
-
-            {/* Default Group Policy */}
-            <div>
-              <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                Groups — Default behavior for all groups
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                <PolicyCard
-                  value="open"
-                  selected={state.whatsapp_group_policy === "open"}
-                  onClick={() => update({ whatsapp_group_policy: "open" })}
-                  description="The agent responds in any group it's added to. Override per group below."
-                />
-                <PolicyCard
-                  value="allowlist"
-                  selected={state.whatsapp_group_policy === "allowlist"}
-                  onClick={() => update({ whatsapp_group_policy: "allowlist" })}
-                  description="The agent only responds in groups you explicitly add as rules below."
-                />
-              </div>
-            </div>
-
-            {/* Discovered groups (live from agent) — only in manage mode */}
-            {mode === "manage" && agentId && (
-              <GroupPicker<WhatsAppGroupRule>
-                groups={discoveredGroups}
-                loading={groupsLoading}
-                onRefresh={fetchGroups}
-                existingRules={state.whatsapp_group_rules}
-                onAddGroup={addWhatsAppGroupFromDiscovery}
-                channel="whatsapp"
-              />
-            )}
-
-            {/* Per-group rules — only in manage mode */}
+            {/* Everything below is manage-mode only */}
             {mode === "manage" && (
-              <GroupRulesEditor<WhatsAppGroupRule>
-                rules={state.whatsapp_group_rules}
-                onChange={(rules) => update({ whatsapp_group_rules: rules })}
-                channel="whatsapp"
-              />
-            )}
+              <>
+                {/* DM Policy */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                    Direct Messages — Who can message the agent privately?
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <PolicyCard
+                      value="open"
+                      selected={state.whatsapp_dm_policy === "open"}
+                      onClick={() => update({ whatsapp_dm_policy: "open" })}
+                      description="Anyone who has the phone number can send a direct message."
+                    />
+                    <PolicyCard
+                      value="allowlist"
+                      selected={state.whatsapp_dm_policy === "allowlist"}
+                      onClick={() => update({ whatsapp_dm_policy: "allowlist" })}
+                      description="Only phone numbers you specify below can send direct messages."
+                    />
+                    <PolicyCard
+                      value="pairing"
+                      selected={state.whatsapp_dm_policy === "pairing"}
+                      onClick={() => update({ whatsapp_dm_policy: "pairing" })}
+                      description="Users request access with a code. You approve each one."
+                    />
+                  </div>
+                </div>
 
-            {/* Hint — in create mode */}
-            {mode === "create" && (
-              <div className="flex gap-2 rounded-md bg-amber-50 border border-amber-200 p-3">
-                <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-800">
-                  Per-group rules can be configured after deploying the agent.
-                  Once connected, you&apos;ll see your actual WhatsApp groups and
-                  can set policies for each one.
-                </p>
-              </div>
+                {/* Allowed phones (for DMs) */}
+                {state.whatsapp_dm_policy === "allowlist" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Approved phone numbers (for direct messages)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="+972501234567, +14155551234"
+                      value={state.whatsapp_allowed_phones}
+                      onChange={(e) =>
+                        update({ whatsapp_allowed_phones: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      International format with country code, comma-separated.
+                    </p>
+                  </div>
+                )}
+
+                {/* Default Group Policy */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                    Groups — Default behavior for all groups
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <PolicyCard
+                      value="open"
+                      selected={state.whatsapp_group_policy === "open"}
+                      onClick={() => update({ whatsapp_group_policy: "open" })}
+                      description="The agent responds in any group it's added to. Override per group below."
+                    />
+                    <PolicyCard
+                      value="allowlist"
+                      selected={state.whatsapp_group_policy === "allowlist"}
+                      onClick={() => update({ whatsapp_group_policy: "allowlist" })}
+                      description="The agent only responds in groups you explicitly add as rules below."
+                    />
+                  </div>
+                </div>
+
+                {/* Discovered groups (live from agent) */}
+                {agentId && (
+                  <GroupPicker<WhatsAppGroupRule>
+                    groups={discoveredGroups}
+                    loading={groupsLoading}
+                    onRefresh={fetchGroups}
+                    existingRules={state.whatsapp_group_rules}
+                    onAddGroup={addWhatsAppGroupFromDiscovery}
+                    channel="whatsapp"
+                  />
+                )}
+
+                {/* Per-group rules */}
+                <GroupRulesEditor<WhatsAppGroupRule>
+                  rules={state.whatsapp_group_rules}
+                  onChange={(rules) => update({ whatsapp_group_rules: rules })}
+                  channel="whatsapp"
+                />
+              </>
             )}
           </div>
         )}
@@ -695,7 +686,7 @@ export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: Cha
 
         {state.telegram_enabled && (
           <div className="border-t border-gray-100 px-4 py-4 bg-gray-50/30 space-y-4">
-            {/* Bot Token */}
+            {/* Bot Token — always shown */}
             <div>
               <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
                 Bot Token
@@ -772,85 +763,87 @@ export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: Cha
               )}
             </div>
 
-            {/* DM Policy */}
-            <div>
-              <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                Direct Messages — Who can message the bot privately?
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                <PolicyCard
-                  value="open"
-                  selected={state.dm_policy === "open"}
-                  onClick={() => update({ dm_policy: "open" })}
-                  description="Anyone who finds the bot can start a direct conversation."
-                />
-                <PolicyCard
-                  value="allowlist"
-                  selected={state.dm_policy === "allowlist"}
-                  onClick={() => update({ dm_policy: "allowlist" })}
-                  description="Only Telegram user IDs you specify below can start a conversation."
-                />
-                <PolicyCard
-                  value="pairing"
-                  selected={state.dm_policy === "pairing"}
-                  onClick={() => update({ dm_policy: "pairing" })}
-                  description="Users must pair with a code before chatting."
-                />
-              </div>
-            </div>
-
-            {/* Allowed users (for DMs) */}
-            {state.dm_policy === "allowlist" && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Approved Telegram user IDs
-                </label>
-                <input
-                  type="text"
-                  placeholder="123456789, 987654321"
-                  value={state.telegram_allowed_users}
-                  onChange={(e) =>
-                    update({ telegram_allowed_users: e.target.value })
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  Comma-separated. Send /start to @userinfobot to find your ID.
-                </p>
-              </div>
-            )}
-
-            {/* Discovered groups (live from agent) — only in manage mode */}
-            {mode === "manage" && agentId && (
-              <GroupPicker<TelegramGroupRule>
-                groups={discoveredGroups}
-                loading={groupsLoading}
-                onRefresh={fetchGroups}
-                existingRules={state.telegram_group_rules}
-                onAddGroup={addTelegramGroupFromDiscovery}
-                channel="telegram"
-              />
-            )}
-
-            {/* Per-group rules — only in manage mode */}
-            {mode === "manage" && (
-              <GroupRulesEditor<TelegramGroupRule>
-                rules={state.telegram_group_rules}
-                onChange={(rules) => update({ telegram_group_rules: rules })}
-                channel="telegram"
-              />
-            )}
-
-            {/* Hint — in create mode */}
+            {/* Create-mode hint */}
             {mode === "create" && (
-              <div className="flex gap-2 rounded-md bg-amber-50 border border-amber-200 p-3">
-                <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-800">
-                  Per-group rules can be configured after deploying the agent.
-                  Once connected, you&apos;ll see your Telegram groups and can
-                  set policies for each one.
+              <div className="flex gap-2 rounded-md bg-blue-50 border border-blue-200 p-3">
+                <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-800">
+                  After deploying, you&apos;ll be able to browse your Telegram
+                  groups and configure per-group policies from the agent page.
                 </p>
               </div>
+            )}
+
+            {/* Policies & group rules — manage mode only */}
+            {mode === "manage" && (
+              <>
+                {/* DM Policy */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                    Direct Messages — Who can message the bot privately?
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <PolicyCard
+                      value="open"
+                      selected={state.dm_policy === "open"}
+                      onClick={() => update({ dm_policy: "open" })}
+                      description="Anyone who finds the bot can start a direct conversation."
+                    />
+                    <PolicyCard
+                      value="allowlist"
+                      selected={state.dm_policy === "allowlist"}
+                      onClick={() => update({ dm_policy: "allowlist" })}
+                      description="Only Telegram user IDs you specify below can start a conversation."
+                    />
+                    <PolicyCard
+                      value="pairing"
+                      selected={state.dm_policy === "pairing"}
+                      onClick={() => update({ dm_policy: "pairing" })}
+                      description="Users must pair with a code before chatting."
+                    />
+                  </div>
+                </div>
+
+                {/* Allowed users (for DMs) */}
+                {state.dm_policy === "allowlist" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Approved Telegram user IDs
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="123456789, 987654321"
+                      value={state.telegram_allowed_users}
+                      onChange={(e) =>
+                        update({ telegram_allowed_users: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      Comma-separated. Send /start to @userinfobot to find your ID.
+                    </p>
+                  </div>
+                )}
+
+                {/* Discovered groups (live from agent) */}
+                {agentId && (
+                  <GroupPicker<TelegramGroupRule>
+                    groups={discoveredGroups}
+                    loading={groupsLoading}
+                    onRefresh={fetchGroups}
+                    existingRules={state.telegram_group_rules}
+                    onAddGroup={addTelegramGroupFromDiscovery}
+                    channel="telegram"
+                  />
+                )}
+
+                {/* Per-group rules */}
+                <GroupRulesEditor<TelegramGroupRule>
+                  rules={state.telegram_group_rules}
+                  onChange={(rules) => update({ telegram_group_rules: rules })}
+                  channel="telegram"
+                />
+              </>
             )}
           </div>
         )}
