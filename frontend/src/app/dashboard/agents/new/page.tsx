@@ -79,7 +79,7 @@ export default function NewAgentPage() {
         agent_type: form.agent_type,
         model_endpoint_id: form.model_endpoint_id || null,
         temperature: form.temperature,
-        max_tokens: form.max_tokens || null,
+        max_tokens: form.max_tokens > 0 ? form.max_tokens : null,
         timeout_seconds: form.timeout_seconds,
       };
 
