@@ -57,6 +57,9 @@ param domainContactLastName string = ''
 @description('ICANN contact phone for domain purchase.')
 param domainContactPhone string = ''
 
+@description('Object ID of the deployer (admin) principal — auto-set by preprovision.sh for data-plane RBAC on Key Vault, Cosmos DB, etc.')
+param deployerPrincipalId string = ''
+
 // Common tags applied to all resources
 var commonTags = {
   SecurityControl: 'Ignore'
@@ -103,6 +106,7 @@ module cosmos './modules/cosmos.bicep' = {
     environmentName: environmentName
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    deployerPrincipalId: deployerPrincipalId
     tags: commonTags
   }
 }
@@ -194,6 +198,7 @@ module servicebus './modules/servicebus.bicep' = {
     environmentName: environmentName
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    deployerPrincipalId: deployerPrincipalId
     tags: commonTags
   }
 }
@@ -226,6 +231,7 @@ module keyvault './modules/keyvault.bicep' = {
     platformAdminEmails: platformAdminEmails
     entraAdminGroupId: entraAdminGroupId
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    deployerPrincipalId: deployerPrincipalId
     tags: commonTags
   }
 }
@@ -237,6 +243,7 @@ module keyvaultTenants './modules/keyvault-tenants.bicep' = {
     environmentName: environmentName
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    deployerPrincipalId: deployerPrincipalId
     tags: commonTags
   }
 }

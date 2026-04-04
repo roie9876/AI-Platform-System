@@ -32,11 +32,28 @@ AZURE_ENV_NAME="${AZURE_ENV_NAME:-prod}"
 PARAM_FILE="infra/parameters/${AZURE_ENV_NAME}.bicepparam"
 if [ -f "${PARAM_FILE}" ]; then
   cp "${PARAM_FILE}" infra/main.bicepparam
+  # Fix relative path: parameters/ uses '../main.bicep', but infra/ needs './main.bicep'
+  sed -i.bak "s|using '../main.bicep'|using './main.bicep'|" infra/main.bicepparam
+  rm -f infra/main.bicepparam.bak
   echo "Using parameter file for environment: ${AZURE_ENV_NAME}"
 else
   echo -e "${RED}ERROR: Parameter file not found: ${PARAM_FILE}${NC}"
   echo "Available environments: $(ls infra/parameters/*.bicepparam 2>/dev/null | xargs -I{} basename {} .bicepparam)"
   exit 1
+fi
+
+# ─── Step: Auto-detect deployer principal ID for RBAC ─────────────────────────
+
+step "Deployer RBAC Setup"
+
+DEPLOYER_OID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
+if [ -n "${DEPLOYER_OID}" ]; then
+  azd env set deployerPrincipalId "${DEPLOYER_OID}"
+  echo -e "  ${GREEN}✓ Deployer principal ID: ${DEPLOYER_OID}${NC}"
+  echo "  RBAC roles will be assigned on Key Vault, Cosmos DB, and Service Bus."
+else
+  echo -e "  ${YELLOW}⚠  Could not detect deployer principal ID. Skipping deployer RBAC.${NC}"
+  echo "  You can set it manually: azd env set deployerPrincipalId <your-object-id>"
 fi
 
 # ─── Step: Entra ID App Registration ─────────────────────────────────────────
@@ -244,6 +261,9 @@ else
 
   # Re-copy updated param file
   cp "${PARAM_FILE}" infra/main.bicepparam
+  # Fix relative path: parameters/ uses '../main.bicep', but infra/ needs './main.bicep'
+  sed -i.bak "s|using '../main.bicep'|using './main.bicep'|" infra/main.bicepparam
+  rm -f infra/main.bicepparam.bak
 
   echo -e "  ${GREEN}✓ ${PARAM_FILE} updated with entraAppClientId = '${APP_CLIENT_ID}'${NC}"
 

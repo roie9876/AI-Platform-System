@@ -28,6 +28,9 @@ param platformAdminEmails string = ''
 @description('Entra admin group ID for platform admins')
 param entraAdminGroupId string = ''
 
+@description('Object ID of the deployer principal for admin RBAC access')
+param deployerPrincipalId string = ''
+
 @description('Resource ID of Log Analytics workspace for diagnostics (optional)')
 param logAnalyticsWorkspaceId string = ''
 
@@ -63,6 +66,17 @@ resource kvSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@20
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
     principalId: workloadIdentityPrincipalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// Key Vault Secrets Officer role for deployer (admin can read/write secrets in portal & CLI)
+resource kvSecretsOfficerDeployer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(vault.id, deployerPrincipalId, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+  scope: vault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7') // Key Vault Secrets Officer
+    principalId: deployerPrincipalId
+    principalType: 'User'
   }
 }
 

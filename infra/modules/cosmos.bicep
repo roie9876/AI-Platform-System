@@ -10,6 +10,9 @@ param logAnalyticsWorkspaceId string = ''
 @description('Principal ID of workload identity for Cosmos DB data plane RBAC')
 param workloadIdentityPrincipalId string
 
+@description('Object ID of the deployer principal for admin RBAC access')
+param deployerPrincipalId string = ''
+
 @description('Tags to apply to all resources')
 param tags object = {}
 
@@ -24,6 +27,9 @@ resource account 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
     capabilities: [
       {
         name: 'EnableServerless'
+      }
+      {
+        name: 'EnableNoSQLVectorSearch'
       }
     ]
     consistencyPolicy: {
@@ -236,6 +242,17 @@ resource cosmosDataContributorRole 'Microsoft.DocumentDB/databaseAccounts/sqlRol
   properties: {
     roleDefinitionId: '${account.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
     principalId: workloadIdentityPrincipalId
+    scope: account.id
+  }
+}
+
+// Cosmos DB Built-in Data Contributor role for deployer (admin can read/write data in portal & Data Explorer)
+resource cosmosDataContributorDeployer 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = if (!empty(deployerPrincipalId)) {
+  parent: account
+  name: guid(account.id, deployerPrincipalId, '00000000-0000-0000-0000-000000000002')
+  properties: {
+    roleDefinitionId: '${account.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+    principalId: deployerPrincipalId
     scope: account.id
   }
 }

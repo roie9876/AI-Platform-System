@@ -10,6 +10,9 @@ param logAnalyticsWorkspaceId string
 @description('Workload identity principal ID for RBAC')
 param workloadIdentityPrincipalId string
 
+@description('Object ID of the deployer principal for admin RBAC access')
+param deployerPrincipalId string = ''
+
 @description('Tags to apply to all resources')
 param tags object
 
@@ -83,6 +86,17 @@ resource sbDataOwnerRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '090c5cfd-751d-490a-894a-3ce6f1109419') // Azure Service Bus Data Owner
     principalId: workloadIdentityPrincipalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// RBAC: Azure Service Bus Data Owner for deployer (admin can manage queues in portal)
+resource sbDataOwnerDeployer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(sbNamespace.id, deployerPrincipalId, 'sbDataOwnerDeployer')
+  scope: sbNamespace
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '090c5cfd-751d-490a-894a-3ce6f1109419') // Azure Service Bus Data Owner
+    principalId: deployerPrincipalId
+    principalType: 'User'
   }
 }
 

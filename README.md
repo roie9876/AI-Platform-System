@@ -1209,10 +1209,22 @@ Edit the file and update:
 | Parameter | Description | Action |
 |-----------|-------------|--------|
 | `entraAppClientId` | Leave empty (`''`) for auto-creation, or set your existing App Registration client ID | Required |
-| `platformAdminEmails` | Comma-separated admin emails (e.g., `admin@yourdomain.com`) | Required |
-| `entraAdminGroupId` | Object ID of an Entra security group for platform admins | Recommended |
+| `platformAdminEmails` | Comma-separated admin emails (e.g., `admin@yourdomain.com`). Users matching these emails are always granted `platform_admin` role. | Required |
+| `entraAdminGroupId` | Object ID of an Entra ID **security group** whose members automatically receive `platform_admin` role (see below) | Recommended |
 | `alertEmail` | Email for Azure Monitor alerts | Required |
 | `aksSystemNodeVmSize` | VM size for AKS nodes (e.g., `Standard_D2s_v5` for dev) | Optional |
+
+> **What is `entraAdminGroupId`?**
+>
+> This is the Object ID of a Microsoft Entra ID security group (e.g., "AI Platform Admins"). Any user who is a member of this group is automatically granted the `platform_admin` role when they sign in — giving them full access to manage tenants, agents, and platform-wide settings.
+>
+> **How to set it up:**
+> 1. Go to **Azure Portal → Microsoft Entra ID → Groups → New group**
+> 2. Create a **Security** group (e.g., `AI Platform Admins`)
+> 3. Add your admin users as members
+> 4. Copy the group's **Object ID** and paste it as the `entraAdminGroupId` value
+>
+> **Why use it?** You can add or remove platform admins directly in Entra ID without redeploying. The `platformAdminEmails` parameter serves as a fallback — it also grants admin access, but requires a redeployment to change.
 
 #### Step 4: Deploy
 
@@ -1229,34 +1241,20 @@ This runs the full pipeline:
 3. **`postprovision.sh`** — Configures AKS cluster, builds 11 Docker images, deploys K8s manifests
 4. **`postdeploy.sh`** — Final configuration and health checks
 
-#### Step 5: Post-deploy secrets
+#### Step 5: Post-deploy secrets (if using an existing App Registration)
 
-After `azd up` completes, set the secrets that cannot be auto-provisioned:
+If you let the deployment **auto-create** the App Registration (by leaving `entraAppClientId` empty), this step is already handled — **skip to Step 6**.
+
+If you used an **existing** App Registration, set its client secret in Key Vault:
 
 ```bash
 KEY_VAULT_NAME="stumsft-aiplat-dev-kv"  # Adjust for your environment
 
-# Azure OpenAI (required for agent LLM calls)
-az keyvault secret set --vault-name $KEY_VAULT_NAME \
-  --name azure-openai-endpoint \
-  --value "https://<your-openai-resource>.openai.azure.com"
-
-az keyvault secret set --vault-name $KEY_VAULT_NAME \
-  --name azure-openai-key \
-  --value "<your-openai-key>"
-
-# Entra client secret (auto-set if App Registration was auto-created)
-# Only needed if you used an existing App Registration:
 az keyvault secret set --vault-name $KEY_VAULT_NAME \
   --name entra-client-secret \
   --value "<your-client-secret>"
 
-# Optional: Jira integration token
-az keyvault secret set --vault-name $KEY_VAULT_NAME \
-  --name jira \
-  --value "<your-jira-token>"
-
-# Restart pods to pick up new secrets
+# Restart pods to pick up the new secret
 kubectl rollout restart deployment -n aiplatform
 ```
 
@@ -1269,7 +1267,43 @@ For local frontend development against the deployed backend, create `frontend/.e
 NEXT_PUBLIC_AZURE_CLIENT_ID=<your-app-registration-client-id>
 ```
 
-### 11.4 Azure Resources Created
+### 11.4 Configure LLM Provider (Post-Deployment)
+
+The platform deploys and runs without an LLM — the control plane (UI, API, tenant management) is fully functional. You only need to configure an LLM provider when you want agents to **execute** (i.e., send prompts and receive completions).
+
+```bash
+KEY_VAULT_NAME="stumsft-aiplat-dev-kv"  # Adjust for your environment
+
+# Azure OpenAI
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name azure-openai-endpoint \
+  --value "https://<your-openai-resource>.openai.azure.com"
+
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name azure-openai-key \
+  --value "<your-openai-key>"
+
+# Restart pods to pick up the new secrets
+kubectl rollout restart deployment -n aiplatform
+```
+
+### 11.5 Configure Tool Integrations (Optional)
+
+These are optional — only needed if you want to use specific tool integrations with your agents:
+
+```bash
+KEY_VAULT_NAME="stumsft-aiplat-dev-kv"  # Adjust for your environment
+
+# Jira/Confluence integration
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name jira \
+  --value "<your-jira-api-token>"
+
+# Restart pods to pick up new secrets
+kubectl rollout restart deployment -n aiplatform
+```
+
+### 11.6 Azure Resources Created
 
 | Resource | Naming Convention | Purpose |
 |----------|-------------------|---------|
@@ -1286,7 +1320,7 @@ NEXT_PUBLIC_AZURE_CLIENT_ID=<your-app-registration-client-id>
 | Managed Identity (AKS) | `stumsft-aiplatform-{env}-aks-id` | AKS control plane identity |
 | Managed Identity (Workload) | `stumsft-aiplatform-{env}-workload-id` | Pod workload identity |
 
-### 11.5 RBAC Assignments (Auto-Provisioned)
+### 11.7 RBAC Assignments (Auto-Provisioned)
 
 These role assignments are created automatically by Bicep:
 
@@ -1297,7 +1331,7 @@ These role assignments are created automatically by Bicep:
 | Workload Identity | Service Bus Data Owner | Service Bus namespace | Send/receive async messages |
 | AKS Identity | AcrPull | ACR | Pull container images |
 
-### 11.6 Deployment Pipeline (Manual)
+### 11.8 Deployment Pipeline (Manual)
 
 For subsequent deployments or single-service updates:
 
@@ -1327,7 +1361,7 @@ docker push stumsftaiplatformprodacr.azurecr.io/aiplatform-<service>:latest
 kubectl rollout restart deployment/<service> -n aiplatform
 ```
 
-### 11.7 Troubleshooting
+### 11.9 Troubleshooting
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
