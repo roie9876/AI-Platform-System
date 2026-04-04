@@ -219,6 +219,19 @@ if [ -n "$AGENTS_DOMAIN" ]; then
     echo -e "  ${YELLOW}Certificate not ready yet. DNS may need NS record delegation.${NC}"
 fi
 
+# ─── Step 8.5: Seed Entra Client Secret into Key Vault ───────────────────────
+
+ENTRA_CLIENT_SECRET="${ENTRA_CLIENT_SECRET:-}"
+if [ -n "${ENTRA_CLIENT_SECRET}" ] && [ "${ENTRA_CLIENT_SECRET}" != "PLACEHOLDER_UPDATE_AFTER_DEPLOY" ]; then
+  step "Step 8.5: Seed Entra Client Secret into Key Vault"
+  az keyvault secret set \
+    --vault-name "${KEY_VAULT_NAME}" \
+    --name "entra-client-secret" \
+    --value "${ENTRA_CLIENT_SECRET}" \
+    --only-show-errors >/dev/null
+  echo -e "  ${GREEN}✓ Entra client secret seeded into Key Vault${NC}"
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""
@@ -233,9 +246,17 @@ echo "  Key Vault:    ${KEY_VAULT_NAME}"
 echo "  Namespace:    aiplatform"
 echo ""
 echo "  Post-deploy actions needed:"
-echo "    1. Update Key Vault secrets (if not already done):"
+echo "    1. Set Azure OpenAI secrets (required for agent LLM calls):"
+echo "       az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name azure-openai-endpoint --value '<ENDPOINT>'"
+echo "       az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name azure-openai-key --value '<KEY>'"
+if [ -z "${ENTRA_CLIENT_SECRET}" ] || [ "${ENTRA_CLIENT_SECRET}" = "PLACEHOLDER_UPDATE_AFTER_DEPLOY" ]; then
+echo "    2. Set Entra client secret (if using existing App Registration):"
 echo "       az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name entra-client-secret --value '<YOUR_SECRET>'"
+fi
+echo "    3. Optional: Set Jira token for MCP integration:"
 echo "       az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name jira --value '<YOUR_JIRA_TOKEN>'"
-echo "    2. Run smoke tests:  bash k8s/scripts/smoke-test.sh aiplatform"
-echo "    3. Provision tenant: bash k8s/scripts/setup-tenant.sh default"
+echo "    4. Restart pods to pick up secrets:"
+echo "       kubectl rollout restart deployment -n aiplatform"
+echo "    5. Run smoke tests:  bash k8s/scripts/smoke-test.sh aiplatform"
+echo "    6. Provision tenant: bash k8s/scripts/setup-tenant.sh default"
 echo ""

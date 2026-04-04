@@ -118,7 +118,14 @@ Press `Ctrl+C` to stop all services.
   - [8.3 Pod Configuration](#83-pod-configuration)
 - [9. Data Model — Cosmos DB Schema](#9-data-model--cosmos-db-schema)
 - [10. Frontend Architecture](#10-frontend-architecture)
-- [11. Deployment Pipeline](#11-deployment-pipeline)
+- [11. Azure Deployment Guide](#11-azure-deployment-guide)
+  - [11.1 Prerequisites](#111-prerequisites)
+  - [11.2 Entra ID App Registration (SPN)](#112-entra-id-app-registration-spn)
+  - [11.3 Step-by-Step Deployment](#113-step-by-step-deployment)
+  - [11.4 Azure Resources Created](#114-azure-resources-created)
+  - [11.5 RBAC Assignments (Auto-Provisioned)](#115-rbac-assignments-auto-provisioned)
+  - [11.6 Deployment Pipeline (Manual)](#116-deployment-pipeline-manual)
+  - [11.7 Troubleshooting](#117-troubleshooting)
 - [12. Local Development](#12-local-development)
 - [13. API Reference](#13-api-reference)
 - [14. Project Structure](#14-project-structure)
@@ -1110,9 +1117,189 @@ The frontend is a **Next.js 15** application (React 19, App Router) with **Shadc
 
 ---
 
-## 11. Deployment Pipeline
+## 11. Azure Deployment Guide
 
-End-to-end deployment is orchestrated by `scripts/deploy.sh` in three phases:
+This section covers deploying the AI Agent Platform to Azure from scratch using `azd up`.
+
+### 11.1 Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Azure Subscription** | Active subscription with Owner or Contributor + User Access Administrator roles |
+| **Entra ID Role** | **Global Administrator** or **Application Administrator** — required to create the App Registration and grant admin consent for API permissions |
+| **Azure CLI** | `az` — [Install](https://learn.microsoft.com/cli/azure/install-azure-cli) |
+| **Azure Developer CLI** | `azd` — [Install](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
+| **kubectl** | [Install](https://kubernetes.io/docs/tasks/tools/) |
+| **Helm** | [Install](https://helm.sh/docs/intro/install/) |
+| **jq** | `brew install jq` (macOS) or `apt install jq` (Linux) |
+| **Git** | For cloning the repo and computing image tags |
+
+### 11.2 Entra ID App Registration (SPN)
+
+The platform uses Microsoft Entra ID for user authentication. An **App Registration** is required and is automatically created by the `preprovision.sh` hook if `entraAppClientId` is empty in your parameter file.
+
+> **Why Global Admin?** The app requires Application-type Microsoft Graph permissions (`User.Read.All`, `Group.ReadWrite.All`) which need admin consent. Only a Global Administrator or Privileged Role Administrator can grant tenant-wide admin consent.
+
+#### What the automation creates
+
+The `preprovision.sh` script will:
+
+1. **Create the App Registration** named `AI-Agent-Platform-{env}`
+2. **Expose an API** with scope `access_as_user` (used by the frontend SPA for login)
+3. **Define App Roles** for RBAC:
+   - `Platform.Admin` — Full platform administration
+   - `Tenant.Admin` — Tenant-level administration
+   - `Tenant.User` — Standard agent user
+4. **Add API Permissions** and grant admin consent:
+   - `Microsoft Graph → User.Read.All` (Application) — Read user profiles for tenant management
+   - `Microsoft Graph → Group.ReadWrite.All` (Application) — Manage security groups for tenant isolation
+5. **Create a Client Secret** (1-year expiry) and store it in the azd environment
+6. **Update the Bicep parameter file** with the new client ID
+
+#### If you already have an App Registration
+
+Set the client ID in your parameter file (`infra/parameters/{env}.bicepparam`):
+
+```bicep
+param entraAppClientId = 'your-existing-app-client-id'
+```
+
+Then the script will skip auto-creation. You must ensure your existing app has:
+- **Exposed API:** `api://{clientId}/access_as_user` scope
+- **App Roles:** `Platform.Admin`, `Tenant.Admin`, `Tenant.User`
+- **API Permissions (Application type, admin consent granted):**
+  - `Microsoft Graph → User.Read.All`
+  - `Microsoft Graph → Group.ReadWrite.All`
+- **A client secret** stored in Key Vault as `entra-client-secret`
+
+### 11.3 Step-by-Step Deployment
+
+#### Step 1: Clone and authenticate
+
+```bash
+git clone https://github.com/roie9876/AI-Platform-System.git
+cd AI-Platform-System
+
+# Login to Azure (use an account with Global Admin role)
+az login
+azd auth login
+```
+
+#### Step 2: Create and configure environment
+
+```bash
+# Create a new azd environment (e.g., "dev", "staging", "prod")
+azd env new dev
+
+# Set required variables
+azd env set AZURE_LOCATION swedencentral    # or your preferred region
+azd env set AZURE_SUBSCRIPTION_ID <your-subscription-id>
+```
+
+#### Step 3: Edit the parameter file
+
+Copy and customize the environment parameter file:
+
+```bash
+cp infra/parameters/dev.bicepparam infra/parameters/<your-env>.bicepparam
+```
+
+Edit the file and update:
+
+| Parameter | Description | Action |
+|-----------|-------------|--------|
+| `entraAppClientId` | Leave empty (`''`) for auto-creation, or set your existing App Registration client ID | Required |
+| `platformAdminEmails` | Comma-separated admin emails (e.g., `admin@yourdomain.com`) | Required |
+| `entraAdminGroupId` | Object ID of an Entra security group for platform admins | Recommended |
+| `alertEmail` | Email for Azure Monitor alerts | Required |
+| `aksSystemNodeVmSize` | VM size for AKS nodes (e.g., `Standard_D2s_v5` for dev) | Optional |
+
+#### Step 4: Deploy
+
+```bash
+azd up -e dev
+```
+
+This runs the full pipeline:
+1. **`preprovision.sh`** — Validates tools, creates App Registration if needed, copies parameter file
+2. **Bicep provisioning** — Creates all Azure resources (~15-20 min on first run):
+   - VNet, AKS, ACR, Cosmos DB, Key Vault, Service Bus, App Insights, AGC
+   - Managed identities with RBAC role assignments
+   - Federated identity credentials for workload identity
+3. **`postprovision.sh`** — Configures AKS cluster, builds 11 Docker images, deploys K8s manifests
+4. **`postdeploy.sh`** — Final configuration and health checks
+
+#### Step 5: Post-deploy secrets
+
+After `azd up` completes, set the secrets that cannot be auto-provisioned:
+
+```bash
+KEY_VAULT_NAME="stumsft-aiplat-dev-kv"  # Adjust for your environment
+
+# Azure OpenAI (required for agent LLM calls)
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name azure-openai-endpoint \
+  --value "https://<your-openai-resource>.openai.azure.com"
+
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name azure-openai-key \
+  --value "<your-openai-key>"
+
+# Entra client secret (auto-set if App Registration was auto-created)
+# Only needed if you used an existing App Registration:
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name entra-client-secret \
+  --value "<your-client-secret>"
+
+# Optional: Jira integration token
+az keyvault secret set --vault-name $KEY_VAULT_NAME \
+  --name jira \
+  --value "<your-jira-token>"
+
+# Restart pods to pick up new secrets
+kubectl rollout restart deployment -n aiplatform
+```
+
+#### Step 6: Configure frontend environment
+
+The frontend reads the Entra client ID from the API Gateway's `/api/config` endpoint, which gets it from Key Vault. This is fully automated — no manual frontend config needed for Azure deployments.
+
+For local frontend development against the deployed backend, create `frontend/.env.local`:
+```
+NEXT_PUBLIC_AZURE_CLIENT_ID=<your-app-registration-client-id>
+```
+
+### 11.4 Azure Resources Created
+
+| Resource | Naming Convention | Purpose |
+|----------|-------------------|---------|
+| Resource Group | `rg-{env}` (user-created) | Container for all resources |
+| AKS Cluster | `stumsft-aiplatform-{env}-aks` | Kubernetes cluster |
+| ACR | `stumsftaiplatform{env}acr` | Docker image registry |
+| Cosmos DB | `stumsft-aiplatform-{env}-cosmos` | Primary database (NoSQL, Serverless) |
+| Key Vault | `stumsft-aiplat-{env}-kv` | Secrets management |
+| Log Analytics | `stumsft-aiplatform-{env}-logs` | Centralized logging |
+| App Insights | `stumsft-aiplatform-{env}-appins` | APM and distributed tracing |
+| Service Bus | `stumsft-aiplatform-{env}-sb` | Async messaging (KEDA triggers) |
+| VNet | `stumsft-aiplatform-{env}-vnet` | Network isolation |
+| AGC | `stumsft-aiplatform-{env}-agc` | Application Gateway for Containers |
+| Managed Identity (AKS) | `stumsft-aiplatform-{env}-aks-id` | AKS control plane identity |
+| Managed Identity (Workload) | `stumsft-aiplatform-{env}-workload-id` | Pod workload identity |
+
+### 11.5 RBAC Assignments (Auto-Provisioned)
+
+These role assignments are created automatically by Bicep:
+
+| Identity | Role | Scope | Purpose |
+|----------|------|-------|---------|
+| Workload Identity | Key Vault Secrets User | Key Vault | Read secrets from pods via CSI driver |
+| Workload Identity | Cosmos DB Contributor | Cosmos DB account | Read/write database operations |
+| Workload Identity | Service Bus Data Owner | Service Bus namespace | Send/receive async messages |
+| AKS Identity | AcrPull | ACR | Pull container images |
+
+### 11.6 Deployment Pipeline (Manual)
+
+For subsequent deployments or single-service updates:
 
 ![Deployment Pipeline](docs/architecture/deployment-pipeline.drawio.png)
 
@@ -1125,7 +1312,7 @@ End-to-end deployment is orchestrated by `scripts/deploy.sh` in three phases:
   [--dry-run]        # Preview only
 ```
 
-**Manual deployment (single service):**
+**Manual single-service deployment:**
 ```bash
 # Build for AKS (linux/amd64 required)
 docker build --platform linux/amd64 \
@@ -1139,6 +1326,17 @@ docker push stumsftaiplatformprodacr.azurecr.io/aiplatform-<service>:latest
 # Restart deployment
 kubectl rollout restart deployment/<service> -n aiplatform
 ```
+
+### 11.7 Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `AADSTS700016: Application not found` | Wrong `entraAppClientId` in param file | Verify client ID matches your App Registration |
+| Pods stuck in `CreateContainerConfigError` | Missing Key Vault secrets | Run Step 5 (post-deploy secrets) and restart pods |
+| `401 Unauthorized` on API calls | Client secret expired or missing | Rotate secret: `az ad app credential reset`, update Key Vault |
+| `AZURE_OPENAI_ENDPOINT` empty | Secret not set in Key Vault | Run `az keyvault secret set` for OpenAI secrets |
+| ACR pull errors | AKS identity missing AcrPull role | Re-run `azd up` to fix RBAC, or add manually |
+| Frontend login redirect fails | Missing SPA redirect URI | Add your domain to App Registration → Authentication → SPA |
 
 ---
 
