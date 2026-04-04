@@ -306,7 +306,7 @@ v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI 
 
 - [x] **Phase 28: Infrastructure Audit & Foundation** — Validate provision-from-zero, resolve drift, establish wildcard DNS/TLS *(completed 2025-07-18)*
 - [x] **Phase 29: Token Proxy** — Transparent LLM proxy with universal token tracking and per-tenant budgets *(completed 2025-07-16)*
-- [ ] **Phase 30: Platform MCP Servers** — Cosmos DB memory, AI Search, and group rules as native agent tools
+- [x] **Phase 30: Platform MCP Servers** — Cosmos DB memory, AI Search, and group rules as native agent tools (completed 2026-04-04)
 - [ ] **Phase 31: Auth Gateway & Native UI Access** — Authenticated subdomain routing to OpenClaw native UI
 - [ ] **Phase 32: Dual-Mode Operation** — Validate platform UI and native UI work simultaneously with full parity
 
@@ -357,11 +357,11 @@ Plans:
   3. Agents can retrieve per-group instructions and agent configuration via MCP tools
   4. MCP server URLs are auto-injected into OpenClaw CRs on agent deploy
   5. Cosmos DB `agent_memories` container has DiskANN vector index enabled and operational
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 Plans:
-- [ ] 30-01-PLAN.md — MCP server core + memory tools (store, search, structured, embedding)
-- [ ] 30-02-PLAN.md — Platform config tools (group instructions, agent config)
-- [ ] 30-03-PLAN.md — Infrastructure + deployment (Cosmos containers, Dockerfile, K8s, OpenClaw injection)
+- [x] 30-01-PLAN.md — MCP server core + memory tools (store, search, structured, embedding)
+- [x] 30-02-PLAN.md — Platform config tools (group instructions, agent config)
+- [x] 30-03-PLAN.md — Infrastructure + deployment (Cosmos containers, Dockerfile, K8s, OpenClaw injection)
 
 #### Phase 31: Auth Gateway & Native UI Access
 **Goal**: Users can access OpenClaw's full native web UI for any authorized agent via authenticated subdomain routing
@@ -414,7 +414,7 @@ Phase 28 (Infrastructure Audit & Foundation)
 |-------|----------------|--------|----------|
 | 28. Infrastructure Audit & Foundation | 0/? | Not started | - |
 | 29. Token Proxy | 0/? | Not started | - |
-| 30. Platform MCP Servers | 0/? | Not started | - |
+| 30. Platform MCP Servers | 3/3 | Complete    | 2026-04-04 |
 | 31. Auth Gateway & Native UI Access | 0/? | Not started | - |
 | 32. Dual-Mode Operation | 0/? | Not started | - |
 
