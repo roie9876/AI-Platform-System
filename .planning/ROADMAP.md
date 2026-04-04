@@ -340,7 +340,12 @@ Plans:
   3. Every LLM request's token usage is logged to Cosmos DB with tenant_id and agent_id attribution
   4. Tenant admins can set token budget limits and receive alerts when thresholds are reached
   5. New OpenClaw agents automatically route LLM traffic through the proxy via CR `baseUrl` configuration
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 29-01-PLAN.md — Proxy core service (FastAPI + TokenLogRepository + Dockerfile)
+- [ ] 29-02-PLAN.md — K8s manifests (Deployment, Service, HPA, PDB)
+- [ ] 29-03-PLAN.md — Budget API + openclaw_service.py proxy wiring + unit tests
 
 #### Phase 30: Platform MCP Servers
 **Goal**: Agents can access platform data services (memory, search, group rules) as native MCP tools without any UI changes
