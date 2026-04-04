@@ -151,6 +151,22 @@ resource secretJira 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+resource secretAzureOpenAIEndpoint 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'azure-openai-endpoint'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
+resource secretAzureOpenAIKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'azure-openai-key'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
 // Diagnostic settings — send audit logs to Log Analytics
 resource keyvaultDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
   name: 'keyvault-diagnostics'
