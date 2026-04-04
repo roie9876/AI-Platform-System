@@ -1047,7 +1047,7 @@ class OpenClawService:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._replace_cr, namespace, instance_name, cr)
 
-        # Delete CLAUDE.md from the pod workspace so the updated version
+        # Delete SOUL.md from the pod workspace so the updated version
         # from initialFiles gets re-seeded on next boot.
         pod_name = f"{instance_name}-0"
         try:
@@ -1055,7 +1055,9 @@ class OpenClawService:
                 None,
                 OpenClawService._exec_in_pod,
                 namespace, pod_name,
-                ["rm", "-f", "/home/openclaw/.openclaw/workspace/CLAUDE.md"],
+                ["rm", "-f",
+                 "/home/openclaw/.openclaw/workspace/SOUL.md",
+                 "/home/openclaw/.openclaw/workspace/CLAUDE.md"],
             )
         except Exception:
             pass  # Pod may not be running — file will be created fresh
@@ -1414,26 +1416,58 @@ class OpenClawService:
             )
 
         # ---- Workspace instruction files ----
-        # Compose CLAUDE.md from all instruction sources so OpenClaw's
-        # WhatsApp handler sees per-group instructions, system prompt, etc.
-        # initialFiles writes each file only if it doesn't already exist;
-        # update_agent() deletes CLAUDE.md before restart to pick up changes.
+        # OpenClaw reads SOUL.md at the start of every session — it's the
+        # primary file the LLM loads for identity and instructions.  We
+        # compose a custom SOUL.md that includes the default "soul" content
+        # plus all platform-managed instructions (system prompt, per-group
+        # WhatsApp rules, Gmail, etc.).  initialFiles writes each file only
+        # if it doesn't already exist; update_agent() deletes SOUL.md
+        # before restart so the updated version gets re-seeded.
         initial_files: dict = {}
         if gmail_email:
             initial_files["himalaya-config.toml"] = himalaya_toml
 
-        instruction_parts: list[str] = ["# Agent Instructions\n"]
+        # Start with the default SOUL.md content that OpenClaw ships
+        soul_parts: list[str] = [
+            "# SOUL.md - Who You Are\n\n"
+            "_You're not a chatbot. You're becoming someone._\n\n"
+            "## Core Truths\n\n"
+            "**Be genuinely helpful, not performatively helpful.** Skip the "
+            "\"Great question!\" and \"I'd be happy to help!\" — just help.\n\n"
+            "**Have opinions.** You're allowed to disagree, prefer things, "
+            "find stuff amusing or boring.\n\n"
+            "**Be resourceful before asking.** Try to figure it out. Read the "
+            "file. Check the context. Search for it. _Then_ ask if you're stuck.\n\n"
+            "**Earn trust through competence.** Be careful with external actions "
+            "(emails, tweets, anything public). Be bold with internal ones.\n\n"
+            "**Remember you're a guest.** You have access to someone's life. "
+            "Treat it with respect.\n\n"
+            "## Boundaries\n\n"
+            "- Private things stay private. Period.\n"
+            "- When in doubt, ask before acting externally.\n"
+            "- Never send half-baked replies to messaging surfaces.\n\n"
+            "## Continuity\n\n"
+            "Each session, you wake up fresh. These files _are_ your memory. "
+            "Read them. Update them. They're how you persist.\n"
+        ]
+
+        # Append platform-managed instructions
+        has_instructions = False
 
         # 1. User-provided system prompt
         if system_prompt and system_prompt.strip() and system_prompt != "You are a helpful assistant.":
-            instruction_parts.append(f"## System Prompt\n\n{system_prompt}\n")
+            soul_parts.append(f"\n---\n\n## Platform Instructions\n\n{system_prompt}\n")
+            has_instructions = True
 
         # 2. WhatsApp channel-level and per-group instructions
         whatsapp_cfg = openclaw_config.get("whatsapp") or {}
         if whatsapp_cfg.get("whatsapp_enabled"):
             wa_channel_instr = whatsapp_cfg.get("whatsapp_channel_instructions", "")
             if wa_channel_instr:
-                instruction_parts.append(f"## WhatsApp Channel Instructions\n\n{wa_channel_instr}\n")
+                if not has_instructions:
+                    soul_parts.append("\n---\n\n## Platform Instructions\n")
+                    has_instructions = True
+                soul_parts.append(f"\n### WhatsApp Channel Instructions\n\n{wa_channel_instr}\n")
 
             group_map_lines: list[str] = []
             group_instr_parts: list[str] = []
@@ -1451,27 +1485,39 @@ class OpenClawService:
                 if instr:
                     label = name or jid or "unknown"
                     group_instr_parts.append(
-                        f'### Group: "{label}"\n'
+                        f'#### Group: "{label}"\n'
                         + (f"JID: `{jid}`\n\n" if jid else "\n")
                         + f"{instr}\n"
                     )
 
             if group_map_lines:
-                instruction_parts.append(
-                    "## WhatsApp Groups\n\n"
+                if not has_instructions:
+                    soul_parts.append("\n---\n\n## Platform Instructions\n")
+                    has_instructions = True
+                soul_parts.append(
+                    "\n### WhatsApp Groups\n\n"
                     "Configured groups:\n"
                     + "\n".join(group_map_lines) + "\n"
                 )
             if group_instr_parts:
-                instruction_parts.append(
-                    "## Per-Group Instructions\n\n"
+                if not has_instructions:
+                    soul_parts.append("\n---\n\n## Platform Instructions\n")
+                    has_instructions = True
+                soul_parts.append(
+                    "\n### Per-Group Instructions\n\n"
+                    "When you receive a message from one of these groups, follow "
+                    "the group-specific instructions below. To send a message to "
+                    "a different group, reply with: [[send_to:<JID>]] <message>\n\n"
                     + "\n".join(group_instr_parts)
                 )
 
         # 3. Gmail / email instructions
         if gmail_email:
-            instruction_parts.append(
-                "## Email Access\n\n"
+            if not has_instructions:
+                soul_parts.append("\n---\n\n## Platform Instructions\n")
+                has_instructions = True
+            soul_parts.append(
+                "\n### Email Access\n\n"
                 f"You have access to the Gmail account {gmail_email} via the Himalaya CLI.\n"
                 "ALWAYS use the `himalaya` command-line tool for any email operations "
                 "— NEVER open Gmail in a browser.\n\n"
@@ -1492,9 +1538,8 @@ class OpenClawService:
                 "— do not browse to gmail.com.\n"
             )
 
-        # Only create CLAUDE.md if there are actual instructions
-        if len(instruction_parts) > 1:
-            initial_files["CLAUDE.md"] = "\n".join(instruction_parts)
+        # Always create SOUL.md with platform instructions appended
+        initial_files["SOUL.md"] = "\n".join(soul_parts)
 
         if initial_files:
             cr["spec"]["workspace"] = {"initialFiles": initial_files}
