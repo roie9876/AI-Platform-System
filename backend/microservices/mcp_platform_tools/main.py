@@ -24,6 +24,11 @@ from .memory import (
     memory_store_structured,
     set_embedding_service,
 )
+from .platform_config import (
+    get_agent_config,
+    get_group_instructions,
+    list_configured_groups,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +89,38 @@ async def tool_memory_get_structured(
 ) -> dict:
     """Retrieve structured memories by key, category, or list all for an agent."""
     return await memory_get_structured(tenant_id, agent_id, key, category)
+
+
+# ---------------------------------------------------------------------------
+#  Platform config tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def tool_get_group_instructions(
+    tenant_id: str,
+    agent_id: str,
+    group_jid: str,
+) -> dict:
+    """Get per-group instructions and settings for a WhatsApp group."""
+    return await get_group_instructions(tenant_id, agent_id, group_jid)
+
+
+@mcp.tool()
+async def tool_get_agent_config(
+    tenant_id: str,
+    agent_id: str,
+) -> dict:
+    """Get agent configuration (name, system prompt, model)."""
+    return await get_agent_config(tenant_id, agent_id)
+
+
+@mcp.tool()
+async def tool_list_configured_groups(
+    tenant_id: str,
+    agent_id: str,
+) -> dict:
+    """List all WhatsApp groups configured for an agent."""
+    return await list_configured_groups(tenant_id, agent_id)
 
 
 # ---------------------------------------------------------------------------
