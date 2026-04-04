@@ -1036,6 +1036,13 @@ class OpenClawService:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._replace_cr, namespace, instance_name, cr)
 
+        # The operator reconciles CR changes into a ConfigMap but does NOT
+        # restart the pod automatically.  Delete the pod so the StatefulSet
+        # controller recreates it with the updated config.
+        await loop.run_in_executor(
+            None, self._restart_statefulset_pod, namespace, instance_name
+        )
+
         logger.info("Updated OpenClaw instance %s in %s", instance_name, namespace)
 
     async def delete_agent(self, instance_name: str, tenant_slug: str) -> None:
@@ -1658,6 +1665,26 @@ class OpenClawService:
                 )
             else:
                 raise
+
+    @staticmethod
+    def _restart_statefulset_pod(namespace: str, instance_name: str) -> None:
+        """Delete the StatefulSet pod so it gets recreated with updated config."""
+        from kubernetes import client
+
+        core_v1, _ = _get_k8s_clients()
+        pod_name = f"{instance_name}-0"
+        try:
+            core_v1.delete_namespaced_pod(
+                name=pod_name,
+                namespace=namespace,
+                body=client.V1DeleteOptions(grace_period_seconds=30),
+            )
+            logger.info("Deleted pod %s/%s to pick up config changes", namespace, pod_name)
+        except client.ApiException as e:
+            if e.status == 404:
+                logger.info("Pod %s/%s not found — nothing to restart", namespace, pod_name)
+            else:
+                logger.error("Failed to restart pod %s/%s: %s", namespace, pod_name, e)
 
     @staticmethod
     def _delete_resources(namespace: str, instance_name: str) -> None:
