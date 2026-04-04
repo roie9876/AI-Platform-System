@@ -1,214 +1,218 @@
 # Project Research Summary
 
-**Project:** AI Agent Platform as a Service — v3.0 Production Multi-Tenant Infrastructure
-**Domain:** Brownfield migration of AI Agent Platform from monolith → microservices, PostgreSQL → Cosmos DB, JWT → Entra ID, Docker Compose → AKS
-**Researched:** 2026-03-26
+**Project:** AI Agent Platform v4.0 — Architecture Pivot: Platform as Infrastructure Provider
+**Domain:** Multi-tenant AI agent platform infrastructure
+**Researched:** 2026-04-04
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This project is a **brownfield infrastructure migration** of an existing AI Agent Platform (Python/FastAPI monolith, SQLAlchemy/PostgreSQL, HS256 JWT auth, Docker Compose) to a production multi-tenant Azure architecture. The target state is a microservice-based platform running on AKS with namespace-per-tenant isolation, Cosmos DB NoSQL for data, Microsoft Entra ID for enterprise SSO, Bicep IaC, GitHub Actions CI/CD, and Azure Monitor observability. The platform serves 2-5 internal enterprise tenants — not a public SaaS, so billing, multi-region, and tiered service levels are out of scope.
+The v4.0 milestone transforms the platform from a "UI wrapper" around OpenClaw into an "infrastructure provider" — exposing OpenClaw's native web UI to end users while the platform provides multi-tenancy, authentication, token metering, Azure service integrations, and per-group rules as invisible infrastructure. Research across all four domains confirms this is architecturally sound and achievable with the existing stack. The recommended approach centers on four new components: (1) a custom FastAPI auth gateway for authenticated subdomain routing to OpenClaw pods, (2) a lightweight FastAPI token-counting proxy for universal LLM usage tracking, (3) three platform MCP servers exposing Cosmos DB memory, AI Search, and group rules as tools OpenClaw agents can call natively, and (4) infrastructure updates including wildcard DNS/TLS and Cosmos DB vector search enablement.
 
-The recommended approach, validated by all four research streams, follows a strict sequential order: **IaC first → Auth migration → Cosmos DB data layer → Microservice extraction → AKS deployment → CI/CD automation → Observability instrumentation**. This order is dictated by three hard dependencies: (1) Azure resources must exist before any code can target them, (2) auth must migrate while the codebase is still a single monolith (changing auth in 5 microservices simultaneously is exponentially harder), and (3) the data layer must be replaced before service extraction because SQLAlchemy's shared session model creates import dependencies that block decomposition.
+The critical technical insight across all research is that **every new component follows existing platform patterns exactly**. The auth gateway reuses `validate_entra_token()` and Cosmos DB tenant resolution. The token proxy mirrors the centralized deployment pattern of `api-gateway` and `workflow-engine`. The MCP servers replicate the hand-rolled JSON-RPC 2.0 pattern from `mcp_server_web_tools.py`. No new languages, no new infrastructure dependencies, no new ingress controllers. The riskiest unknowns are (1) whether Cosmos DB's DiskANN vector index can be added to the existing `agent_memories` container without data migration, and (2) AGC's behavior with wildcard Ingress resources alongside the existing platform Ingress.
 
-The **highest-risk item** is the Cosmos DB migration — replacing SQLAlchemy across 26 models, 15 services, and all tests with a repository pattern over the Cosmos DB SDK. The critical danger is translating relational JOINs into cross-partition queries (4-5x RU cost), losing transactional atomicity (Cosmos DB only supports transactions within a single logical partition), and schema evolution without Alembic (schemaless doesn't mean schema-free). These risks are manageable with upfront document model design, denormalization mapping, and schema versioning — but they must be addressed in the design phase, not discovered during implementation.
+Key risks are manageable: the auth gateway is the sole auth boundary for OpenClaw pods (which run with `auth.mode: none`), so any misconfiguration is a direct security exposure — defense-in-depth via NetworkPolicy is essential. The token proxy is a potential SPOF for all LLM traffic but is mitigated by HPA + emergency bypass (revert CR `baseUrl` to Azure OpenAI directly). The three MCP servers add pod overhead but are lightweight (~128Mi each) and stateless.
 
 ## Key Findings
 
-### Recommended Stack
+### Recommended Stack Additions
 
-The existing Python/FastAPI, Next.js, Docker stack is validated and retained. All additions target Azure-native services and tooling.
+**New components to build (all Python/FastAPI):**
 
-**Core additions:**
-- **Bicep CLI** (bundled with Azure CLI ≥2.84.0): Infrastructure-as-Code for all Azure resources. Chosen over Terraform for Azure-native type safety and no state file management.
-- **azure-cosmos 4.15.0**: Cosmos DB NoSQL data operations with async support. Replaces SQLAlchemy ORM — the SDK is used directly with a Repository pattern, no ORM abstraction.
-- **azure-identity 1.25.3**: `DefaultAzureCredential` for unified auth chain (local dev via Azure CLI, AKS via Workload Identity). Single credential type for all Azure SDK calls.
-- **msal 1.35.1**: Entra ID token validation on the backend. Validates RS256 tokens with JWKS key rotation and authority discovery.
-- **azure-monitor-opentelemetry 1.8.7**: All-in-one OpenTelemetry distro for Azure Monitor. Auto-instruments FastAPI, exports to Application Insights. Replaces deprecated opencensus.
-- **Helm v4.0.x + Kustomize v5.0.x**: Helm for microservice packaging, Kustomize for tenant-specific namespace overlays. Used together, not either/or.
-- **azure-keyvault-secrets 4.10.0**: Runtime secret retrieval via Managed Identity. Replaces env vars and DB-stored encrypted secrets.
+| Component | Purpose | LOC | Namespace |
+|-----------|---------|-----|-----------|
+| **auth-gateway** | OIDC login + Entra ID JWT validation + HTTP/WebSocket proxy to OpenClaw pods | ~600 | `aiplatform` |
+| **token-proxy** | Transparent LLM proxy: count tokens, log to Cosmos DB, emit App Insights telemetry | ~300-500 | `aiplatform` |
+| **mcp-cosmos-memory** | Cosmos DB vector search for agent long-term memory | ~200 | `aiplatform` |
+| **mcp-azure-search** | Azure AI Search hybrid queries exposed as MCP tools | ~250 | `aiplatform` |
+| **mcp-platform-context** | Per-group rules and agent config exposed as MCP tools | ~200 | `aiplatform` |
 
-**Frontend:** No new packages needed. `@azure/msal-browser` 5.6.1 and `@azure/msal-react` 5.1.0 are already installed.
+**Infrastructure additions:**
+- Wildcard DNS record: `*.agents.stumsft.com` → AGC public IP
+- Wildcard TLS cert via cert-manager (DNS-01 challenge against Azure DNS)
+- Wildcard Ingress resource on AGC (`ingressClassName: azure-alb-external`)
+- New Cosmos DB container: `token_logs` (partition by `tenant_id`, 90-day TTL)
+- Cosmos DB `agent_memories` container: add DiskANN vector embedding policy
+- NetworkPolicy updates: allow auth-gateway → tenant pods on port 18789
 
-**Key version constraints:** Python 3.12, Node.js 22, Kubernetes 1.30.x.
+**Key technology decisions confirmed by research:**
+- **Custom FastAPI proxy over LiteLLM/Portkey/Helicone** — existing solutions require PostgreSQL, external SaaS, or TypeScript runtime. Custom proxy is ~300 LOC and logs directly to Cosmos DB.
+- **Custom auth gateway over oauth2-proxy** — oauth2-proxy can't do dynamic upstream routing (agent-{id} → pod resolution). Custom gateway reuses existing `validate_entra_token()`.
+- **AGC with wildcard Ingress over adding NGINX Ingress** — no second ingress controller needed. AGC supports WebSocket natively.
+- **Subdomain routing over path-based** — OpenClaw's SPA assumes root `/`. Path rewriting breaks client-side routing.
+- **Encrypted cookies (Fernet) over Redis sessions** — stateless, no new infrastructure dependency. Sufficient for 2-5 tenants.
+- **Separate MCP servers (3 deployments) over combined** — matches existing 1:1 pattern, independent scaling and failure isolation.
+- **URL-path tenant scoping for MCP servers** — OpenClaw doesn't support custom headers on MCP calls. Inject tenant-scoped URLs at CR generation time.
 
-**SQLAlchemy replacement strategy:** Drop SQLAlchemy ORM for Cosmos DB-backed entities. Introduce Repository pattern abstracting data access. Pydantic `BaseModel` classes become canonical schema (schema-on-write). No Alembic migrations — Cosmos DB is schemaless; container provisioning handled in Bicep.
+### Feature Table Stakes (v4.0 Must-Haves)
 
-### Expected Features
+**Must have:**
+- Authenticated access to OpenClaw native UI via `agent-{id}.agents.stumsft.com`
+- Universal token counting across all UI paths (platform + native OpenClaw)
+- Cosmos DB vector search for agent memory (replacing recency-only retrieval)
+- Platform MCP servers auto-injected into every OpenClaw agent
+- Per-group rules accessible as MCP tools (not just system message injection)
+- Wildcard DNS + TLS for agent subdomains
+- NetworkPolicy updates for new traffic patterns
 
-94 total features identified across 8 categories. 63 table stakes, 31 differentiators.
+**Should have:**
+- Token usage dashboard integration (reads from `token_logs` container)
+- Cost estimation per request (model pricing lookup)
+- Reasoning token tracking for o-series models
+- "Open Console" link in platform UI pointing to native OpenClaw UI
 
-**Must have (table stakes):**
-- Tenant registration API with lifecycle states (provisioning → active → suspended → deleted)
-- Automated AKS namespace provisioning with NetworkPolicy, ResourceQuota, LimitRange per tenant
-- Core Bicep modules for VNet, AKS, ACR, Cosmos DB, Key Vault, Managed Identities, Log Analytics
-- Cosmos DB repository layer replacing SQLAlchemy with partition key enforcement and cross-tenant query prevention
-- Entra ID OIDC integration replacing homegrown JWT, with tenant mapping (Entra `tid` → platform `tenant_id`) and 4-role RBAC
-- 5 microservice container images (api-gateway, agent-executor, workflow-engine, tool-executor, mcp-proxy) with multi-stage Dockerfiles
-- GitHub Actions build + deploy pipelines with OIDC auth, immutable SHA-based image tags, staging auto-deploy + production manual approval
-- Application Insights + per-tenant metrics via OpenTelemetry, structured logging with tenant/trace correlation
-- Tenant selector UI, tenant-scoped views, platform admin dashboard, tenant onboarding wizard
-
-**Should have (differentiators):**
-- Cosmos DB Change Feed for event streaming and cache invalidation
-- Canary deployments (deploy to single tenant namespace first)
-- Per-tenant usage dashboards and cost attribution
-- Group-based access control via Entra ID security groups
-- Infrastructure drift detection via `az deployment what-if`
-
-**Defer to post-v3.0:**
-- Istio service mesh (NetworkPolicy sufficient for 2-5 trusted tenants)
-- GitOps with Flux (GitHub Actions is simpler to start)
-- SLO tracking and anomaly detection
-- Multi-region tenant placement
-- Per-tenant branded portals
-- Billing/payment integration (internal platform)
+**Defer (v4.1+):**
+- Per-tenant rate limiting / budget caps in token proxy
+- Azure AI Search index management tools in MCP (read-only for v4.0)
+- Redis session store for auth gateway (encrypted cookies sufficient now)
+- Go rewrite of token proxy (only needed at 50+ tenants / 500+ agents)
 
 ### Architecture Approach
 
-The monolith's 15 service classes split into **5 backend microservices** based on failure domain isolation, scaling requirements, and deployment cadence. The API Gateway handles all CRUD plus routing; execution-intensive services (agent execution, workflow orchestration, tool execution, MCP proxy) deploy per-tenant in isolated namespaces.
+All new components deploy as centralized services in the `aiplatform` namespace, consistent with existing shared services (api-gateway, workflow-engine, mcp-proxy). Tenant isolation is maintained through Cosmos DB partition keys, NetworkPolicy, and URL-path tenant scoping — not through per-tenant pod duplication.
 
-**Major components:**
-1. **API Gateway** (`platform` namespace) — Entra ID token validation, RBAC, all 22 CRUD routers, tenant management, Cosmos DB reads/writes. Single deployment, HPA on request rate.
-2. **Agent Executor** (per-tenant namespace) — Agent execution loop, model calls, RAG retrieval, memory management, SSE streaming. Most CPU/memory-intensive; scales on concurrent executions.
-3. **Workflow Engine** (per-tenant namespace) — Long-running DAG orchestration, sub-agent delegation. Scales on active workflow count.
-4. **Tool Executor** (per-tenant namespace) — Sandboxed untrusted code execution with restricted NetworkPolicy. Isolated for blast radius containment.
-5. **MCP Server Proxy** (per-tenant namespace) — MCP client, server discovery, connection pooling. Enforces tenant-level MCP server registration isolation.
+**Traffic flow for native UI access:**
+```
+Browser → DNS (*.agents.stumsft.com) → AGC (TLS terminate) → auth-gateway (OIDC + proxy) → OpenClaw pod (tenant-{slug})
+```
 
-**Cosmos DB design:** 11 containers organized by access pattern (not entity), all partitioned on `/tenant_id` except `platform` (`/id`) and `marketplace` (`/category`). Denormalization strategy: embed config versions, tool IDs, workflow nodes/edges, test cases within parent documents. Custom indexing policy excludes large embedded arrays to save write RUs.
+**Traffic flow for LLM requests:**
+```
+OpenClaw pod → token-proxy (aiplatform) → Azure OpenAI → response streams back through proxy → usage logged to Cosmos DB
+```
 
-**AKS layout:** Single shared cluster. `platform` namespace for shared infrastructure (API gateway, tenant management). Per-tenant namespaces (`tenant-{slug}`) with 4 workload pods each, default-deny NetworkPolicy, ResourceQuota, LimitRange, dedicated ServiceAccount with Workload Identity.
+**Traffic flow for MCP tools:**
+```
+OpenClaw agent → mcp-{server}.aiplatform.svc/mcp/{tenant}/{agent} → Cosmos DB / AI Search → response
+```
 
-**Inter-service communication:** HTTP/REST via httpx. No service mesh, no gRPC, no async messaging for v3.0. Internal trust model: API Gateway is sole ingress point, validates Entra ID token, sets trusted `X-Tenant-ID` header. Tenant services trust this header because NetworkPolicy enforces only the gateway can reach them.
+**Major components and responsibilities:**
+
+1. **Auth Gateway** — OIDC login flow via MSAL, encrypted session cookies, agent-to-pod resolution via Cosmos DB lookup, bidirectional HTTP + WebSocket proxying, tenant access validation
+2. **Token Proxy** — transparent request forwarding with `stream_options.include_usage` injection, async Cosmos DB logging, App Insights telemetry emission, path-based or header-based tenant attribution
+3. **MCP Cosmos Memory** — vector similarity search via DiskANN `VectorDistance()`, query embedding generation via `text-embedding-3-small`, partition-scoped queries
+4. **MCP Azure Search** — hybrid (keyword + vector) search against Azure AI Search indexes, schema-agnostic field mapping, Managed Identity auth
+5. **MCP Platform Context** — per-group rules lookup from agent config in Cosmos DB, agent configuration exposure as tool calls
 
 ### Critical Pitfalls
 
-12 critical/high pitfalls identified, plus 9 moderate/minor and 3 cross-cutting integration pitfalls.
+1. **Auth gateway is the sole security boundary** — OpenClaw runs with `auth.mode: none`. If the auth gateway has a bug or misconfiguration, agents are publicly accessible. **Mitigation:** NetworkPolicy blocks all external access to port 18789; only auth-gateway pods in `aiplatform` namespace can reach OpenClaw UI. Defense-in-depth, not single-layer.
 
-1. **Relational JOIN → cross-partition query translation** — Developers instinctively replicate SQL JOINs as multiple Cosmos DB queries, causing 4-5x RU cost and 60-120ms latency vs. 15ms SQL. **Prevention:** Denormalize read paths upfront. Map every existing JOIN to an embedding strategy before writing code.
+2. **Entra ID doesn't support wildcard redirect URIs** — `https://*.agents.stumsft.com/auth/callback` is invalid. **Mitigation:** Use a single auth subdomain (`https://auth.agents.stumsft.com/auth/callback`) with `state` parameter to redirect to the correct agent subdomain after login. One redirect URI in the Entra ID app registration.
 
-2. **Lost transactional atomicity** — PostgreSQL's implicit `session.commit()` atomicity doesn't exist in Cosmos DB across partitions/containers. **Prevention:** Partition key design + embedded documents make most writes single-partition (use `TransactionalBatch`). Identify the 3-4 genuinely cross-container operations and implement compensating transactions only for those.
+3. **Cosmos DB DiskANN vector index migration risk** — the existing `agent_memories` container may not accept a vector embedding policy retroactively if indexing policy constraints prevent it. **Mitigation:** Test policy addition on non-prod first. Worst case: create new container, migrate data, swap queries.
 
-3. **Big-bang monolith decomposition** — Extracting all microservices simultaneously causes 2-4 weeks of development paralysis. **Prevention:** Strangler Fig pattern. Extract one service at a time behind a reverse proxy.
+4. **Token proxy as SPOF for all LLM traffic** — all OpenClaw → Azure OpenAI calls route through the proxy. **Mitigation:** HPA (2-5 replicas), PodDisruptionBudget (minAvailable: 1), emergency bypass by reverting CR `baseUrl` to Azure OpenAI directly.
 
-4. **Entra ID audience/issuer confusion** — Misconfiguring `aud` claim validation (v1.0 vs v2.0 token format) causes total auth failure in production. **Prevention:** Pin `accessTokenAcceptedVersion: 2` in app registration. Use `msal` library (not raw PyJWT) for validation.
-
-5. **RU cost explosion from unbounded queries** — Existing `SELECT *` patterns translate to full-partition scans consuming thousands of RUs. **Prevention:** Enforce pagination on all list queries. Pre-aggregate metrics via Change Feed. Profile every endpoint's RU cost during development.
-
-6. **RBAC propagation timing in Bicep** — Role assignments have 5-10 minute propagation delay. **Prevention:** Split deployment into stages with waits between identity and data stages.
-
-7. **Auth migration + microservice split ordering** — Migrating auth after microservice extraction means updating 5+ codebases simultaneously. **Prevention:** Auth migration MUST happen while still a monolith.
+5. **Responses API streaming usage format uncertainty** — `stream_options.include_usage` is confirmed for Chat Completions but may differ for the Responses API (`/openai/v1/responses`). OpenClaw uses `openai-responses` provider. **Mitigation:** Test both API paths during implementation. For Responses API, usage may be available in the response object directly without streaming options.
 
 ## Implications for Roadmap
 
-Based on combined research, the migration requires **8 phases** in strict dependency order.
+### Phase 1: Infrastructure Audit & Foundation
+**Rationale:** Every subsequent phase depends on a working infrastructure baseline. Wildcard DNS/TLS, cert-manager, and Cosmos DB container provisioning must be validated before building services that depend on them.
+**Delivers:** Clean provision-from-zero validation of Bicep + K8s, wildcard DNS zone, cert-manager ClusterIssuer, wildcard certificate, `token_logs` Cosmos DB container, `agent_memories` vector index policy update.
+**Avoids:** Building services against infrastructure that doesn't actually work (the v3.0→v4.0 gap may have drift).
+**Research flag:** LOW — well-documented Bicep/K8s patterns, cert-manager DNS-01 is standard.
 
-### Phase 1: Infrastructure Foundation (Bicep IaC)
-**Rationale:** Everything depends on Azure resources existing. Cannot write code targeting Cosmos DB or AKS without provisioned resources.
-**Delivers:** Dev/staging Azure environment — VNet, AKS cluster, ACR, Cosmos DB account + 11 containers, Key Vault, Managed Identities, Log Analytics, App Insights.
-**Addresses:** All 9 IaC table-stakes features.
-**Avoids:** Pitfall #7 (RBAC timing — staged deployments), Pitfall #17 (naming collisions — `uniqueString()`).
+### Phase 2: Token Proxy
+**Rationale:** Independent of UI exposure. Can be deployed and validated by simply changing the CR `baseUrl`. Provides immediate value (token tracking) before native UI is exposed.
+**Delivers:** FastAPI proxy service, `token_logs` Cosmos DB repository, CR `baseUrl` modification in `openclaw_service.py`, App Insights telemetry. Universal token counting for all LLM calls regardless of UI path.
+**Uses:** `stream_options.include_usage` for streaming token extraction. Centralized deployment pattern in `aiplatform` namespace.
+**Avoids:** Introducing LiteLLM/PostgreSQL dependency; proxy-as-SPOF via HPA + bypass.
+**Research flag:** MEDIUM — need to verify Responses API streaming usage format. Chat Completions path is confirmed.
 
-### Phase 2: Authentication Migration (Entra ID)
-**Rationale:** Auth MUST migrate while still a monolith (Integration Pitfall B). One codebase to change vs. five. Cross-cutting concern that every subsequent phase depends on.
-**Delivers:** Entra ID OIDC login, RS256 token validation, tenant mapping, 4-role RBAC, dual-auth transition period, Managed Identity auth for Azure SDK calls.
-**Addresses:** All 7 auth table-stakes features.
-**Avoids:** Pitfall #4 (audience confusion), Pitfall #14 (dual-auth complexity), Pitfall #19 (MSAL token cache).
+### Phase 3: Platform MCP Servers
+**Rationale:** Independent of UI exposure. Agents gain memory search, document retrieval, and group rules tools immediately through the existing CR injection mechanism. No UI changes needed.
+**Delivers:** Three MCP servers (cosmos-memory, azure-search, platform-context), auto-injection in `openclaw_service.py`, Cosmos DB vector search enablement.
+**Uses:** Existing JSON-RPC 2.0 MCP server pattern, URL-path tenant scoping, Managed Identity for Azure services.
+**Avoids:** Combined server single-point-of-failure; agent trust issues via URL-path scoping (not tool argument scoping).
+**Research flag:** MEDIUM — DiskANN vector index migration needs testing. AI Search tool is straightforward.
 
-### Phase 3: Data Layer Migration (Cosmos DB)
-**Rationale:** Highest-risk, highest-complexity item. Must complete before microservice extraction because SQLAlchemy imports block decomposition.
-**Delivers:** Document model design, Repository pattern, 11 concrete repositories, Pydantic document models, `CosmosClient` singleton, data migration scripts, schema versioning.
-**Addresses:** All 8 Cosmos DB table-stakes features.
-**Avoids:** Pitfall #1 (JOIN translation), Pitfall #2 (lost transactions), Pitfall #5 (RU explosion), Pitfall #9 (partition key mismatch), Pitfall #12 (schema evolution), Pitfall #15 (junction tables).
+### Phase 4: Auth Gateway & Native UI Exposure
+**Rationale:** Depends on Phase 1 (wildcard DNS/TLS) and benefits from Phase 2/3 being validated (full platform value-adds working before exposing native UI). This is the most complex phase — OIDC flow, WebSocket proxy, dynamic routing.
+**Delivers:** Auth gateway service, wildcard AGC Ingress, NetworkPolicy updates, OIDC login flow, WebSocket proxy, agent-to-pod routing, "Open Console" link in platform UI.
+**Uses:** Existing `validate_entra_token()`, MSAL ConfidentialClientApplication, `httpx` for HTTP proxy, `websockets` for WebSocket proxy.
+**Avoids:** oauth2-proxy (static upstreams), NGINX Ingress (second ingress controller), path-based routing (breaks SPA).
+**Research flag:** MEDIUM — AGC wildcard Ingress + auth gateway need integration testing. Entra ID redirect URI pattern (single auth subdomain) needs verification.
 
-### Phase 4: Microservice Extraction
-**Rationale:** With auth and data layer migrated, the monolith can decompose. Strangler Fig: one service at a time.
-**Delivers:** 5 microservice codebases with Dockerfiles, inter-service HTTP contracts, shared Pydantic model library.
-**Addresses:** Microservice container images, service boundaries from ARCHITECTURE.md.
-**Avoids:** Pitfall #3 (big-bang split), Pitfall #8 (service-to-service auth gaps).
-
-### Phase 5: AKS Deployment & Tenant Provisioning
-**Rationale:** Container images from Phase 4 need a deployment target. Namespace-per-tenant is the core isolation mechanism.
-**Delivers:** Helm charts, Kustomize overlays, automated namespace provisioning, tenant lifecycle API, deployment manifests with HPA.
-**Addresses:** All 9 AKS compute isolation table stakes, tenant registration API.
-**Avoids:** Pitfall #6 (namespace sprawl), Pitfall #16 (DNS/NetworkPolicy), Integration Pitfall A (MI auth triangle).
-
-### Phase 6: CI/CD Pipelines (GitHub Actions)
-**Rationale:** Automate build/test/deploy. Needs AKS target + container images from previous phases.
-**Delivers:** Build pipeline, deploy pipeline, OIDC auth, staging auto-deploy + production manual approval, container vulnerability scanning.
-**Addresses:** All 8 CI/CD table-stakes features.
-**Avoids:** Pitfall #10 (secrets sprawl — OIDC + Key Vault), Pitfall #20 (over-triggering — path filters).
-
-### Phase 7: Observability & Monitoring
-**Rationale:** Instrument AFTER services are split (PITFALLS.md: instrumenting code that will be restructured wastes effort).
-**Delivers:** Application Insights, distributed tracing, per-tenant metrics, structured logging, Container Insights, alerting.
-**Addresses:** All 8 observability table-stakes features.
-**Avoids:** Pitfall #11 (metric cardinality explosion), Pitfall #21 (workspace confusion).
-
-### Phase 8: Tenant Admin UI
-**Rationale:** Requires all APIs, auth, and data layer to be complete. Least risky layer.
-**Delivers:** Tenant selector, tenant-scoped views, platform admin dashboard, onboarding wizard, settings, user management.
-**Addresses:** All 7 tenant admin UI table-stakes features.
+### Phase 5: Dual-Mode Operation & Platform UI Simplification
+**Rationale:** Only after native UI is accessible. Evaluate which platform UI pages are redundant with OpenClaw's native UI and deprecate them. Add cross-links between platform dashboard and native UI.
+**Delivers:** Platform UI links to native consoles, deprecated redundant pages, dual-mode documentation.
+**Research flag:** LOW — mostly UI/UX decisions, not technical research.
 
 ### Phase Ordering Rationale
 
-- **IaC → Auth → Data → Services → Infra → CI/CD → Observability → UI** follows strict dependency chains validated across all four research files.
-- Auth before Data because auth is cross-cutting and simpler to migrate in a monolith.
-- Data before Services because SQLAlchemy import dependencies block decomposition.
-- Services before AKS because container images are needed for K8s deployment.
-- CI/CD after AKS because a deployment target must exist before automating deployment.
-- Observability after service split because instrumenting code that will be restructured wastes effort.
-- UI last because it depends on all APIs being production-ready.
+- **Phase 1 first** because wildcard TLS/DNS is a prerequisite for Phase 4, and Cosmos DB container setup is a prerequisite for Phases 2-3.
+- **Phases 2 and 3 before Phase 4** because they add platform value (token tracking, MCP tools) independently of native UI exposure. If Phase 4 encounters blockers, Phases 2-3 are still valuable.
+- **Phases 2 and 3 are parallelizable** — token proxy and MCP servers have no dependency on each other. Both modify `openclaw_service.py` but in different sections (baseUrl vs mcpServers).
+- **Phase 4 last among infrastructure phases** because it has the most unknowns (AGC wildcard, OIDC flow, WebSocket proxy) and benefits from all other pieces being in place.
+- **Phase 5 is cleanup/polish** — low risk, no infrastructure changes.
 
-### Research Flags
+### Research Flags Summary
 
-**Needs `/gsd-research-phase` during planning:**
-- **Phase 2 (Auth Migration):** Entra ID app registration, token validation flow, dual-auth transition, `tid` → `tenant_id` mapping.
-- **Phase 3 (Data Layer):** Cosmos DB denormalization strategy, RU cost modeling, TransactionalBatch boundaries, Change Feed architecture.
-- **Phase 5 (AKS Deployment):** NetworkPolicy rules, Workload Identity federation, tenant provisioning automation.
-
-**Standard patterns (skip research):**
-- **Phase 1 (IaC):** Well-documented Bicep patterns from Azure Architecture Center.
-- **Phase 4 (Microservice Extraction):** Strangler Fig is established; ARCHITECTURE.md provides exact file-to-service mapping.
-- **Phase 6 (CI/CD):** Standard GitHub Actions; STACK.md provides action versions and pipeline structure.
-- **Phase 7 (Observability):** `azure-monitor-opentelemetry` distro handles most instrumentation automatically.
-- **Phase 8 (Tenant Admin UI):** Standard React/Next.js patterns.
+| Phase | Needs Research | Reason |
+|-------|---------------|--------|
+| Phase 1: Infra Audit | NO | Standard Bicep/K8s/cert-manager patterns |
+| Phase 2: Token Proxy | MAYBE | Verify Responses API streaming usage format |
+| Phase 3: MCP Servers | MAYBE | Test DiskANN vector index migration on existing container |
+| Phase 4: Auth Gateway | YES | AGC wildcard behavior, Entra ID redirect URI pattern, WebSocket proxy integration |
+| Phase 5: Dual-Mode | NO | UI/UX decisions, not technical |
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All from official Microsoft SDKs with pinned versions. No speculative choices. |
-| Features | HIGH | 94 features from Azure Architecture Center multi-tenant guides + codebase analysis. |
-| Architecture | HIGH | 5-service decomposition mapped to existing files. Cosmos DB design with Bicep code. |
-| Pitfalls | HIGH | 21 pitfalls grounded in Cosmos DB best practices skill (45+ rules) + codebase analysis. |
+| OpenClaw MCP & Native UI | HIGH | Verified from production codebase — CR config, gateway ports, WebSocket protocol, MCP injection |
+| Token Proxy | HIGH | Azure OpenAI `stream_options.include_usage` is GA-documented; custom proxy pattern is well-understood |
+| Auth Gateway | HIGH | Reuses existing Entra ID patterns; AGC WebSocket support confirmed; OIDC flow is standard |
+| Platform MCP Servers | HIGH | Directly replicates existing MCP server pattern; Cosmos DB vector search is GA |
+| Infrastructure (DNS/TLS) | MEDIUM | cert-manager + DNS-01 is standard but AGC wildcard Ingress alongside existing Ingress needs validation |
 
-**Overall confidence:** HIGH
+**Overall confidence:** HIGH — all four research streams converge on the same approach (FastAPI, Cosmos DB, existing patterns), with clear recommendations and no contradictions between documents.
 
 ### Gaps to Address
 
-- **Data volume estimation:** Need actual row counts per tenant from PostgreSQL to validate partition key choices and estimate Cosmos DB costs. If any tenant × entity > 10 GB, hierarchical partition keys are mandatory.
-- **Cosmos DB emulator limitations:** Linux emulator doesn't support hierarchical partition keys or Change Feed processor. Need a real serverless Cosmos DB dev account for integration testing.
-- **Thread message storage:** Embed recent messages in Thread doc (cap at 50) vs. separate container — depends on average message count, requires production data analysis.
-- **Tool Executor security model:** Subprocess sandboxing specifics (gVisor? seccomp? Kata?) deferred. NetworkPolicy helps but isn't a complete sandbox.
-- **Dual-auth transition timeline:** How long to support both HS256 and Entra ID tokens? Need cutoff strategy and monitoring.
-- **Cost modeling:** No estimated Azure costs for target architecture. Need to model AKS nodes, Cosmos DB RUs, ACR storage, Key Vault ops, App Insights ingestion for budget approval.
+- **Responses API streaming usage:** `stream_options.include_usage` is confirmed for Chat Completions but needs testing for the Responses API path (`/openai/v1/responses`). If unsupported, the proxy may need to parse the non-streaming response body for usage data on that path.
+- **Cosmos DB DiskANN minimum RU/s:** DiskANN vector indexing may require higher RU throughput than currently provisioned. Verify against current account settings before enabling.
+- **AGC multiple frontends:** The wildcard Ingress needs a separate ALB frontend (`agents-frontend`). AGC documentation confirms multiple frontends are supported but this hasn't been tested on this specific deployment.
+- **Entra ID app registration redirect URIs:** Current app registration is configured for the platform UI. Adding `https://auth.agents.stumsft.com/auth/callback` (or equivalent) requires updating the registration. May need a second app registration if scope separation is desired.
+- **OpenClaw header passthrough for tenant attribution:** The token proxy prefers `X-Tenant-Id` / `X-Agent-Id` headers in requests. The CR supports custom headers in provider config, but this needs verification with the specific `openai-responses` provider. Fallback: path-based tenant identification.
+
+### Contradictions Between Research Documents
+
+**None found.** All four documents converge on the same architectural patterns:
+- All recommend FastAPI/Python (consistent stack)
+- All recommend centralized deployment in `aiplatform` namespace
+- All reference the same Cosmos DB, NetworkPolicy, and Managed Identity patterns
+- The auth gateway research and OpenClaw UI research agree on subdomain routing and AGC
+- The token proxy and MCP server research agree on URL-path tenant scoping as the preferred identification mechanism
 
 ## Sources
 
-### Primary (HIGH confidence)
-- Microsoft Azure Architecture Center: [Architect multitenant solutions on Azure](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/overview)
-- Microsoft: [Tenancy models for a multitenant solution](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/tenancy-models)
-- Microsoft: [Use AKS in a multitenant solution](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/aks)
-- Microsoft: [Multitenancy and Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/cosmos-db)
-- Microsoft: [AKS microservices architecture](https://learn.microsoft.com/en-us/azure/architecture/reference-architectures/containers/aks-microservices/aks-microservices)
-- Cosmos DB Well-Architected Framework service guide
-- Azure Cosmos DB best practices skill (45+ rules, 8 categories)
-- Azure Observability skill, Azure PostgreSQL / Entra ID skill
+### Primary (HIGH confidence — direct codebase verification)
+- `backend/app/services/openclaw_service.py` — CR builder, gateway config, MCP injection, WebSocket protocol
+- `backend/app/services/memory_service.py` — current memory retrieval (recency-only)
+- `backend/app/services/rag_service.py` — AI Search integration patterns
+- `backend/app/core/security.py` — Entra ID token validation
+- `backend/app/middleware/tenant.py` — tenant resolution
+- `k8s/base/ingress.yaml` — current AGC Ingress config
+- `k8s/overlays/tenant-template/network-policy.yaml` — tenant NetworkPolicy
+- `k8s/base/mcp-github/` — existing MCP server deployment pattern
+- `infra/modules/agc.bicep` — AGC infrastructure
 
-### Secondary (MEDIUM confidence)
-- Existing codebase analysis: `backend/app/` — 26 SQLAlchemy models, 15 services, 22 routers verified
+### Secondary (HIGH confidence — official documentation)
+- Azure OpenAI API Reference (2024-10-21 GA) — `stream_options.include_usage`, `chatCompletionStreamOptions`
+- Azure Cosmos DB NoSQL Vector Search (GA November 2024) — DiskANN, `VectorDistance()`
+- Azure AI Search Python SDK (`azure-search-documents>=11.6.0`) — hybrid search, `VectorizedQuery`
+- cert-manager DNS-01 challenge documentation
+- MSAL Python library documentation
+- AGC (Application Gateway for Containers) WebSocket support
+
+### Tertiary (MEDIUM confidence — needs validation)
+- AGC wildcard Ingress behavior alongside existing Ingress resources
+- Entra ID redirect URI wildcard constraints
+- Responses API streaming usage format (vs Chat Completions)
 
 ---
-*Research completed: 2026-03-26*
+*Research completed: 2026-04-04*
 *Ready for roadmap: yes*
