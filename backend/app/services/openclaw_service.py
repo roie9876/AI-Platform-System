@@ -1049,6 +1049,8 @@ class OpenClawService:
 
         # Delete SOUL.md from the pod workspace so the updated version
         # from initialFiles gets re-seeded on next boot.
+        # Also delete all session files so the bot starts fresh sessions
+        # that will re-read the updated SOUL.md.
         pod_name = f"{instance_name}-0"
         try:
             await loop.run_in_executor(
@@ -1061,6 +1063,18 @@ class OpenClawService:
             )
         except Exception:
             pass  # Pod may not be running — file will be created fresh
+
+        try:
+            await loop.run_in_executor(
+                None,
+                OpenClawService._exec_in_pod,
+                namespace, pod_name,
+                ["sh", "-c",
+                 "rm -f /home/openclaw/.openclaw/agents/main/sessions/*.jsonl "
+                 "/home/openclaw/.openclaw/agents/main/sessions/sessions.json"],
+            )
+        except Exception:
+            pass  # Pod may not be running — sessions will be created fresh
 
         # The operator reconciles CR changes into a ConfigMap but does NOT
         # restart the pod automatically.  Delete the pod so the StatefulSet
@@ -1190,7 +1204,7 @@ class OpenClawService:
                     }
                     # NOTE: OpenClaw's config schema only allows "requireMention"
                     # and "allowFrom" per group. Group names and per-group
-                    # instructions are injected into the CLAUDE.md workspace
+                    # instructions are injected into the SOUL.md workspace
                     # file via spec.workspace.initialFiles below.
                     rule_phones = rule.get("allowed_phones", [])
                     if rule.get("policy") == "allowlist" and rule_phones:
@@ -1512,7 +1526,12 @@ class OpenClawService:
                     "\n### Per-Group Instructions\n\n"
                     "When you receive a message from one of these groups, follow "
                     "the group-specific instructions below. To send a message to "
-                    "a different group, reply with: [[send_to:<JID>]] <message>\n\n"
+                    "a different group, use the `message` tool with:\n"
+                    "```json\n"
+                    '{"action": "send", "channel": "whatsapp", '
+                    '"target": "<target_group_JID>", '
+                    '"message": "<your message text>"}\n'
+                    "```\n\n"
                     + "\n".join(group_instr_parts)
                 )
 
