@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: — Production Multi-Tenant Infrastructure
+milestone: v4.0
+milestone_name: Architecture Pivot: Platform as Infrastructure Provider
 status: Phase 28 Complete — Ready for Phase 29
 stopped_at: Phase 28 complete — 3 plans, 6/6 requirements verified, azd up framework in place
 last_updated: "2025-07-18"

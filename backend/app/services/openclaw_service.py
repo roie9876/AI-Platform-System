@@ -1036,6 +1036,19 @@ class OpenClawService:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._replace_cr, namespace, instance_name, cr)
 
+        # Delete CLAUDE.md from the pod workspace so the updated version
+        # from initialFiles gets re-seeded on next boot.
+        pod_name = f"{instance_name}-0"
+        try:
+            await loop.run_in_executor(
+                None,
+                OpenClawService._exec_in_pod,
+                namespace, pod_name,
+                ["rm", "-f", "/home/openclaw/.openclaw/workspace/CLAUDE.md"],
+            )
+        except Exception:
+            pass  # Pod may not be running — file will be created fresh
+
         # The operator reconciles CR changes into a ConfigMap but does NOT
         # restart the pod automatically.  Delete the pod so the StatefulSet
         # controller recreates it with the updated config.
@@ -1164,8 +1177,8 @@ class OpenClawService:
                     }
                     # NOTE: OpenClaw's config schema only allows "requireMention"
                     # and "allowFrom" per group. Group names and per-group
-                    # instructions are injected via the system prompt in
-                    # agent_execution.py instead.
+                    # instructions are injected into the CLAUDE.md workspace
+                    # file via spec.workspace.initialFiles below.
                     rule_phones = rule.get("allowed_phones", [])
                     if rule.get("policy") == "allowlist" and rule_phones:
                         entry["allowFrom"] = [str(p) for p in rule_phones]
@@ -1389,33 +1402,91 @@ class OpenClawService:
                 {"name": "shared-bin", "mountPath": "/home/openclaw/.openclaw/.local/bin/himalaya", "subPath": "himalaya"}
             )
 
-            cr["spec"]["workspace"] = {
-                "initialFiles": {
-                    "himalaya-config.toml": himalaya_toml,
-                    "CLAUDE.md": (
-                        "# Agent Instructions\n\n"
-                        "## Email Access\n"
-                        f"You have access to the Gmail account {gmail_email} via the Himalaya CLI.\n"
-                        "ALWAYS use the `himalaya` command-line tool for any email operations "
-                        "— NEVER open Gmail in a browser.\n\n"
-                        "Common commands:\n"
-                        '- List unread emails: `himalaya envelope list --folder INBOX "not flag seen"`\n'
-                        "- List all emails: `himalaya envelope list --folder INBOX`\n"
-                        "- Read an email: `himalaya message read <id>`\n"
-                        '- Send an email: `himalaya message send "From: ' + gmail_email + '\nTo: <address>\nSubject: <subject>\n\n<body>"`\n'
-                        "- Reply to an email: `himalaya message reply <id>`\n"
-                        '- Search by sender: `himalaya envelope list --folder INBOX "from <pattern>"`\n'
-                        '- Search by subject: `himalaya envelope list --folder INBOX "subject <pattern>"`\n'
-                        "- List folders: `himalaya folder list`\n\n"
-                        "Important notes:\n"
-                        "- The FLAGS column shows IMAP flags: no flags = unread, `*` = flagged/starred\n"
-                        "- When sending, always include the From header\n"
-                        "- Gmail sent folder is `[Gmail]/Sent Mail`\n\n"
-                        "When asked about email, unread messages, or Gmail, use Himalaya immediately "
-                        "— do not browse to gmail.com.\n"
-                    ),
-                }
-            }
+        # ---- Workspace instruction files ----
+        # Compose CLAUDE.md from all instruction sources so OpenClaw's
+        # WhatsApp handler sees per-group instructions, system prompt, etc.
+        # initialFiles writes each file only if it doesn't already exist;
+        # update_agent() deletes CLAUDE.md before restart to pick up changes.
+        initial_files: dict = {}
+        if gmail_email:
+            initial_files["himalaya-config.toml"] = himalaya_toml
+
+        instruction_parts: list[str] = ["# Agent Instructions\n"]
+
+        # 1. User-provided system prompt
+        if system_prompt and system_prompt.strip() and system_prompt != "You are a helpful assistant.":
+            instruction_parts.append(f"## System Prompt\n\n{system_prompt}\n")
+
+        # 2. WhatsApp channel-level and per-group instructions
+        whatsapp_cfg = openclaw_config.get("whatsapp") or {}
+        if whatsapp_cfg.get("whatsapp_enabled"):
+            wa_channel_instr = whatsapp_cfg.get("whatsapp_channel_instructions", "")
+            if wa_channel_instr:
+                instruction_parts.append(f"## WhatsApp Channel Instructions\n\n{wa_channel_instr}\n")
+
+            group_map_lines: list[str] = []
+            group_instr_parts: list[str] = []
+            for rule in whatsapp_cfg.get("whatsapp_group_rules", []):
+                if rule.get("policy") == "blocked":
+                    continue
+                name = rule.get("group_name") or ""
+                jid = rule.get("group_jid") or ""
+                instr = rule.get("instructions") or ""
+
+                if name:
+                    jid_note = f" (JID: {jid})" if jid else " (pending resolution)"
+                    group_map_lines.append(f'- "{name}"{jid_note}')
+
+                if instr:
+                    label = name or jid or "unknown"
+                    group_instr_parts.append(
+                        f'### Group: "{label}"\n'
+                        + (f"JID: `{jid}`\n\n" if jid else "\n")
+                        + f"{instr}\n"
+                    )
+
+            if group_map_lines:
+                instruction_parts.append(
+                    "## WhatsApp Groups\n\n"
+                    "Configured groups:\n"
+                    + "\n".join(group_map_lines) + "\n"
+                )
+            if group_instr_parts:
+                instruction_parts.append(
+                    "## Per-Group Instructions\n\n"
+                    + "\n".join(group_instr_parts)
+                )
+
+        # 3. Gmail / email instructions
+        if gmail_email:
+            instruction_parts.append(
+                "## Email Access\n\n"
+                f"You have access to the Gmail account {gmail_email} via the Himalaya CLI.\n"
+                "ALWAYS use the `himalaya` command-line tool for any email operations "
+                "— NEVER open Gmail in a browser.\n\n"
+                "Common commands:\n"
+                '- List unread emails: `himalaya envelope list --folder INBOX "not flag seen"`\n'
+                "- List all emails: `himalaya envelope list --folder INBOX`\n"
+                "- Read an email: `himalaya message read <id>`\n"
+                '- Send an email: `himalaya message send "From: ' + gmail_email + '\nTo: <address>\nSubject: <subject>\n\n<body>"`\n'
+                "- Reply to an email: `himalaya message reply <id>`\n"
+                '- Search by sender: `himalaya envelope list --folder INBOX "from <pattern>"`\n'
+                '- Search by subject: `himalaya envelope list --folder INBOX "subject <pattern>"`\n'
+                "- List folders: `himalaya folder list`\n\n"
+                "Important notes:\n"
+                "- The FLAGS column shows IMAP flags: no flags = unread, `*` = flagged/starred\n"
+                "- When sending, always include the From header\n"
+                "- Gmail sent folder is `[Gmail]/Sent Mail`\n\n"
+                "When asked about email, unread messages, or Gmail, use Himalaya immediately "
+                "— do not browse to gmail.com.\n"
+            )
+
+        # Only create CLAUDE.md if there are actual instructions
+        if len(instruction_parts) > 1:
+            initial_files["CLAUDE.md"] = "\n".join(instruction_parts)
+
+        if initial_files:
+            cr["spec"]["workspace"] = {"initialFiles": initial_files}
 
         return cr
 
