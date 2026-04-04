@@ -1,28 +1,22 @@
 FROM ghcr.io/openclaw/openclaw:latest
 
-# ── Patch #1 (CRITICAL): Fix group message delivery ──────────────────
-# OpenClaw sets syncFullHistory: false but doesn't override
-# shouldSyncHistoryMessage. Baileys v7 defaults it to () => !!syncFullHistory
-# which returns false, preventing group participation data from syncing
-# after re-linking. WhatsApp servers then never route group messages
-# to this device.
+# ── Patch #1: Fix AwaitingInitialSync stall ───────────────────────────
+# OpenClaw's compiled dist/ sets shouldSyncHistoryMessage: () => true,
+# which causes Baileys v7 to enter AwaitingInitialSync mode for 120+
+# seconds on connect. During this time, ALL real-time message events
+# (type: "notify") are blocked. Only buffered "append" events arrive.
 #
-# Fix: Insert shouldSyncHistoryMessage: () => true after syncFullHistory: false
+# Fix: Change shouldSyncHistoryMessage from () => true to () => false
+# in the dist file. The TS source only has syncFullHistory: false
+# (no explicit shouldSyncHistoryMessage) so no TS patch needed.
+#
+# ── Patch #2: Fix zombie socket leak ─────────────────────────────
 USER root
-RUN DIST_FILE=$(grep -rl 'syncFullHistory' /app/dist --include='*.js' | head -1) && \
-    if [ -z "$DIST_FILE" ]; then echo "ERROR: session dist file with syncFullHistory not found" && exit 1; fi && \
-    echo "Patching $DIST_FILE ..." && \
-    sed -i 's/syncFullHistory: false,/syncFullHistory: false,\n                shouldSyncHistoryMessage: () => true,/' "$DIST_FILE" && \
-    grep -q 'shouldSyncHistoryMessage: () => true' "$DIST_FILE" && \
-    echo "Patch #1 (dist): shouldSyncHistoryMessage override applied" && \
-    # ALSO patch TypeScript sources — the WhatsApp extension runs from TS at runtime!
-    for TS_FILE in $(grep -rl 'syncFullHistory' /app/extensions --include='*.ts' 2>/dev/null || true); do \
-        if ! grep -q 'shouldSyncHistoryMessage' "$TS_FILE"; then \
-            sed -i 's/syncFullHistory: false,/syncFullHistory: false,\n    shouldSyncHistoryMessage: () => true,/' "$TS_FILE" && \
-            echo "Patch #1 (ts): $TS_FILE — shouldSyncHistoryMessage override applied"; \
-        else \
-            echo "Patch #1 (ts): $TS_FILE — already has shouldSyncHistoryMessage, skipping"; \
-        fi; \
+RUN \
+    # ── Patch #1: shouldSyncHistoryMessage: () => false ──────────────
+    for JS_FILE in $(grep -rl 'shouldSyncHistoryMessage: () => true' /app/dist --include='*.js' 2>/dev/null || true); do \
+        sed -i 's/shouldSyncHistoryMessage: () => true/shouldSyncHistoryMessage: () => false/' "$JS_FILE" && \
+        echo "Patch #1 (dist): $JS_FILE — shouldSyncHistoryMessage: () => false"; \
     done && \
     # ── Patch #2: Fix zombie socket leak ─────────────────────────────
     # closeInboundMonitorSocket() calls sock.ws?.close?.() instead of
