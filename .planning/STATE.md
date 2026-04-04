@@ -5,7 +5,7 @@ milestone_name: Architecture Pivot — Platform as Infrastructure Provider
 status: Planning
 last_updated: "2026-04-04T00:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,63 +18,73 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
-**Current focus:** Milestone initialization — defining requirements and roadmap
+**Current focus:** Phase 28 — Infrastructure Audit & Foundation
 
 ## Current Position
 
-Phase: 28
+Phase: 28 of 32 (Infrastructure Audit & Foundation)
 Plan: Not started
+Status: Ready to plan
+Last activity: 2026-04-04 — Roadmap created for v4.0
 
-## Phase Status
+Progress: [░░░░░░░░░░] 0%
 
-No phases defined yet — roadmap pending.
+## Performance Metrics
 
-## Decisions
+**Velocity:**
+- Total plans completed: 0 (v4.0)
+- Average duration: —
+- Total execution time: —
 
-| Decision | Context | Date |
-|----------|---------|------|
-| Python/FastAPI backend | AI ecosystem is Python-native; async performance + auto OpenAPI | 2026-03-23 |
-| React/Next.js frontend | Industry standard for complex UIs; SSR for performance | 2026-03-23 |
-| Model-agnostic via customer endpoints | Avoids vendor lock-in; platform focuses on orchestration | 2026-03-23 |
-| Bicep for IaC | Microsoft-native, first-class Azure support, type-safe, no state file management | 2026-03-26 |
-| Cosmos DB NoSQL replacing PostgreSQL | Globally distributed, auto-scaling, native partitioning by tenant_id | 2026-03-26 |
-| AKS namespace-per-tenant isolation | Balance of isolation vs ops overhead for 2-5 tenants | 2026-03-26 |
-| Microsoft Entra ID for auth | Enterprise SSO, Managed Identity, RBAC scoping per tenant | 2026-03-26 |
-| GitHub Actions CI/CD | Native to repo, integrated ACR/AKS deployment actions | 2026-03-26 |
-| Shared Cosmos DB with partition isolation | Cost-effective for 2-5 tenants; tenant_id as partition key | 2026-03-26 |
-| YOLO mode | Fast execution, auto-approve steps | 2026-03-23 |
+**By Phase:**
 
-## Pending Todos
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 28. Infrastructure Audit & Foundation | 0/? | — | — |
+| 29. Token Proxy | 0/? | — | — |
+| 30. Platform MCP Servers | 0/? | — | — |
+| 31. Auth Gateway & Native UI Access | 0/? | — | — |
+| 32. Dual-Mode Operation | 0/? | — | — |
 
-(None)
+**Recent Trend:**
+- Last 5 plans: —
+- Trend: —
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
-### Roadmap Evolution
+### Decisions
 
-- Phase 28 added: Cloud Deployment & Smoke Test
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
 
-### Milestone History
-
-- v1.0 AI Agent Platform PoC shipped 2026-03-24 (9/10 phases, 33 plans — Phase 7 Policy Engine deferred)
-- v2.0 MCP Tool Integration shipped 2026-03-25 (6 phases, 8 plans — full MCP client support)
-
-### Roadmap Evolution
-
-- v3.0 roadmap created 2026-03-26 — 8 phases (17-24), 63 requirements
-- Critical path: IaC → Auth → Data → Microservices → Tenant → CI/CD → Observability → UI
-- Highest risk: Cosmos DB migration (replacing SQLAlchemy across 15+ models)
-- Auth must migrate BEFORE microservice split (cross-cutting concern)
+- [v4.0]: Custom FastAPI auth gateway over oauth2-proxy — can't do dynamic upstream routing
+- [v4.0]: Custom token proxy over LiteLLM/Portkey — avoids PostgreSQL/SaaS dependency, ~300 LOC
+- [v4.0]: AGC with wildcard Ingress over adding NGINX — no second ingress controller needed
+- [v4.0]: Subdomain routing over path-based — OpenClaw SPA assumes root `/`
+- [v4.0]: Separate MCP servers (3 deployments) — independent scaling and failure isolation
+- [v4.0]: URL-path tenant scoping for MCP servers — OpenClaw doesn't support custom headers on MCP calls
 
 ### Research Flags
 
-- Phase 18 (Auth): Entra ID app registration, dual-auth transition, tid → tenant_id mapping
-- Phase 19 (Data): Cosmos DB denormalization, RU cost modeling, TransactionalBatch boundaries
-- Phase 20 (AKS): NetworkPolicy rules, Workload Identity federation, tenant provisioning
+- Phase 29 (Token Proxy): Verify Responses API streaming usage format (`stream_options.include_usage`)
+- Phase 30 (MCP Servers): Test DiskANN vector index migration on existing `agent_memories` container
+- Phase 31 (Auth Gateway): AGC wildcard Ingress behavior, Entra ID redirect URI pattern (single auth subdomain), WebSocket proxy integration
 
-## Blockers
+### Pending Todos
 
-(None)
+None yet.
+
+### Blockers/Concerns
+
+None yet.
+
+## Session Continuity
+
+Last session: 2026-04-04
+Stopped at: v4.0 roadmap created — 5 phases (28-32), 25 requirements mapped
+Resume file: None
 
 ---
-*Last updated: 2026-03-26*
+*Last updated: 2026-04-04*

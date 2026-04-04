@@ -83,13 +83,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| *(populated by roadmapper)* | | |
+| AUDIT-01 | Phase 28 | Pending |
+| AUDIT-02 | Phase 28 | Pending |
+| AUDIT-03 | Phase 28 | Pending |
+| AUDIT-04 | Phase 28 | Pending |
+| PROXY-01 | Phase 29 | Pending |
+| PROXY-02 | Phase 29 | Pending |
+| PROXY-03 | Phase 29 | Pending |
+| PROXY-04 | Phase 29 | Pending |
+| PROXY-05 | Phase 29 | Pending |
+| MCPSRV-01 | Phase 30 | Pending |
+| MCPSRV-02 | Phase 30 | Pending |
+| MCPSRV-03 | Phase 30 | Pending |
+| MCPSRV-04 | Phase 30 | Pending |
+| MCPSRV-05 | Phase 30 | Pending |
+| MCPSRV-06 | Phase 30 | Pending |
+| MCPSRV-07 | Phase 30 | Pending |
+| NATIVEUI-01 | Phase 31 | Pending |
+| NATIVEUI-02 | Phase 31 | Pending |
+| NATIVEUI-03 | Phase 31 | Pending |
+| NATIVEUI-04 | Phase 31 | Pending |
+| NATIVEUI-05 | Phase 31 | Pending |
+| DUAL-01 | Phase 32 | Pending |
+| DUAL-02 | Phase 32 | Pending |
+| DUAL-03 | Phase 32 | Pending |
+| DUAL-04 | Phase 32 | Pending |
 
 **Coverage:**
-- v4.0 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23
+- v4.0 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-04*
-*Last updated: 2026-04-04 after milestone v4.0 scoping*
+*Last updated: 2026-04-04 after v4.0 roadmap creation*

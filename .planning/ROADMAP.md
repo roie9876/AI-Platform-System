@@ -1,13 +1,14 @@
 # Roadmap: AI Agent Platform as a Service
 
 **Created:** 2026-03-23
-**Active Milestone:** v3.0 — Production Multi-Tenant Infrastructure
+**Active Milestone:** v4.0 — Architecture Pivot: Platform as Infrastructure Provider
 
 ## Milestones
 
 - ✅ **v1.0 AI Agent Platform PoC** — Phases 1-10 (shipped 2026-03-24) — [archive](milestones/v1.0-ROADMAP.md)
 - ✅ **v2.0 MCP Tool Integration** — Phases 11-16 (shipped 2026-03-25)
-- 🔄 **v3.0 Production Multi-Tenant Infrastructure** — Phases 17-24 (active)
+- ✅ **v3.0 Production Multi-Tenant Infrastructure** — Phases 17-27 (shipped 2026-03-26)
+- 🔄 **v4.0 Architecture Pivot: Platform as Infrastructure Provider** — Phases 28-32 (active)
 
 <details>
 <summary>✅ v1.0 AI Agent Platform PoC (Phases 1-10) — SHIPPED 2026-03-24</summary>
@@ -289,17 +290,118 @@ Phase 17 (Infrastructure Foundation)
 | 26. Tenant Context Wiring | 2/2 | Complete   | 2026-03-26 |
 | 27. Verification & Traceability | 3/3 | Complete    | 2026-03-26 |
 
-### Phase 28: Cloud Deployment & Smoke Test
+---
 
-**Goal:** All deployment artifacts are validated, orchestrated via a single deploy command, and verified with enhanced smoke tests covering health endpoints, API reachability, and inter-service connectivity
-**Requirements**: TBD
-**Depends on:** Phase 27
-**Plans:** 2/2 plans complete
+## Milestone 4: v4.0 — Architecture Pivot: Platform as Infrastructure Provider
 
-Plans:
-- [ ] 28-01-PLAN.md — Pre-deployment validation scripts, deployment orchestration, local microservice docker-compose
-- [ ] 28-02-PLAN.md — Post-deploy config bridge, enhanced smoke tests, deployment readiness checkpoint
+**Goal:** Transform the platform from a "UI wrapper" for OpenClaw into an "infrastructure provider" — exposing OpenClaw's full native UI while keeping platform value-adds (multi-tenancy, Azure infra, per-group rules, monitoring, workflows).
+
+### Overview
+
+v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI to providing infrastructure that makes OpenClaw better: multi-tenant isolation, universal token tracking, platform data services as MCP tools, and authenticated access to OpenClaw's native web UI. The critical path is Audit/Foundation → Token Proxy → MCP Servers → Auth Gateway → Dual-Mode, dictated by dependencies: infrastructure must be validated before building services, wildcard DNS/TLS must exist before the auth gateway, and all components must work before dual-mode validation.
+
+### Phases
+
+**Phase Numbering:** Continues from v3.0 (Phases 17-27).
+
+- [ ] **Phase 28: Infrastructure Audit & Foundation** — Validate provision-from-zero, resolve drift, establish wildcard DNS/TLS
+- [ ] **Phase 29: Token Proxy** — Transparent LLM proxy with universal token tracking and per-tenant budgets
+- [ ] **Phase 30: Platform MCP Servers** — Cosmos DB memory, AI Search, and group rules as native agent tools
+- [ ] **Phase 31: Auth Gateway & Native UI Access** — Authenticated subdomain routing to OpenClaw native UI
+- [ ] **Phase 32: Dual-Mode Operation** — Validate platform UI and native UI work simultaneously with full parity
+
+### Phase Details
+
+#### Phase 28: Infrastructure Audit & Foundation
+**Goal**: All infrastructure artifacts are validated against production, provision-from-zero works, and wildcard DNS/TLS is established for agent subdomains
+**Depends on**: Nothing (first v4.0 phase)
+**Requirements**: AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04
+**Success Criteria** (what must be TRUE):
+  1. User can run `az deployment group create` + `kubectl apply` from scratch and get a fully working platform identical to production
+  2. Bicep templates match all deployed Azure resources — zero drift between templates and reality
+  3. K8s manifests match all running workloads, ConfigMaps, and Secrets — zero drift
+  4. Wildcard DNS record (`*.agents.{domain}`) resolves and wildcard TLS certificate is issued via cert-manager DNS-01 challenge
+**Plans**: TBD
+
+#### Phase 29: Token Proxy
+**Goal**: All LLM traffic is transparently proxied through a centralized gateway with universal token tracking and per-tenant budget controls
+**Depends on**: Phase 28 (Cosmos DB `token_logs` container, validated infrastructure)
+**Requirements**: PROXY-01, PROXY-02, PROXY-03, PROXY-04, PROXY-05
+**Success Criteria** (what must be TRUE):
+  1. All LLM requests flow through the proxy transparently — agent behavior is unchanged
+  2. Token usage is captured from streaming responses via `stream_options.include_usage` without client-side counting
+  3. Every LLM request's token usage is logged to Cosmos DB with tenant_id and agent_id attribution
+  4. Tenant admins can set token budget limits and receive alerts when thresholds are reached
+  5. New OpenClaw agents automatically route LLM traffic through the proxy via CR `baseUrl` configuration
+**Plans**: TBD
+
+#### Phase 30: Platform MCP Servers
+**Goal**: Agents can access platform data services (memory, search, group rules) as native MCP tools without any UI changes
+**Depends on**: Phase 28 (Cosmos DB DiskANN vector index, validated infrastructure)
+**Requirements**: MCPSRV-01, MCPSRV-02, MCPSRV-03, MCPSRV-04, MCPSRV-05, MCPSRV-06, MCPSRV-07
+**Success Criteria** (what must be TRUE):
+  1. Agents can search and store memories via MCP tools backed by Cosmos DB with DiskANN vector search
+  2. Agents can query Azure AI Search indexes via MCP tools for document retrieval
+  3. Agents can retrieve per-group instructions and agent configuration via MCP tools
+  4. MCP server URLs are auto-injected into OpenClaw CRs on agent deploy
+  5. Cosmos DB `agent_memories` container has DiskANN vector index enabled and operational
+**Plans**: TBD
+
+#### Phase 31: Auth Gateway & Native UI Access
+**Goal**: Users can access OpenClaw's full native web UI for any authorized agent via authenticated subdomain routing
+**Depends on**: Phase 28 (wildcard DNS/TLS)
+**Requirements**: NATIVEUI-01, NATIVEUI-02, NATIVEUI-03, NATIVEUI-04, NATIVEUI-05
+**Success Criteria** (what must be TRUE):
+  1. User can access any agent's full native UI at `agent-{id}.agents.{domain}` with all features working
+  2. User is authenticated via Entra ID OIDC before reaching any OpenClaw UI — unauthenticated requests are rejected
+  3. User can only access agents belonging to their tenant — cross-tenant access is blocked
+  4. WebSocket-based features (live chat, real-time updates) work through the auth proxy without degradation
+  5. User can click "Open Agent Console" in platform frontend to open the native UI in a new tab
+**Plans**: TBD
+**UI hint**: yes
+
+#### Phase 32: Dual-Mode Operation
+**Goal**: Platform UI and OpenClaw native UI work simultaneously with full feature parity — token tracking, group rules, and all platform features function across both paths
+**Depends on**: Phase 29 (token tracking), Phase 30 (MCP tools), Phase 31 (native UI access)
+**Requirements**: DUAL-01, DUAL-02, DUAL-03, DUAL-04
+**Success Criteria** (what must be TRUE):
+  1. User can interact with the same agent from both platform UI and OpenClaw native UI concurrently without conflicts
+  2. Token tracking works identically regardless of which UI path is used — Cosmos DB logs capture usage from both
+  3. Per-group rules function via both platform system message injection (platform path) and MCP tool calls (native path)
+  4. All existing platform features (workflows, evaluations, marketplace, observability) continue working with zero regressions
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase Dependencies
+
+```
+Phase 28 (Infrastructure Audit & Foundation)
+    │
+    ├──► Phase 29 (Token Proxy)
+    │
+    ├──► Phase 30 (Platform MCP Servers)
+    │
+    └──► Phase 31 (Auth Gateway & Native UI Access)
+              │
+              ▼
+         Phase 32 (Dual-Mode Operation)
+         [depends on 29, 30, 31]
+```
+
+**Execution order:** 28 → 29 → 30 → 31 → 32 (sequential despite 29/30 being parallelizable — solo developer workflow)
+
+**Parallelization note:** Phases 29 and 30 have no dependency on each other. Both modify `openclaw_service.py` but in different sections (`baseUrl` vs `mcpServers`). A team could run them in parallel; solo execution proceeds sequentially for simplicity.
+
+### Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|----------|
+| 28. Infrastructure Audit & Foundation | 0/? | Not started | - |
+| 29. Token Proxy | 0/? | Not started | - |
+| 30. Platform MCP Servers | 0/? | Not started | - |
+| 31. Auth Gateway & Native UI Access | 0/? | Not started | - |
+| 32. Dual-Mode Operation | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-23*
-*Last updated: 2026-03-26 after v3.0 roadmap creation*
+*Last updated: 2026-04-04 after v4.0 roadmap creation*
