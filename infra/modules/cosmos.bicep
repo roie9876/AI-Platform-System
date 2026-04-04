@@ -168,6 +168,37 @@ resource agentMemoriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDataba
   }
 }
 
+// memory_query_cache container — TTL-based cache for embedding lookups (Phase 30: MCP Servers)
+resource memoryQueryCacheContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: database
+  name: 'memory_query_cache'
+  properties: {
+    resource: {
+      id: 'memory_query_cache'
+      partitionKey: {
+        paths: ['/tenant_id']
+        kind: 'Hash'
+      }
+      defaultTtl: 3600
+    }
+  }
+}
+
+// structured_memories container — key-value facts without embeddings (Phase 30: MCP Servers)
+resource structuredMemoriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: database
+  name: 'structured_memories'
+  properties: {
+    resource: {
+      id: 'structured_memories'
+      partitionKey: {
+        paths: ['/tenant_id']
+        kind: 'Hash'
+      }
+    }
+  }
+}
+
 // Diagnostic settings — send logs to Log Analytics
 resource cosmosDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
   name: 'cosmos-diagnostics'
