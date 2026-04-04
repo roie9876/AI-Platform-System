@@ -1177,6 +1177,15 @@ class OpenClawService:
             if groups_cfg:
                 wa_config["groups"] = groups_cfg
 
+            # groupAllowFrom controls which *senders* can trigger the bot
+            # in groups.  Without this, groupPolicy=allowlist silently
+            # drops ALL inbound group messages (isSenderAllowed returns
+            # false).  Default to ["*"] so the per-group `groups` config
+            # is the only filter.  Per-group allowFrom still restricts
+            # individual groups if needed.
+            if wa_config.get("groupPolicy") == "allowlist" and groups_cfg:
+                wa_config["groupAllowFrom"] = ["*"]
+
             # Channel-level instructions for WhatsApp
             wa_instructions = whatsapp.get("whatsapp_channel_instructions", "")
             if wa_instructions:
