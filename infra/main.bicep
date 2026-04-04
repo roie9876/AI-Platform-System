@@ -111,6 +111,18 @@ module cosmos './modules/cosmos.bicep' = {
   }
 }
 
+module aiServices './modules/ai-services.bicep' = {
+  name: 'ai-services-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    deployerPrincipalId: deployerPrincipalId
+    tags: commonTags
+  }
+}
+
 module dnsZone './modules/dns.bicep' = if (!empty(agentsDomain)) {
   name: 'dns-deployment'
   params: {
@@ -232,6 +244,8 @@ module keyvault './modules/keyvault.bicep' = {
     entraAdminGroupId: entraAdminGroupId
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
     deployerPrincipalId: deployerPrincipalId
+    aiServicesEndpoint: aiServices.outputs.aiEndpoint
+    aiServicesAccountName: aiServices.outputs.aiAccountName
     tags: commonTags
   }
 }
@@ -325,3 +339,9 @@ output dnsNameServers array = !empty(agentsDomain) ? dnsZone.outputs.nameServers
 
 @description('Custom agents domain (empty if not configured)')
 output agentsDomain string = agentsDomain
+
+@description('Azure AI Services endpoint')
+output aiServicesEndpoint string = aiServices.outputs.aiEndpoint
+
+@description('Azure AI Services account name')
+output aiServicesAccountName string = aiServices.outputs.aiAccountName

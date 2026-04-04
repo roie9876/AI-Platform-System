@@ -31,6 +31,12 @@ param entraAdminGroupId string = ''
 @description('Object ID of the deployer principal for admin RBAC access')
 param deployerPrincipalId string = ''
 
+@description('Azure AI Services endpoint (auto-provisioned)')
+param aiServicesEndpoint string = ''
+
+@description('Azure AI Services account name (for key lookup)')
+param aiServicesAccountName string = ''
+
 @description('Resource ID of Log Analytics workspace for diagnostics (optional)')
 param logAnalyticsWorkspaceId string = ''
 
@@ -165,11 +171,16 @@ resource secretJira 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+// Azure AI Services secrets — auto-populated from provisioned AI account
+resource aiServicesRef 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (!empty(aiServicesAccountName)) {
+  name: aiServicesAccountName
+}
+
 resource secretAzureOpenAIEndpoint 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: vault
   name: 'azure-openai-endpoint'
   properties: {
-    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+    value: !empty(aiServicesEndpoint) ? aiServicesEndpoint : 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
   }
 }
 
@@ -177,7 +188,7 @@ resource secretAzureOpenAIKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: vault
   name: 'azure-openai-key'
   properties: {
-    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+    value: !empty(aiServicesAccountName) ? aiServicesRef.listKeys().key1 : 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
   }
 }
 
