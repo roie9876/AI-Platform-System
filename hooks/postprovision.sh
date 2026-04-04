@@ -103,7 +103,7 @@ az acr build \
 echo -e "  ${GREEN}✓ aiplatform-token-proxy${NC}"
 
 # MCP server images (build context: backend/)
-for MCP_SVC in atlassian github sharepoint; do
+for MCP_SVC in atlassian github sharepoint platform-tools; do
   echo -e "  ${BLUE}Building aiplatform-mcp-${MCP_SVC}...${NC}"
   az acr build \
     --registry "${ACR_NAME}" \
@@ -127,7 +127,7 @@ az acr build \
 echo -e "  ${GREEN}✓ aiplatform-frontend${NC}"
 
 echo ""
-echo -e "  ${GREEN}✓ All 10 images built and pushed to ${ACR_SERVER}${NC}"
+echo -e "  ${GREEN}✓ All 11 images built and pushed to ${ACR_SERVER}${NC}"
 
 # ─── Step 5: Prepare K8s manifests (temp dir — repo stays clean) ──────────────
 
@@ -189,7 +189,7 @@ echo -e "  ${GREEN}✓ K8s manifests applied to namespace aiplatform${NC}"
 
 step "Step 7: Wait for Rollouts"
 
-ALL_DEPLOYMENTS=("api-gateway" "agent-executor" "workflow-engine" "tool-executor" "mcp-proxy" "token-proxy" "frontend" "mcp-atlassian" "mcp-github" "mcp-sharepoint")
+ALL_DEPLOYMENTS=("api-gateway" "agent-executor" "workflow-engine" "tool-executor" "mcp-proxy" "token-proxy" "frontend" "mcp-atlassian" "mcp-github" "mcp-sharepoint" "mcp-platform-tools")
 
 for SVC in "${ALL_DEPLOYMENTS[@]}"; do
   echo -n "  Waiting for ${SVC}... "

@@ -310,7 +310,7 @@ step "Deploy to AKS"
 cd k8s/base
 
 # Update image tags to current git SHA
-for SVC_IMAGE in api-gateway agent-executor workflow-engine tool-executor mcp-proxy; do
+for SVC_IMAGE in api-gateway agent-executor workflow-engine tool-executor mcp-proxy mcp-platform-tools; do
   kustomize edit set image "${ACR_SERVER}/aiplatform-${SVC_IMAGE}:${GIT_SHA}" 2>/dev/null || \
     echo "  Note: kustomize edit set image for ${SVC_IMAGE} — may need manual image config"
 done
@@ -324,7 +324,7 @@ echo -e "  ${GREEN}✓ K8s manifests applied${NC}"
 
 step "Waiting for Rollouts"
 
-for SVC_IMAGE in api-gateway agent-executor workflow-engine tool-executor mcp-proxy; do
+for SVC_IMAGE in api-gateway agent-executor workflow-engine tool-executor mcp-proxy mcp-platform-tools; do
   echo -n "  Waiting for ${SVC_IMAGE}... "
   if kubectl rollout status "deployment/${SVC_IMAGE}" --timeout=300s 2>/dev/null; then
     echo -e "${GREEN}ready${NC}"
