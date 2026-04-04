@@ -1,24 +1,24 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: — Production Multi-Tenant Infrastructure
-status: Milestone complete
-last_updated: "2026-03-26T16:12:27.718Z"
+milestone: v4.0
+milestone_name: Architecture Pivot — Platform as Infrastructure Provider
+status: Planning
+last_updated: "2026-04-04T00:00:00.000Z"
 progress:
-  total_phases: 12
-  completed_phases: 12
-  total_plans: 31
-  completed_plans: 31
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-26)
+See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Product teams can go from zero to a working AI agent with tools, data sources, and orchestration — without writing infrastructure code or managing model deployments.
-**Current focus:** Phase 28 — cloud-deployment-smoke-test
+**Current focus:** Milestone initialization — defining requirements and roadmap
 
 ## Current Position
 
@@ -27,36 +27,7 @@ Plan: Not started
 
 ## Phase Status
 
-| Phase | Name | Status |
-|-------|------|--------|
-| 17 | Infrastructure Foundation (Bicep IaC) | ✅ Complete |
-| 18 | Authentication Migration (Entra ID) | ✅ Complete |
-| 19 | Data Layer Migration (Cosmos DB) | ✅ Complete |
-| 20 | Microservice Extraction & AKS Deployment | ✅ Complete |
-| 21 | Tenant Lifecycle & Provisioning | ✅ Complete |
-| 22 | CI/CD Pipelines (GitHub Actions) | ✅ Complete |
-| 23 | Observability & Monitoring | Not started |
-| 24 | Tenant Admin UI | ✅ Complete |
-
-## Performance Metrics
-
-**Velocity:**
-
-- Total plans completed: 6
-- Phase 18 plans: 3 (all passed verification)
-
-**By Phase:**
-
-| Phase | Plans | Status |
-|-------|-------|--------|
-| 17 | 3 | ✅ Complete |
-| 18 | 3 | ✅ Complete |
-| 19 | 3 | ✅ Complete |
-| 20 | 3 | ✅ Complete |
-| 21 | 2 | ✅ Complete |
-| 22 | 2 | ✅ Complete |
-
-*Updated after each plan completion*
+No phases defined yet — roadmap pending.
 
 ## Decisions
 

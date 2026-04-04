@@ -1,5 +1,24 @@
 # Milestones
 
+## v3.0 Production Multi-Tenant Infrastructure (Shipped: 2026-03-26)
+
+**Phases completed:** 11 phases (17-27), 31 plans
+
+**Key accomplishments:**
+
+- Azure IaC foundation via Bicep — AKS, ACR, Cosmos DB, VNet, Key Vault, Managed Identities, Log Analytics
+- Microsoft Entra ID authentication replacing JWT — enterprise SSO, Managed Identity for service-to-service
+- Cosmos DB NoSQL data layer replacing PostgreSQL/SQLAlchemy — 34 containers, partition by tenant_id
+- Microservice extraction — API gateway, agent executor, workflow engine, tool executor, MCP proxy
+- AKS namespace-per-tenant isolation with NetworkPolicy, ResourceQuota, LimitRange, HPA
+- Tenant provisioning API — automated K8s namespace creation, RBAC, quotas on tenant onboard
+- GitHub Actions CI/CD — build, push to ACR, deploy to AKS pipeline
+- Azure observability — App Insights, Azure Monitor, per-tenant dashboards
+- Tenant admin UI — tenant selector, onboarding flow, admin dashboard, scoped views
+- 63/63 requirements satisfied with formal verification evidence
+
+---
+
 ## v1.0 AI Agent Platform PoC (Shipped: 2026-03-24)
 
 **Phases completed:** 9 phases, 33 plans, 44 tasks

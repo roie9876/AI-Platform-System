@@ -51,20 +51,17 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - Billing / payment system — internal enterprise platform, no customer billing
 - Multi-cloud deployment — Microsoft-first, single-cloud architecture
 
-## Current Milestone: v3.0 Production Multi-Tenant Infrastructure
+## Current Milestone: v4.0 Architecture Pivot: Platform as Infrastructure Provider
 
-**Goal:** Transform the AI Agent Platform from a single-instance PoC into a production-ready, multi-tenant SaaS deployed on Azure with per-tenant compute isolation on AKS and shared Cosmos DB.
+**Goal:** Transform the platform from a "UI wrapper" for OpenClaw into an "infrastructure provider" — exposing OpenClaw's full native UI while keeping platform value-adds (multi-tenancy, Azure infra, per-group rules, monitoring, workflows).
 
 **Target features:**
-- Azure IaC foundation via Bicep (AKS, ACR, Cosmos DB, VNet, Managed Identities)
-- Cosmos DB data layer replacing PostgreSQL/SQLAlchemy (partition by tenant_id)
-- Tenant provisioning API with automated Kubernetes namespace creation
-- Microsoft Entra ID authentication for enterprise tenants
-- Microservice split (API gateway, agent executor, workflow engine, tool executor, MCP servers)
-- AKS deployment with namespace-per-tenant isolation (NetworkPolicy, ResourceQuota, HPA)
-- Tenant admin UI (selector, onboarding, scoped views)
-- GitHub Actions CI/CD (build → ACR push → AKS deploy)
-- Azure Monitor / App Insights observability per tenant
+- Infrastructure audit and clean provision-from-zero validation (Bicep + K8s)
+- LLM token counting proxy for universal token tracking across all UI paths
+- Platform MCP servers exposing Azure services (Cosmos memory, AI Search, group rules) as tools
+- Authenticated proxy to OpenClaw native UI with wildcard ingress
+- Dual-mode operation (platform UI + OpenClaw native UI simultaneously)
+- Simplified platform UI (deprecate redundant pages OpenClaw handles natively)
 
 ## Context
 
@@ -74,7 +71,7 @@ Product teams can go from zero to a working AI agent with tools, data sources, a
 - **Scale:** Designed for large-scale, multi-tenant enterprise deployment
 - **Model strategy:** Bring-your-own-endpoint — customers provide model API endpoints, platform routes to them. Azure OpenAI as the default provider
 - **Microsoft-first:** Product architecture maps to Microsoft services as extensively as possible
-- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 MCP Tool Integration shipped (2026-03-25). v3.0 Production Multi-Tenant Infrastructure complete (2026-03-26) — Bicep IaC, Entra ID auth, Cosmos DB, AKS microservices, tenant provisioning, CI/CD, observability, and tenant admin UI all delivered. 63/63 requirements satisfied with formal verification evidence.
+- **Current state:** v1.0 shipped (2026-03-24) — ~8,900 Python LOC (backend), ~10,800 TypeScript LOC (frontend), 10 Alembic migrations, 33 plans across 9 completed phases. v2.0 MCP Tool Integration shipped (2026-03-25). v3.0 Production Multi-Tenant Infrastructure complete (2026-03-26) — Bicep IaC, Entra ID auth, Cosmos DB, AKS microservices, tenant provisioning, CI/CD, observability, and tenant admin UI all delivered. 63/63 requirements satisfied. v4.0 Architecture Pivot initiated (2026-04-04) — transitioning platform from OpenClaw UI wrapper to infrastructure provider with native UI exposure.
 
 ## Constraints
 
