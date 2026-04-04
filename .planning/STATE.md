@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Architecture Pivot: Platform as Infrastructure Provider
+milestone: v3.0
+milestone_name: — Production Multi-Tenant Infrastructure
 status: Phase 28 Complete — Ready for Phase 29
-stopped_at: Phase 28 complete — 3 plans, 6/6 requirements verified, azd up framework in place
-last_updated: "2025-07-18"
+stopped_at: Phase 29 context gathered
+last_updated: "2026-04-04T15:03:58.513Z"
 progress:
   total_phases: 16
   completed_phases: 12
-  total_plans: 35
+  total_plans: 32
   completed_plans: 32
 ---
 
@@ -81,9 +81,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04
-Stopped at: v4.0 roadmap created — 5 phases (28-32), 25 requirements mapped
-Resume file: None
+Last session: 2026-04-04T15:03:58.505Z
+Stopped at: Phase 29 context gathered
+Resume file: .planning/phases/29-token-proxy/29-CONTEXT.md
 
 ---
 *Last updated: 2026-04-04*
