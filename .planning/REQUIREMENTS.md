@@ -13,6 +13,8 @@ Requirements for the architecture pivot: transforming the platform from an OpenC
 - [ ] **AUDIT-02**: User can see Bicep template drift resolved — templates match all deployed Azure resources
 - [ ] **AUDIT-03**: User can see K8s manifest drift resolved — manifests match all running workloads, ConfigMaps, and Secrets
 - [ ] **AUDIT-04**: User can provision wildcard DNS record and TLS certificate for `*.agents.{domain}`
+- [ ] **AUDIT-05**: User can see platform secrets and tenant secrets in separate Key Vaults with independent RBAC — tenant pods cannot read platform infrastructure secrets
+- [ ] **AUDIT-06**: User can see existing tenant secrets migrated from platform vault to tenant vault with zero downtime
 
 ### Token Proxy
 
@@ -87,6 +89,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUDIT-02 | Phase 28 | Pending |
 | AUDIT-03 | Phase 28 | Pending |
 | AUDIT-04 | Phase 28 | Pending |
+| AUDIT-05 | Phase 28 | Pending |
+| AUDIT-06 | Phase 28 | Pending |
 | PROXY-01 | Phase 29 | Pending |
 | PROXY-02 | Phase 29 | Pending |
 | PROXY-03 | Phase 29 | Pending |
@@ -110,8 +114,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DUAL-04 | Phase 32 | Pending |
 
 **Coverage:**
-- v4.0 requirements: 25 total
-- Mapped to phases: 25
+- v4.0 requirements: 27 total
+- Mapped to phases: 27
 - Unmapped: 0
 
 ---

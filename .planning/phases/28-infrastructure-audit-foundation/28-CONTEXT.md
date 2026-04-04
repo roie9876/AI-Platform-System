@@ -39,6 +39,14 @@ Make the entire AI Agent Platform deployable from zero via `azd up`. Audit all i
 - **D-12:** OpenClaw CR (`openclawinstance.yaml`) stays OUT of kustomization — it's a per-tenant template applied dynamically by the platform API at tenant provision time.
 - **D-13:** Tenant overlay resources (`k8s/overlays/tenant-template/`) stay as templates — applied dynamically by the platform API.
 
+### Key Vault Separation (Platform vs Tenant Secrets)
+- **D-14:** Split into two vaults: platform vault (existing, `stumsft-aiplat-prod-kv`) for infra secrets (Cosmos endpoint, Entra IDs, Service Bus, App Insights) and new tenant vault (`stumsft-aiplat-prod-tenants-kv`) for tenant secrets (Telegram tokens, Gmail passwords, AI model keys).
+- **D-15:** New `infra/modules/keyvault-tenants.bicep` creates the tenant vault with separate RBAC. `main.bicep` wires it alongside the existing vault.
+- **D-16:** Backend adds `TENANT_KEY_VAULT_NAME` env var with fallback to `KEY_VAULT_NAME` for backward compatibility during migration.
+- **D-17:** Per-tenant `SecretProviderClass` uses the tenant vault (`TENANT_KEY_VAULT_NAME`). Control-plane pods keep the existing platform vault mount.
+- **D-18:** Migration is safe rollout: deploy tenant vault → add env var → update backend with fallback → copy secrets → switch → verify → cleanup old secrets.
+- **D-19:** For `azd up` new deployments, both vaults are created from scratch — no migration needed. Separation is day-1 architecture.
+
 ### Agent's Discretion
 - `azure.yaml` service declarations and hook structure
 - Helm values files for KEDA, OpenClaw operator, cert-manager (chart versions, namespace)
@@ -59,6 +67,7 @@ Make the entire AI Agent Platform deployable from zero via `azd up`. Audit all i
 ### Infrastructure
 - `infra/main.bicep` — Orchestrator: VNet, Log Analytics, Identity, Cosmos, ACR, AKS, App Insights, Alerts, Service Bus, AGC, Key Vault, Workload Identity Federation
 - `infra/modules/cosmos.bicep` — 34 containers, all `/tenant_id` partition, serverless. Add `token_logs` + DiskANN here.
+- `infra/modules/keyvault.bicep` — Platform Key Vault with platform infra secrets. Keep as-is for control-plane.
 - `infra/modules/agc.bicep` — Application Gateway for Containers (Traffic Controller + subnet association)
 - `infra/parameters/prod.bicepparam` — Production parameters (Sweden Central, Standard_D4s_v5, K8s 1.33)
 
@@ -81,7 +90,7 @@ Make the entire AI Agent Platform deployable from zero via `azd up`. Audit all i
 - `scripts/deploy.sh` — Current manual deploy script (will be superseded by `azd up`)
 
 ### Requirements
-- `.planning/REQUIREMENTS.md` §Infrastructure Audit — AUDIT-01 through AUDIT-04
+- `.planning/REQUIREMENTS.md` §Infrastructure Audit — AUDIT-01 through AUDIT-06
 
 </canonical_refs>
 
@@ -101,6 +110,8 @@ Make the entire AI Agent Platform deployable from zero via `azd up`. Audit all i
 - `k8s/base/kustomization.yaml` missing `rbac-tenant-provisioner.yaml`
 - No `azure.yaml` exists — must be created from scratch
 - No cluster dependency tracking — KEDA, OpenClaw operator, cert-manager, CSI driver installs are unrecorded
+- Single Key Vault stores both platform infra secrets and tenant secrets — security blast radius concern
+- Per-tenant `SecretProviderClass` references platform vault `keyvaultName` — should reference tenant vault
 
 ### Established Patterns
 - Bicep: flat module structure (`infra/modules/{resource}.bicep`), parameterized via `.bicepparam`

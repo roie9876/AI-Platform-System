@@ -315,12 +315,14 @@ v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI 
 #### Phase 28: Infrastructure Audit & Foundation
 **Goal**: All infrastructure artifacts are validated against production, provision-from-zero works, and wildcard DNS/TLS is established for agent subdomains
 **Depends on**: Nothing (first v4.0 phase)
-**Requirements**: AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04
+**Requirements**: AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04, AUDIT-05, AUDIT-06
 **Success Criteria** (what must be TRUE):
   1. User can run `az deployment group create` + `kubectl apply` from scratch and get a fully working platform identical to production
   2. Bicep templates match all deployed Azure resources — zero drift between templates and reality
   3. K8s manifests match all running workloads, ConfigMaps, and Secrets — zero drift
   4. Wildcard DNS record (`*.agents.{domain}`) resolves and wildcard TLS certificate is issued via cert-manager DNS-01 challenge
+  5. Platform and tenant secrets are in separate Key Vaults — tenant pods can only access the tenant vault
+  6. Existing tenant secrets are migrated to the tenant vault with backward-compatible fallback
 **Plans**: TBD
 
 #### Phase 29: Token Proxy
