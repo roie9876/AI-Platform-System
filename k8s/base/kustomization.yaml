@@ -26,6 +26,10 @@ resources:
   - mcp-github/service.yaml
   - frontend/deployment.yaml
   - frontend/service.yaml
+  - token-proxy/deployment.yaml
+  - token-proxy/service.yaml
+  - token-proxy/hpa.yaml
+  - token-proxy/pdb.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: aiplatform

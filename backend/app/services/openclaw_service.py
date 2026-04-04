@@ -854,6 +854,11 @@ class OpenClawService:
             if base_url:
                 base_url = base_url.rstrip("/") + "/openai/v1"
 
+        # Route LLM traffic through token proxy for usage tracking (PROXY-05)
+        proxy_base = os.getenv("TOKEN_PROXY_URL", "http://token-proxy.aiplatform.svc:8080")
+        if proxy_base:
+            base_url = f"{proxy_base}/proxy/{tenant_slug}/{agent_id}/openai/v1"
+
         # Build the CR body
         cr = await self._build_cr(
             instance_name=instance_name,
@@ -1012,6 +1017,7 @@ class OpenClawService:
         system_prompt: str,
         model_endpoint: Optional[dict],
         openclaw_config: Optional[dict],
+        agent_id: str = "",
     ) -> None:
         """Update an existing OpenClawInstance CR."""
         namespace = f"tenant-{tenant_slug}"
@@ -1022,6 +1028,11 @@ class OpenClawService:
             base_url = await self._get_kv_secret("azure-openai-api-base")
             if base_url:
                 base_url = base_url.rstrip("/") + "/openai/v1"
+
+        # Route LLM traffic through token proxy for usage tracking (PROXY-05)
+        proxy_base = os.getenv("TOKEN_PROXY_URL", "http://token-proxy.aiplatform.svc:8080")
+        if proxy_base and agent_id:
+            base_url = f"{proxy_base}/proxy/{tenant_slug}/{agent_id}/openai/v1"
 
         cr = await self._build_cr(
             instance_name=instance_name,

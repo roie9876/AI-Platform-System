@@ -354,6 +354,7 @@ async def update_agent(
                 system_prompt=agent.get("system_prompt") or "",
                 model_endpoint=model_ep,
                 openclaw_config=agent.get("openclaw_config"),
+                agent_id=agent_id,
             )
             logger.info("Re-deployed OpenClaw CR %s with updated channel config", agent["openclaw_instance_name"])
         except Exception as e:
@@ -602,6 +603,7 @@ async def list_agent_groups(
                         system_prompt=agent.get("system_prompt") or "",
                         model_endpoint=model_ep,
                         openclaw_config=agent.get("openclaw_config"),
+                        agent_id=agent_id,
                     )
                     logger.info("Re-deployed CR %s after auto-resolving groups", instance_name)
                 except Exception as e:
