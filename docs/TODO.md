@@ -169,6 +169,206 @@ When an admin provisions a new AI model (e.g., GPT-4o, Claude), the API key/endp
 
 ---
 
+## � Architecture Pivot: Platform as Infrastructure, OpenClaw as Agent Runtime
+
+### Context & Motivation
+OpenClaw's release cadence is extremely high — new features, channels, and improvements land daily. Our custom UI masking approach can never keep pace with upstream changes. We're currently exposing ~60% of OpenClaw's capabilities and falling further behind with every release.
+
+**New model:** The platform becomes the **orchestration/infrastructure plane** and OpenClaw becomes the **agent plane**. Users configure agents through OpenClaw's native UI. The platform handles everything around it: tenant management, monitoring, token tracking, agent chaining, and Azure infrastructure services.
+
+| Layer | Owner | Responsibility |
+|---|---|---|
+| Tenant management | Platform | Create/delete tenants, RBAC, billing |
+| Agent lifecycle | Platform | Deploy/destroy OpenClaw pods, scaling |
+| Monitoring | Platform | Token usage, costs, health, logs |
+| Agent chaining | Platform | Workflow engine, inter-agent routing |
+| Agent configuration | OpenClaw native UI | System prompt, tools, channels, skills |
+| Agent capabilities | OpenClaw | Chat, ReAct, MCP tools, channels, memory |
+
+### 10. Expose OpenClaw Native UI via Reverse Proxy
+**Status:** Not started  
+**Priority:** 🔥 Critical — enables the architecture pivot  
+**Problem:** OpenClaw's web UI runs on port 18789 inside the pod but is not accessible to end users. Users must configure everything through our limited custom UI.  
+**Solution:** Reverse-proxy the native OpenClaw UI through the platform's API gateway/Ingress so authenticated users can access it directly.
+
+**Approach — Subdomain routing (recommended):**
+```
+agent-{id}.your-platform.com  →  oc-{name}.tenant-{slug}.svc.cluster.local:18789
+```
+- Wildcard DNS (`*.your-platform.com`) + wildcard TLS cert
+- Ingress rule per agent (created dynamically when agent is deployed)
+- Platform gateway authenticates user (Azure AD), validates tenant access, then proxies
+
+**Challenges:**
+| Challenge | Severity | Solution |
+|---|---|---|
+| WebSocket proxy through multiple hops | Medium | Nginx/Envoy handles this well, Ingress already supports WS |
+| OpenClaw UI assumes root `/` | High | Subdomain approach avoids path rewriting entirely |
+| CORS / cookie isolation | Medium | Each agent on its own subdomain = naturally isolated |
+| Auth — OpenClaw has its own auth | Low | Keep `auth.mode: none` since platform gateway handles auth |
+
+**Alternative — Path-based routing:**
+```
+your-platform.com/agents/{id}/console/*  →  oc-{name}:18789/*
+```
+Simpler DNS but requires URL rewriting and may break OpenClaw's SPA routing.
+
+**Files:**
+- `k8s/base/ingress.yaml` or new `k8s/base/openclaw-ingress-template.yaml` — wildcard Ingress
+- `backend/app/services/openclaw_service.py` — create Ingress rule on agent deploy
+- `infra/modules/dns.bicep` — wildcard DNS record
+- `infra/modules/aks.bicep` — wildcard TLS cert (Let's Encrypt or Azure-managed)
+- Frontend — link to `agent-{id}.your-platform.com` from agent details page
+
+**Risk:** Medium — WebSocket proxying needs careful testing  
+**Depends on:** Nothing — can be done independently
+
+### 11. Platform MCP Servers as Azure Infrastructure Bridge
+**Status:** Not started  
+**Priority:** 🔧 High — prevents losing Azure integration when users switch to native UI  
+**Problem:** When users configure agents through OpenClaw's native UI instead of our custom UI, we lose the ability to inject Azure infrastructure services (AI Search, Cosmos DB, Key Vault) into the agent's context.  
+**Solution:** Expose Azure services as MCP servers that OpenClaw consumes natively.
+
+**Architecture:**
+```
+OpenClaw Pod (native UI, full features)
+│
+│  MCP protocol (stdio or SSE)
+│
+├── mcp-azure-search     → Azure AI Search indexes (RAG)
+├── mcp-cosmos-memory    → Cosmos DB agent memories (read/write)
+├── mcp-key-vault        → Key Vault secret retrieval
+├── mcp-jira             → Jira (already exists)
+├── mcp-sharepoint       → SharePoint (already exists)
+└── built-in tools       → web browse, code, etc. (OpenClaw native)
+```
+
+When the platform deploys an OpenClaw agent, it **auto-configures MCP server URLs** in the `OpenClawInstance` CR. Users see these tools in OpenClaw's native UI and can enable/disable them.
+
+**New MCP servers to build:**
+- `mcp-azure-search` — wraps Azure AI Search with tools: `search_documents(query)`, `list_indexes()`, `index_document(doc)`
+- `mcp-cosmos-memory` — wraps Cosmos DB with tools: `memory_search(query)`, `memory_store(key, value)`, `list_memories()`
+- `mcp-key-vault` — wraps Key Vault with tools: `get_secret(name)`, `list_secrets()`
+
+**Files:**
+- New `backend/mcp_server_azure_search.py`
+- New `backend/mcp_server_cosmos_memory.py`
+- New `backend/mcp_server_key_vault.py`
+- `backend/app/services/openclaw_service.py` — inject MCP server URLs into CR `config.raw.mcpServers`
+- K8s deployments for MCP servers (per-tenant or shared)
+
+**Risk:** Low — MCP is a standard protocol, OpenClaw already supports it natively  
+**Depends on:** Item 10 (value is marginal without native UI exposure)
+
+### 12. LLM Token Tracking Proxy
+**Status:** Not started  
+**Priority:** 🔧 High — required for monitoring/billing after pivot  
+**Problem:** When agents are configured through OpenClaw's native UI, the platform loses visibility into token consumption. Currently, tokens are tracked in the Agent Executor layer which won't be in the path anymore.  
+**Solution:** Route OpenClaw's LLM calls through a thin platform proxy that counts tokens.
+
+**Architecture:**
+```
+OpenClaw → token-proxy.aiplatform.svc:8080 → Azure OpenAI
+```
+
+**Proxy responsibilities:**
+- Forward requests transparently (OpenAI-compatible passthrough)
+- Log token counts (prompt + completion) per agent/tenant to Cosmos DB
+- Enforce rate limits / budget caps per tenant
+- Emit metrics to Application Insights
+- Platform monitoring dashboard reads from same Cosmos DB collection
+
+**Implementation:**
+- Lightweight FastAPI or Go service
+- Deployed as shared service in `aiplatform` namespace
+- OpenClaw CR `models.providers.azure-openai-responses.baseUrl` points to proxy instead of Azure OpenAI directly
+- Proxy adds `X-Agent-Id` and `X-Tenant-Id` headers for tracking
+
+**Files:**
+- New `backend/microservices/llm_proxy/` — proxy service
+- `backend/app/services/openclaw_service.py` — set `baseUrl` to proxy URL in CR
+- K8s deployment for the proxy
+- Cosmos DB collection for token logs
+
+**Risk:** Low — simple transparent proxy, easy to bypass in emergency by pointing back to Azure OpenAI  
+**Depends on:** Nothing
+
+### 13. Memory as MCP Tool (Replaces System Message Injection)
+**Status:** Not started  
+**Priority:** 🔧 Medium  
+**Problem:** Today the platform injects Cosmos DB memories as system messages before each chat. With the native UI pivot, we lose this injection point.  
+**Solution:** Expose the memory system as an MCP tool so the agent can search/store memories on demand.
+
+**Tools:**
+- `memory_search(query, top_k)` — retrieves relevant past context from Cosmos DB
+- `memory_store(key, value, tags)` — saves new memory to Cosmos DB
+- `memory_list(filter)` — lists stored memories
+
+**Why this is better:** The agent decides when to search memory (on-demand) rather than getting a dump every single message. More efficient and context-aware.
+
+**Files:** Part of Item 11 (`mcp-cosmos-memory` server)  
+**Depends on:** Item 11
+
+### 14. Agent Chaining via OpenAI-Compatible Endpoint
+**Status:** Not started  
+**Priority:** 🔧 Medium  
+**Problem:** The workflow engine currently chains agents through internal Python calls. With standalone OpenClaw instances, agents need a standard API to call each other.  
+**Solution:** Use OpenClaw's built-in `/v1/chat/completions` endpoint. Each agent pod exposes this endpoint. The workflow engine calls Agent B just like calling an LLM.
+
+**Example workflow engine call:**
+```python
+response = await httpx.post(
+    f"http://oc-agent-b.tenant-eng.svc:18789/v1/chat/completions",
+    json={
+        "model": "agent",
+        "messages": [{"role": "user", "content": "Summarize today's Jira tickets"}]
+    }
+)
+```
+
+**Files:**
+- `backend/microservices/workflow_engine/` — update agent-to-agent calls to use HTTP
+- `backend/app/services/agent_execution.py` — add OpenAI-compatible proxy route for external consumers
+- New API endpoint: `POST /api/v1/agents/{id}/openai/v1/chat/completions` — authenticates + proxies
+
+**Risk:** Low — OpenClaw already serves this endpoint  
+**Depends on:** Nothing
+
+### 15. Simplified Platform UI (Post-Pivot)
+**Status:** Not started  
+**Priority:** 🔧 Medium — after Items 10-12 are done  
+**Problem:** After the pivot, the current agent config pages (system prompt, channels, tools) become redundant since users configure agents in OpenClaw's native UI.  
+**Solution:** Simplify the platform UI to focus on what it owns:
+
+**Keep:**
+- Agent list / create / delete page
+- Monitoring dashboard (pod health, token usage, costs)
+- Agent chaining / workflow builder
+- Tenant management / RBAC
+- Link to OpenClaw native UI ("Open Agent Console" button)
+
+**Remove or deprecate:**
+- System prompt editor (OpenClaw handles this)
+- Channel wizard (OpenClaw handles this)
+- Tool configuration page (OpenClaw handles this)
+- Playground chat (users chat via OpenClaw UI or channels directly)
+
+**Files:** Frontend pages under `src/app/dashboard/agents/`  
+**Depends on:** Items 10, 11, 12
+
+---
+
+## ⚠️ Known Limitations After Pivot
+
+| Limitation | Why | Mitigation |
+|---|---|---|
+| Unified conversation history | Each OpenClaw instance owns its own sessions — platform can't merge them | Item 5 (Cosmos DB sync) partially addresses this |
+| Custom platform UI widgets for agent config | Platform-specific config (e.g., "link to Jira project X") needs to be outside OpenClaw's UI | Use MCP server config instead |
+| Scale-to-zero | OpenClaw needs a running pod; no serverless mode | Accept cost — already the case today |
+| Offline agents | Pod must be running to process messages | Same as today |
+
+---
+
 ## 📋 Backlog (Ideas / Future)
 
 - **Policy Engine & Governance** (deferred from v1.0 Phase 7) — content filtering, rate limiting, audit trail
@@ -179,4 +379,4 @@ When an admin provisions a new AI model (e.g., GPT-4o, Claude), the API key/endp
 
 ---
 
-*Last updated: 2026-04-02*
+*Last updated: 2026-04-04*
