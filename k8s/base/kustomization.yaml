@@ -30,6 +30,9 @@ resources:
   - token-proxy/service.yaml
   - token-proxy/hpa.yaml
   - token-proxy/pdb.yaml
+  - mcp-platform-tools/deployment.yaml
+  - mcp-platform-tools/service.yaml
+  - mcp-platform-tools/hpa.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: aiplatform

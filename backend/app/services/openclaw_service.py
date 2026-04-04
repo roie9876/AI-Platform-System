@@ -1233,6 +1233,11 @@ class OpenClawService:
             name = url.rstrip("/").split("/")[-1].split(".")[0].replace("mcp-", "")
             mcp_servers[name] = {"url": url}
 
+        # Always inject platform MCP tools server (shared service in aiplatform namespace)
+        mcp_servers["platform-tools"] = {
+            "url": "http://mcp-platform-tools.aiplatform.svc.cluster.local:8085/mcp"
+        }
+
         # Model provider config — API key injected via env var from CSI, never in YAML
         providers_config = {
             provider_name: {

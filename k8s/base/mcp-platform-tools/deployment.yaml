@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-platform-tools
+  labels:
+    app: mcp-platform-tools
+    app.kubernetes.io/name: mcp-platform-tools
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-platform-tools
+  template:
+    metadata:
+      labels:
+        app: mcp-platform-tools
+        app.kubernetes.io/name: mcp-platform-tools
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: aiplatform-workload
+      containers:
+        - name: mcp-platform-tools
+          image: ${ACR_SERVER}/aiplatform-mcp-platform-tools:latest
+          ports:
+            - containerPort: 8085
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: aiplatform-config
+          env:
+            - name: SERVICE_NAME
+              value: "mcp-platform-tools"
+            - name: COSMOS_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: COSMOS_ENDPOINT
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: AZURE_CLIENT_ID
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: AZURE_TENANT_ID
+            - name: AZURE_WORKLOAD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: AZURE_WORKLOAD_CLIENT_ID
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: APPLICATIONINSIGHTS_CONNECTION_STRING
+            - name: AZURE_OPENAI_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: AZURE_OPENAI_ENDPOINT
+            - name: AZURE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: AZURE_OPENAI_KEY
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8085
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: 8085
+            initialDelaySeconds: 3
+            failureThreshold: 30
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: aiplatform-keyvault
