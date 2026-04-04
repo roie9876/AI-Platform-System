@@ -62,7 +62,6 @@ var containerNames = [
   'agent_config_versions'
   'agent_data_sources'
   'agent_mcp_tools'
-  'agent_memories'
   'agent_templates'
   'agent_tools'
   'azure_connections'
@@ -112,6 +111,62 @@ resource containers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containe
     }
   }
 }]
+
+// token_logs container — 90-day TTL, partition by tenant_id (Phase 29: Token Proxy)
+resource tokenLogsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: database
+  name: 'token_logs'
+  properties: {
+    resource: {
+      id: 'token_logs'
+      partitionKey: {
+        paths: ['/tenant_id']
+        kind: 'Hash'
+      }
+      defaultTtl: 7776000  // 90 days in seconds
+    }
+  }
+}
+
+// agent_memories container — with DiskANN vector embedding policy (Phase 30: MCP Servers)
+resource agentMemoriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: database
+  name: 'agent_memories'
+  properties: {
+    resource: {
+      id: 'agent_memories'
+      partitionKey: {
+        paths: ['/tenant_id']
+        kind: 'Hash'
+      }
+      vectorEmbeddingPolicy: {
+        vectorEmbeddings: [
+          {
+            path: '/embedding'
+            dataType: 'float32'
+            dimensions: 1536
+            distanceFunction: 'cosine'
+          }
+        ]
+      }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+        includedPaths: [{ path: '/*' }]
+        excludedPaths: [
+          { path: '/_etag/?' }
+          { path: '/embedding/*' }
+        ]
+        vectorIndexes: [
+          {
+            path: '/embedding'
+            type: 'diskANN'
+          }
+        ]
+      }
+    }
+  }
+}
 
 // Diagnostic settings — send logs to Log Analytics
 resource cosmosDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {

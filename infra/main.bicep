@@ -39,6 +39,24 @@ param platformAdminEmails string = ''
 @description('Entra admin group ID for platform admins')
 param entraAdminGroupId string = ''
 
+@description('Custom domain for agent subdomains. Leave empty for AGC-managed FQDN only.')
+param agentsDomain string = ''
+
+@description('Whether to purchase the domain via App Service Domains. Only used when agentsDomain is set.')
+param buyDomain bool = false
+
+@description('ICANN contact email for domain purchase. Required when buyDomain is true.')
+param domainContactEmail string = ''
+
+@description('ICANN contact first name for domain purchase.')
+param domainContactFirstName string = ''
+
+@description('ICANN contact last name for domain purchase.')
+param domainContactLastName string = ''
+
+@description('ICANN contact phone for domain purchase.')
+param domainContactPhone string = ''
+
 // Common tags applied to all resources
 var commonTags = {
   SecurityControl: 'Ignore'
@@ -85,6 +103,26 @@ module cosmos './modules/cosmos.bicep' = {
     environmentName: environmentName
     logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
     workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    tags: commonTags
+  }
+}
+
+module dnsZone './modules/dns.bicep' = if (!empty(agentsDomain)) {
+  name: 'dns-deployment'
+  params: {
+    domainName: agentsDomain
+    tags: commonTags
+  }
+}
+
+module domain './modules/domain.bicep' = if (buyDomain && !empty(agentsDomain)) {
+  name: 'domain-deployment'
+  params: {
+    domainName: agentsDomain
+    contactEmail: domainContactEmail
+    contactFirstName: domainContactFirstName
+    contactLastName: domainContactLastName
+    contactPhone: domainContactPhone
     tags: commonTags
   }
 }
@@ -192,6 +230,17 @@ module keyvault './modules/keyvault.bicep' = {
   }
 }
 
+module keyvaultTenants './modules/keyvault-tenants.bicep' = {
+  name: 'keyvault-tenants-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    tags: commonTags
+  }
+}
+
 // ============================================================================
 // Wave 4.5: Workload Identity Federation — depends on identity + AKS OIDC issuer
 // ============================================================================
@@ -257,3 +306,15 @@ output agcId string = agc.outputs.agcId
 
 @description('Service Bus namespace FQDN')
 output serviceBusNamespace string = servicebus.outputs.serviceBusNamespace
+
+@description('Tenant Key Vault name')
+output tenantKeyVaultName string = keyvaultTenants.outputs.tenantKeyVaultName
+
+@description('Tenant Key Vault URI')
+output tenantKeyVaultUri string = keyvaultTenants.outputs.tenantKeyVaultUri
+
+@description('DNS zone name servers (empty if no custom domain)')
+output dnsNameServers array = !empty(agentsDomain) ? dnsZone.outputs.nameServers : []
+
+@description('Custom agents domain (empty if not configured)')
+output agentsDomain string = agentsDomain
