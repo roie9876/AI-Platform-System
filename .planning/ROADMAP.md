@@ -304,7 +304,7 @@ v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI 
 
 **Phase Numbering:** Continues from v3.0 (Phases 17-27).
 
-- [ ] **Phase 28: Infrastructure Audit & Foundation** — Validate provision-from-zero, resolve drift, establish wildcard DNS/TLS
+- [x] **Phase 28: Infrastructure Audit & Foundation** — Validate provision-from-zero, resolve drift, establish wildcard DNS/TLS *(completed 2025-07-18)*
 - [ ] **Phase 29: Token Proxy** — Transparent LLM proxy with universal token tracking and per-tenant budgets
 - [ ] **Phase 30: Platform MCP Servers** — Cosmos DB memory, AI Search, and group rules as native agent tools
 - [ ] **Phase 31: Auth Gateway & Native UI Access** — Authenticated subdomain routing to OpenClaw native UI
