@@ -357,7 +357,11 @@ Plans:
   3. Agents can retrieve per-group instructions and agent configuration via MCP tools
   4. MCP server URLs are auto-injected into OpenClaw CRs on agent deploy
   5. Cosmos DB `agent_memories` container has DiskANN vector index enabled and operational
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 30-01-PLAN.md — MCP server core + memory tools (store, search, structured, embedding)
+- [ ] 30-02-PLAN.md — Platform config tools (group instructions, agent config)
+- [ ] 30-03-PLAN.md — Infrastructure + deployment (Cosmos containers, Dockerfile, K8s, OpenClaw injection)
 
 #### Phase 31: Auth Gateway & Native UI Access
 **Goal**: Users can access OpenClaw's full native web UI for any authorized agent via authenticated subdomain routing
