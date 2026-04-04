@@ -134,6 +134,23 @@ resource secretEntraAdminGroupId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' 
   }
 }
 
+// Placeholder secrets — required by SecretProviderClass, user must update post-deploy
+resource secretEntraClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'entra-client-secret'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
+resource secretJira 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'jira'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
 // Diagnostic settings — send audit logs to Log Analytics
 resource keyvaultDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
   name: 'keyvault-diagnostics'

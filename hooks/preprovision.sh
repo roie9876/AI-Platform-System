@@ -18,4 +18,19 @@ if ! az account show &>/dev/null; then
   exit 1
 fi
 
+# Copy environment-specific Bicep parameter file
+eval "$(azd env get-values | sed 's/^/export /')"
+AZURE_ENV_NAME="${AZURE_ENV_NAME:-prod}"
+PARAM_FILE="infra/parameters/${AZURE_ENV_NAME}.bicepparam"
+if [ -f "${PARAM_FILE}" ]; then
+  cp "${PARAM_FILE}" infra/main.bicepparam
+  echo "Using parameter file for environment: ${AZURE_ENV_NAME}"
+else
+  echo "ERROR: Parameter file not found: ${PARAM_FILE}"
+  echo "Available environments: $(ls infra/parameters/*.bicepparam 2>/dev/null | xargs -I{} basename {} .bicepparam)"
+  exit 1
+fi
+
+echo "Pre-provision complete."
+
 echo "All prerequisites satisfied."

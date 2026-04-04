@@ -14,7 +14,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-SERVICES=("api-gateway" "agent-executor" "workflow-engine" "tool-executor" "mcp-proxy")
+SERVICES=("api-gateway" "agent-executor" "workflow-engine" "tool-executor" "mcp-proxy" "token-proxy" "frontend" "mcp-atlassian" "mcp-github" "mcp-sharepoint")
+# Port mapping per service (must match containerPort in deployment.yaml)
+SVC_PORTS=("8000" "8000" "8000" "8000" "8000" "8080" "3000" "8082" "8084" "8083")
+# Health path mapping (frontend uses / instead of /healthz)
+SVC_HEALTH=("/healthz" "/healthz" "/healthz" "/healthz" "/healthz" "/healthz" "/" "/healthz" "/healthz" "/healthz")
+SVC_READY=("/readyz" "/readyz" "/readyz" "/readyz" "/readyz" "/readyz" "/" "/healthz" "/healthz" "/healthz")
 NAMESPACE="aiplatform"
 EXTENDED=false
 INGRESS_URL=""
@@ -50,8 +55,12 @@ echo -e "${BLUE}━━━ Health & Readiness Checks ━━━${NC}"
 echo "Namespace: ${NAMESPACE}"
 echo ""
 
-for SVC in "${SERVICES[@]}"; do
-  echo -n "  Checking ${SVC}... "
+for i in "${!SERVICES[@]}"; do
+  SVC="${SERVICES[$i]}"
+  PORT="${SVC_PORTS[$i]}"
+  H_PATH="${SVC_HEALTH[$i]}"
+  R_PATH="${SVC_READY[$i]}"
+  echo -n "  Checking ${SVC} (:${PORT})... "
   POD=$(kubectl get pods -n "${NAMESPACE}" -l app="${SVC}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
   if [ -z "$POD" ]; then
     echo -e "${RED}FAIL — no pod found${NC}"
@@ -59,8 +68,8 @@ for SVC in "${SERVICES[@]}"; do
     continue
   fi
 
-  HEALTH=$(kubectl exec -n "${NAMESPACE}" "${POD}" -- curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/healthz 2>/dev/null || echo "000")
-  READY=$(kubectl exec -n "${NAMESPACE}" "${POD}" -- curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/readyz 2>/dev/null || echo "000")
+  HEALTH=$(kubectl exec -n "${NAMESPACE}" "${POD}" -- curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}${H_PATH}" 2>/dev/null || echo "000")
+  READY=$(kubectl exec -n "${NAMESPACE}" "${POD}" -- curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}${R_PATH}" 2>/dev/null || echo "000")
 
   if [ "$HEALTH" = "200" ] && [ "$READY" = "200" ]; then
     echo -e "${GREEN}OK${NC} (health=${HEALTH}, ready=${READY})"
