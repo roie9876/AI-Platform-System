@@ -323,7 +323,12 @@ v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI 
   4. Wildcard DNS record (`*.agents.{domain}`) resolves and wildcard TLS certificate is issued via cert-manager DNS-01 challenge
   5. Platform and tenant secrets are in separate Key Vaults — tenant pods can only access the tenant vault
   6. Existing tenant secrets are migrated to the tenant vault with backward-compatible fallback
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 28-01-PLAN.md — Bicep infrastructure extensions (Cosmos DB v4.0 containers, DNS/domain/tenant KV modules)
+- [ ] 28-02-PLAN.md — azd framework + K8s manifest drift fixes + cert-manager resources
+- [ ] 28-03-PLAN.md — Key Vault separation backend wiring + tenant secret migration
 
 #### Phase 29: Token Proxy
 **Goal**: All LLM traffic is transparently proxied through a centralized gateway with universal token tracking and per-tenant budget controls
