@@ -305,7 +305,7 @@ v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI 
 **Phase Numbering:** Continues from v3.0 (Phases 17-27).
 
 - [x] **Phase 28: Infrastructure Audit & Foundation** — Validate provision-from-zero, resolve drift, establish wildcard DNS/TLS *(completed 2025-07-18)*
-- [ ] **Phase 29: Token Proxy** — Transparent LLM proxy with universal token tracking and per-tenant budgets
+- [x] **Phase 29: Token Proxy** — Transparent LLM proxy with universal token tracking and per-tenant budgets *(completed 2025-07-16)*
 - [ ] **Phase 30: Platform MCP Servers** — Cosmos DB memory, AI Search, and group rules as native agent tools
 - [ ] **Phase 31: Auth Gateway & Native UI Access** — Authenticated subdomain routing to OpenClaw native UI
 - [ ] **Phase 32: Dual-Mode Operation** — Validate platform UI and native UI work simultaneously with full parity
@@ -343,9 +343,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 29-01-PLAN.md — Proxy core service (FastAPI + TokenLogRepository + Dockerfile)
-- [ ] 29-02-PLAN.md — K8s manifests (Deployment, Service, HPA, PDB)
-- [ ] 29-03-PLAN.md — Budget API + openclaw_service.py proxy wiring + unit tests
+- [x] 29-01-PLAN.md — Proxy core service (FastAPI + TokenLogRepository + Dockerfile)
+- [x] 29-02-PLAN.md — K8s manifests (Deployment, Service, HPA, PDB)
+- [x] 29-03-PLAN.md — Budget API + openclaw_service.py proxy wiring + unit tests
 
 #### Phase 30: Platform MCP Servers
 **Goal**: Agents can access platform data services (memory, search, group rules) as native MCP tools without any UI changes
