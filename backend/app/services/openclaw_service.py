@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Azure infrastructure references (populated from K8s ConfigMap/Secrets at runtime)
 KEY_VAULT_NAME = os.getenv("KEY_VAULT_NAME", "")
+TENANT_KEY_VAULT_NAME = os.getenv("TENANT_KEY_VAULT_NAME", KEY_VAULT_NAME)
 TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
 WORKLOAD_CLIENT_ID = os.getenv(
     "AZURE_WORKLOAD_CLIENT_ID",
@@ -1440,7 +1441,7 @@ class OpenClawService:
                     "usePodIdentity": "false",
                     "useVMManagedIdentity": "false",
                     "clientID": WORKLOAD_CLIENT_ID,
-                    "keyvaultName": KEY_VAULT_NAME,
+                    "keyvaultName": TENANT_KEY_VAULT_NAME,
                     "tenantId": TENANT_ID,
                     "objects": objects_str,
                 },
