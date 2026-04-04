@@ -56,6 +56,7 @@ class OpenClawChannelConfig(BaseModel):
     telegram_allowed_users: List[str] = []
     dm_policy: Literal["open", "allowlist", "pairing"] = "allowlist"
     telegram_group_rules: List[TelegramGroupRule] = []  # Per-group overrides
+    telegram_channel_instructions: str = ""  # Channel-level instructions for all Telegram interactions
 
 
 class OpenClawGmailConfig(BaseModel):
@@ -84,6 +85,7 @@ class OpenClawWhatsAppConfig(BaseModel):
     whatsapp_group_policy: Literal["open", "allowlist"] = "allowlist"
     whatsapp_allowed_phones: List[str] = []  # Phone numbers allowed to interact (DMs)
     whatsapp_group_rules: List[WhatsAppGroupRule] = []  # Per-group overrides
+    whatsapp_channel_instructions: str = ""  # Channel-level instructions for all WhatsApp interactions
 
 
 class OpenClawConfig(BaseModel):

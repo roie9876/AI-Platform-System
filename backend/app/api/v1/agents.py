@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+import asyncio
 
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
@@ -238,12 +239,12 @@ async def get_agent(
                     agent["openclaw_instance_name"], slug
                 )
                 wa_info = channels.get("channels", {}).get("whatsapp", {})
-                if wa_info.get("running") and wa_info.get("linked"):
+                if wa_info.get("running") and wa_info.get("connected"):
                     new_status = "connected"
-                elif wa_info.get("configured") and not wa_info.get("linked"):
+                elif wa_info.get("running") and not wa_info.get("connected"):
                     new_status = "not_linked"
                 else:
-                    new_status = agent.get("whatsapp_status")
+                    new_status = agent.get("whatsapp_status") or "not_linked"
 
                 if new_status and new_status != agent.get("whatsapp_status"):
                     agent["whatsapp_status"] = new_status
@@ -499,6 +500,34 @@ async def whatsapp_link_status(
     return openclaw_service.get_whatsapp_link_status(instance_name)
 
 
+@router.post("/{agent_id}/whatsapp/logout")
+async def whatsapp_logout(
+    agent_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Logout from WhatsApp, clearing credentials so a fresh QR link is required."""
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    instance_name = agent.get("openclaw_instance_name")
+    if not instance_name:
+        raise HTTPException(status_code=502, detail="Agent has no OpenClaw instance")
+
+    tenant = await tenant_repo.get(tenant_id, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=400, detail="Tenant not found")
+    slug = tenant["slug"]
+
+    try:
+        result = await openclaw_service.whatsapp_logout(instance_name, slug)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to logout: {str(e)}")
+
+
 @router.get("/{agent_id}/groups")
 async def list_agent_groups(
     agent_id: str,
@@ -506,7 +535,12 @@ async def list_agent_groups(
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Return WhatsApp & Telegram groups the agent is currently connected to."""
+    """Return WhatsApp & Telegram groups the agent is currently connected to.
+
+    Also auto-resolves any pending group rules (name-only, no JID) by
+    matching their group_name against the live discovered groups. If a
+    match is found, the agent config is patched with the real JID.
+    """
     agent = await agent_repo.get(tenant_id, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -524,7 +558,137 @@ async def list_agent_groups(
 
     try:
         groups = await openclaw_service.list_groups(instance_name, tenant["slug"])
+
+        # --- Auto-resolve pending WhatsApp group rules (name → JID) ---
+        openclaw_cfg = agent.get("openclaw_config") or {}
+        wa_cfg = openclaw_cfg.get("whatsapp") or {}
+        wa_rules: list = wa_cfg.get("whatsapp_group_rules") or []
+        pending = [r for r in wa_rules if not r.get("group_jid") and r.get("group_name")]
+        if pending:
+            # Build a name→JID map from discovered groups (case-insensitive)
+            wa_groups = [g for g in groups if g.get("channel") == "whatsapp" and g.get("group_id")]
+            name_to_jid: dict[str, str] = {}
+            for g in wa_groups:
+                name_to_jid[g["display_name"].lower()] = g["group_id"]
+
+            resolved_any = False
+            for rule in wa_rules:
+                if rule.get("group_jid") or not rule.get("group_name"):
+                    continue
+                jid = name_to_jid.get(rule["group_name"].lower())
+                if jid:
+                    rule["group_jid"] = jid
+                    resolved_any = True
+                    logger.info(
+                        "Auto-resolved WA group rule '%s' → %s for agent %s",
+                        rule["group_name"], jid, agent_id,
+                    )
+
+            if resolved_any:
+                # Patch agent config and persist
+                openclaw_cfg["whatsapp"]["whatsapp_group_rules"] = wa_rules
+                etag = agent.get("_etag")
+                agent["openclaw_config"] = openclaw_cfg
+                agent = await agent_repo.update(tenant_id, agent_id, agent, etag=etag)
+
+                # Re-deploy CR so the newly-resolved JIDs take effect
+                try:
+                    model_ep = None
+                    if agent.get("model_endpoint_id"):
+                        model_ep = await endpoint_repo.get(tenant_id, agent["model_endpoint_id"])
+                    await openclaw_service.update_agent(
+                        instance_name=instance_name,
+                        tenant_slug=tenant["slug"],
+                        system_prompt=agent.get("system_prompt") or "",
+                        model_endpoint=model_ep,
+                        openclaw_config=agent.get("openclaw_config"),
+                    )
+                    logger.info("Re-deployed CR %s after auto-resolving groups", instance_name)
+                except Exception as e:
+                    logger.error("Failed to re-deploy CR %s after auto-resolve: %s", instance_name, e)
+        # -----------------------------------------------------------------
+
         return {"groups": groups}
     except Exception as e:
         logger.warning("Failed to list groups for %s: %s", instance_name, e)
         return {"groups": [], "error": str(e)}
+
+
+@router.post("/{agent_id}/groups/refresh-cache")
+async def refresh_group_cache(
+    agent_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Re-fetch WhatsApp group metadata from Baileys and update the cache.
+
+    This briefly causes a WhatsApp session conflict (auto-recovers in ~20s).
+    Use sparingly — only when new groups need to be discovered.
+    """
+    agent = await agent_repo.get(tenant_id, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    instance_name = agent.get("openclaw_instance_name")
+    if not instance_name:
+        raise HTTPException(status_code=400, detail="No OpenClaw instance")
+
+    tenant = await tenant_repo.get(tenant_id, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=400, detail="Tenant not found")
+
+    namespace = f"tenant-{tenant['slug']}"
+    pod_name = f"{instance_name}-0"
+
+    _baileys_script = (
+        'const b=require("/app/node_modules/@whiskeysockets/baileys");'
+        'const p=require("/app/node_modules/pino");'
+        "async function m(){"
+        'const l=p({level:"silent"});'
+        'const d="/home/openclaw/.openclaw/credentials/whatsapp/default";'
+        "const{state:s}=await b.useMultiFileAuthState(d);"
+        "const{version:v}=await b.fetchLatestBaileysVersion();"
+        "const k=b.makeWASocket({auth:{creds:s.creds,"
+        "keys:b.makeCacheableSignalKeyStore(s.keys,l)},"
+        'version:v,logger:l,printQRInTerminal:false,browser:["oc","g","1"],'
+        "syncFullHistory:false,markOnlineOnConnect:false});"
+        "await new Promise((r,j)=>{"
+        'const t=setTimeout(()=>j(new Error("timeout")),25000);'
+        'k.ev.on("connection.update",u=>{'
+        'if(u.connection==="open"){clearTimeout(t);r()}'
+        'if(u.connection==="close"){clearTimeout(t);j(new Error("closed"))}});});'
+        "const g=await k.groupFetchAllParticipating();"
+        "const o={};"
+        "for(const[i,x]of Object.entries(g)){"
+        "o[i]={subject:x.subject,size:x.size||(x.participants?x.participants.length:0)}}"
+        "console.log(JSON.stringify(o));"
+        "k.end(undefined);setTimeout(()=>process.exit(0),500)}"
+        "m().catch(e=>{console.error(e.message);process.exit(1)})"
+    )
+    try:
+        loop = asyncio.get_event_loop()
+        raw = await loop.run_in_executor(
+            None,
+            openclaw_service._exec_in_pod,
+            namespace,
+            pod_name,
+            [
+                "sh", "-c",
+                f"cd /app && node -e '{_baileys_script}' 2>/dev/null "
+                f"> /home/openclaw/.openclaw/wa_group_meta_cache.json",
+            ],
+        )
+        # Verify the file was written
+        check = await loop.run_in_executor(
+            None,
+            openclaw_service._exec_in_pod,
+            namespace,
+            pod_name,
+            ["wc", "-c", "/home/openclaw/.openclaw/wa_group_meta_cache.json"],
+        )
+        logger.info("Group cache refreshed: %s", check.strip())
+        return {"status": "ok", "message": f"Cache refreshed: {check.strip()}"}
+    except Exception as e:
+        logger.error("Failed to refresh group cache: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))

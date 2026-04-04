@@ -616,8 +616,8 @@ class AgentExecutionService:
                 )
                 import base64
                 gw_token = base64.b64decode(secret.data.get("token", "")).decode()
-            except Exception:
-                logger.debug("Could not read gateway token for %s", instance_name)
+            except Exception as tok_exc:
+                logger.error("Could not read gateway token for %s: %s", instance_name, tok_exc, exc_info=True)
 
         extra_headers = {"Origin": origin}
         if gw_token:
@@ -685,9 +685,21 @@ class AgentExecutionService:
                         label = "Telegram"
                     elif "discord" in skey:
                         label = "Discord"
-                    context_parts.append(
-                        f"- Active {label} session (type={kind}): {skey}"
+                    # Include the human-readable group name if available
+                    display_name = (
+                        session.get("subject")
+                        or session.get("displayName")
+                        or session.get("name")
+                        or ""
                     )
+                    if display_name and kind == "group":
+                        context_parts.append(
+                            f'- Active {label} group "{display_name}" (session: {skey})'
+                        )
+                    else:
+                        context_parts.append(
+                            f"- Active {label} session (type={kind}): {skey}"
+                        )
 
                 # 4. Fetch actual message content from each channel session
                 def _extract_messages(msgs, limit=10):
@@ -761,7 +773,7 @@ class AgentExecutionService:
             logger.debug("OpenClaw WS session opened, context len=%d", len(context))
 
         except Exception as exc:
-            logger.debug("Failed to set up OpenClaw WS session: %s", exc)
+            logger.error("Failed to set up OpenClaw WS session: %s", exc, exc_info=True)
 
         # Yield context + ws for chat.send routing
         try:
@@ -786,6 +798,8 @@ class AgentExecutionService:
         """Route chat through OpenClaw gateway via WS chat.send."""
 
         gateway_url = agent.get("openclaw_gateway_url")
+        instance_name = agent.get("openclaw_instance_name", "")
+        logger.info("OpenClaw execute: gateway_url=%s instance_name=%s", gateway_url, instance_name)
 
         if not gateway_url:
             yield self._sse_error(
@@ -830,7 +844,6 @@ class AgentExecutionService:
         # The WS connection is kept alive during the completion so the
         # gateway sees a "paired" device and the agent's built-in
         # sessions tools can connect successfully.
-        instance_name = agent.get("openclaw_instance_name", "")
         tenant_slug = ""
         if gateway_url and ".tenant-" in gateway_url:
             tenant_slug = gateway_url.split(".tenant-")[1].split(".")[0]
@@ -842,6 +855,33 @@ class AgentExecutionService:
                 messages.append({
                     "role": "system",
                     "content": session_ctx,
+                })
+
+            # Inject configured WhatsApp group name mapping so the agent
+            # knows the human-readable names (especially Hebrew) of its groups.
+            openclaw_cfg = agent.get("openclaw_config") or {}
+            wa_cfg = openclaw_cfg.get("whatsapp") or {}
+            wa_rules: list = wa_cfg.get("whatsapp_group_rules") or []
+            named_groups = [
+                r for r in wa_rules
+                if r.get("group_name") and r.get("policy") != "blocked"
+            ]
+            if named_groups:
+                group_lines = []
+                for r in named_groups:
+                    jid_note = f" (JID: {r['group_jid']})" if r.get("group_jid") else " (pending resolution)"
+                    line = f'- "{r["group_name"]}"{jid_note}'
+                    if r.get("instructions"):
+                        line += f' — Instructions: {r["instructions"]}'
+                    group_lines.append(line)
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "Configured WhatsApp groups for this agent:\n"
+                        + "\n".join(group_lines)
+                        + "\n\nWhen the user refers to a group by name, use "
+                        "the corresponding session key to send messages."
+                    ),
                 })
 
             messages.append({"role": "user", "content": user_message})

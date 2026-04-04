@@ -27,6 +27,12 @@ OPENCLAW_GROUP = "openclaw.rocks"
 OPENCLAW_VERSION = "v1alpha1"
 OPENCLAW_PLURAL = "openclawinstances"
 
+# Custom OpenClaw image (patched for Baileys group-message fix)
+OPENCLAW_IMAGE_REPO = os.getenv(
+    "OPENCLAW_IMAGE_REPO", "stumsftaiplatformprodacr.azurecr.io/openclaw-patched"
+)
+OPENCLAW_IMAGE_TAG = os.getenv("OPENCLAW_IMAGE_TAG", "latest")
+
 
 def _sanitize_name(name: str) -> str:
     """Convert an agent name to a valid K8s resource name."""
@@ -191,15 +197,19 @@ class OpenClawService:
                     result["message"] = "Running"
                 elif pod.status.phase == "Running" and result["containers_ready"] >= 1:
                     # The WhatsApp bridge container stays not-ready until QR is
-                    # scanned.  Treat the agent as operationally ready when the
-                    # core containers are up and only channel bridges are pending.
-                    bridge_names = {"whatsapp", "wa-bridge", "whatsapp-bridge", "wa"}
-                    only_bridges_pending = all(
-                        n.lower() in bridge_names for n in not_ready_names
+                    # scanned.  Chromium sidecar also takes extra time.
+                    # Treat the agent as operationally ready when the
+                    # core containers are up and only non-critical ones are pending.
+                    # openclaw's readiness probe checks WA link state on
+                    # the gateway-proxy /readyz endpoint, so it stays
+                    # not-ready until WA is linked.
+                    non_critical = {"whatsapp", "wa-bridge", "whatsapp-bridge", "wa", "chromium", "openclaw"}
+                    only_non_critical_pending = all(
+                        n.lower() in non_critical for n in not_ready_names
                     )
-                    if only_bridges_pending:
+                    if only_non_critical_pending:
                         result["ready"] = True
-                        result["message"] = "Running (WhatsApp awaiting link)"
+                        result["message"] = "Running (awaiting WhatsApp link)"
                     else:
                         result["message"] = f"Starting ({result['containers_ready']}/{result['containers_total']} ready)"
                 else:
@@ -217,20 +227,41 @@ class OpenClawService:
 
         return result
 
-    async def get_pod_url(self, instance_name: str, tenant_slug: str, port: int = 18790) -> Optional[str]:
-        """Resolve the pod IP for an OpenClaw instance and return a direct URL.
+    async def get_pod_url(self, instance_name: str, tenant_slug: str, port: int = 18789) -> Optional[str]:
+        """Return a URL to reach the OpenClaw gateway-proxy.
 
-        This bypasses the K8s Service which has no endpoints when the pod
-        is not fully ready (e.g. WhatsApp not yet linked → readiness fails).
+        Tries the ClusterIP service first (port 18789 → targetPort 18790)
+        which is allowed by the tenant NetworkPolicy.  When the pod is
+        not ready the service has no endpoints, so we fall back to the
+        pod IP on the gateway-proxy port (18790) directly.
         """
         namespace = f"tenant-{tenant_slug}"
+        # Check if the service has endpoints (pod is ready)
         loop = asyncio.get_event_loop()
+        has_endpoints = await loop.run_in_executor(
+            None, self._service_has_endpoints, namespace, instance_name,
+        )
+        if has_endpoints:
+            return f"http://{instance_name}.{namespace}.svc.cluster.local:{port}"
+        # Fall back to pod IP (bypasses readiness gate)
         pod_ip = await loop.run_in_executor(
-            None, self._get_pod_ip, namespace, instance_name
+            None, self._get_pod_ip, namespace, instance_name,
         )
         if pod_ip:
-            return f"http://{pod_ip}:{port}"
+            return f"http://{pod_ip}:18790"
         return None
+
+    @staticmethod
+    def _service_has_endpoints(namespace: str, instance_name: str) -> bool:
+        core_v1, _ = _get_k8s_clients()
+        try:
+            ep = core_v1.read_namespaced_endpoints(instance_name, namespace)
+            for subset in (ep.subsets or []):
+                if subset.addresses:
+                    return True
+        except Exception:
+            pass
+        return False
 
     @staticmethod
     def _get_pod_ip(namespace: str, instance_name: str) -> Optional[str]:
@@ -444,6 +475,83 @@ class OpenClawService:
             return {"status": "none"}
         return {"status": session["status"], "error": session.get("error")}
 
+    async def whatsapp_logout(
+        self, instance_name: str, tenant_slug: str
+    ) -> dict:
+        """Disconnect and logout from WhatsApp via the OpenClaw gateway.
+
+        Sends the ``channels.logout`` RPC which clears credentials
+        on the pod, requiring a fresh QR scan to re-link.
+        """
+        pod_url = await self.get_pod_url(instance_name, tenant_slug)
+        if not pod_url:
+            raise RuntimeError("Could not resolve OpenClaw pod IP")
+
+        ws_url = pod_url.replace("http://", "ws://", 1) + "/"
+        try:
+            import websockets
+
+            async with websockets.connect(
+                ws_url,
+                additional_headers={"Origin": pod_url},
+                open_timeout=10,
+                close_timeout=5,
+            ) as ws:
+                await asyncio.wait_for(ws.recv(), timeout=5)  # challenge
+                await ws.send(json.dumps({
+                    "type": "req", "id": str(uuid.uuid4()), "method": "connect",
+                    "params": {
+                        "minProtocol": 3, "maxProtocol": 3,
+                        "client": {
+                            "id": "openclaw-control-ui",
+                            "version": "control-ui",
+                            "platform": "linux",
+                            "mode": "webchat",
+                            "instanceId": f"logout-{instance_name}-{uuid.uuid4()}",
+                        },
+                        "role": "operator",
+                        "scopes": [
+                            "operator.admin",
+                            "operator.read",
+                            "operator.write",
+                        ],
+                        "caps": [],
+                    },
+                }))
+                # Read connect response
+                for _ in range(10):
+                    raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                    msg = json.loads(raw)
+                    if msg.get("type") == "res":
+                        if not msg.get("ok"):
+                            raise RuntimeError("WS connect failed")
+                        break
+
+                # Send channels.logout
+                await ws.send(json.dumps({
+                    "type": "req", "id": str(uuid.uuid4()),
+                    "method": "channels.logout",
+                    "params": {"channel": "whatsapp"},
+                }))
+                for _ in range(10):
+                    raw = await asyncio.wait_for(ws.recv(), timeout=15)
+                    msg = json.loads(raw)
+                    if msg.get("type") == "event":
+                        continue
+                    if msg.get("type") == "res":
+                        if msg.get("ok"):
+                            logger.info("WhatsApp logout completed for %s", instance_name)
+                            return {"status": "logged_out"}
+                        err = msg.get("error", {})
+                        raise RuntimeError(
+                            f"channels.logout failed: {err.get('message', 'unknown')}"
+                        )
+                raise RuntimeError("No response for channels.logout")
+        except ImportError:
+            raise RuntimeError("websockets package not installed")
+        except asyncio.TimeoutError:
+            raise RuntimeError("Timeout waiting for logout response")
+
     async def get_channel_status(
         self, instance_name: str, tenant_slug: str
     ) -> dict:
@@ -471,12 +579,26 @@ class OpenClawService:
                                    "platform": "linux", "mode": "webchat",
                                    "instanceId": f"status-{instance_name}"},
                         "role": "operator",
-                        "scopes": ["operator.read"],
+                        "scopes": ["operator.admin"],
                         "caps": [],
                     },
                 }))
-                resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
-                if not resp.get("ok"):
+                # Read connect response, skipping any events
+                connect_ok = False
+                for _ in range(10):
+                    raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                    msg = json.loads(raw)
+                    if msg.get("type") == "event":
+                        # Extract channel status from health event if available
+                        if msg.get("event") == "health":
+                            payload = msg.get("payload", {})
+                            if payload.get("channels"):
+                                return payload
+                        continue
+                    if msg.get("type") == "res":
+                        connect_ok = msg.get("ok", False)
+                        break
+                if not connect_ok:
                     return {}
 
                 await ws.send(json.dumps({
@@ -488,7 +610,9 @@ class OpenClawService:
                     if msg.get("type") == "event":
                         continue
                     if msg.get("type") == "res" and msg.get("ok"):
-                        return msg.get("payload", {})
+                        payload = msg.get("payload", {})
+                        # Normalize to same shape as old health response
+                        return {"channels": payload.get("channels", {})}
                     break
         except Exception as e:
             logger.debug("channel status check failed for %s: %s", instance_name, e)
@@ -497,82 +621,211 @@ class OpenClawService:
     async def list_groups(
         self, instance_name: str, tenant_slug: str
     ) -> list[dict]:
-        """Return WhatsApp & Telegram groups the agent is currently in.
+        """Return WhatsApp & Telegram groups the agent is connected to.
 
-        Connects to the OpenClaw pod via WebSocket, calls ``sessions.list``,
-        and filters for group-type sessions.  Each returned dict contains:
-        ``key``, ``display_name``, ``channel`` ("whatsapp"|"telegram"),
-        and ``group_id`` (JID or numeric Telegram group id).
+        Uses two data sources and merges results:
+        1. ``sessions.list`` via WS — returns groups with active sessions
+           (includes display names / subjects).
+        2. Filesystem scan of WhatsApp sender-key files — discovers ALL
+           groups the phone participates in, even those without sessions.
+
+        Each returned dict contains: ``key``, ``display_name``, ``channel``,
+        ``group_id``, ``message_count``, ``last_message_at``, and
+        ``has_session`` (bool).
         """
+        namespace = f"tenant-{tenant_slug}"
+        pod_name = f"{instance_name}-0"
+
+        # ------------------------------------------------------------------
+        # Source 1: WS sessions.list (groups with active conversations)
+        # ------------------------------------------------------------------
+        session_groups: dict[str, dict] = {}  # keyed by group_id
         pod_url = await self.get_pod_url(instance_name, tenant_slug)
-        if not pod_url:
-            return []
+        if pod_url:
+            ws_url = pod_url.replace("http://", "ws://", 1) + "/"
+            try:
+                import websockets
 
-        ws_url = pod_url.replace("http://", "ws://", 1) + "/"
-        try:
-            import websockets
-
-            async with websockets.connect(
-                ws_url,
-                additional_headers={"Origin": pod_url},
-                open_timeout=5,
-                close_timeout=3,
-            ) as ws:
-                await asyncio.wait_for(ws.recv(), timeout=3)  # challenge
-                await ws.send(json.dumps({
-                    "type": "req", "id": str(uuid.uuid4()), "method": "connect",
-                    "params": {
-                        "minProtocol": 3, "maxProtocol": 3,
-                        "client": {"id": "openclaw-control-ui", "version": "control-ui",
-                                   "platform": "linux", "mode": "webchat",
-                                   "instanceId": f"groups-{instance_name}"},
-                        "role": "operator",
-                        "scopes": ["operator.read"],
-                        "caps": [],
-                    },
-                }))
-                resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
-                if not resp.get("ok"):
-                    return []
-
-                await ws.send(json.dumps({
-                    "type": "req", "id": str(uuid.uuid4()),
-                    "method": "sessions.list", "params": {},
-                }))
-                for _ in range(10):
-                    msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
-                    if msg.get("type") == "event":
-                        continue
-                    if msg.get("type") == "res" and msg.get("ok"):
-                        sessions = msg.get("payload", {}).get("sessions", [])
-                        groups: list[dict] = []
-                        for s in sessions:
-                            if s.get("kind") != "group":
+                async with websockets.connect(
+                    ws_url,
+                    additional_headers={"Origin": pod_url},
+                    open_timeout=5,
+                    close_timeout=3,
+                ) as ws:
+                    await asyncio.wait_for(ws.recv(), timeout=3)  # challenge
+                    await ws.send(json.dumps({
+                        "type": "req", "id": str(uuid.uuid4()), "method": "connect",
+                        "params": {
+                            "minProtocol": 3, "maxProtocol": 3,
+                            "client": {"id": "openclaw-control-ui", "version": "control-ui",
+                                       "platform": "linux", "mode": "webchat",
+                                       "instanceId": f"groups-{instance_name}"},
+                            "role": "operator",
+                            "scopes": ["operator.admin"],
+                            "caps": [],
+                        },
+                    }))
+                    connect_ok = False
+                    for _ in range(10):
+                        raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                        msg = json.loads(raw)
+                        if msg.get("type") == "event":
+                            continue
+                        if msg.get("type") == "res":
+                            connect_ok = msg.get("ok", False)
+                            break
+                    if connect_ok:
+                        await ws.send(json.dumps({
+                            "type": "req", "id": str(uuid.uuid4()),
+                            "method": "sessions.list", "params": {},
+                        }))
+                        for _ in range(10):
+                            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                            if msg.get("type") == "event":
                                 continue
-                            key = s.get("key", "")
-                            channel = s.get("channel") or ""
-                            # Derive group_id from the session key
-                            # WhatsApp: "whatsapp:120363012345@g.us" → "120363012345@g.us"
-                            # Telegram: "telegram:-1001234567890" → "-1001234567890"
-                            group_id = key.split(":", 1)[1] if ":" in key else key
-                            if not channel:
-                                if "whatsapp" in key:
-                                    channel = "whatsapp"
-                                elif "telegram" in key:
-                                    channel = "telegram"
-                            groups.append({
-                                "key": key,
-                                "display_name": s.get("displayName") or s.get("name") or group_id,
-                                "channel": channel,
-                                "group_id": group_id,
-                                "message_count": s.get("messageCount", 0),
-                                "last_message_at": s.get("lastMessageAt"),
-                            })
-                        return groups
-                    break
+                            if msg.get("type") == "res" and msg.get("ok"):
+                                for s in msg.get("payload", {}).get("sessions", []):
+                                    if s.get("kind") != "group":
+                                        continue
+                                    key = s.get("key", "")
+                                    channel = s.get("channel") or ""
+                                    # Extract bare JID from session key
+                                    # e.g. "main:whatsapp:group:120363...@g.us" → "120363...@g.us"
+                                    import re as _re
+                                    jid_match = _re.search(r'(\d[\d@.\-]+@g\.us)', key)
+                                    group_id = jid_match.group(1) if jid_match else (key.split(":", 1)[1] if ":" in key else key)
+                                    if not channel:
+                                        if "whatsapp" in key:
+                                            channel = "whatsapp"
+                                        elif "telegram" in key:
+                                            channel = "telegram"
+                                    raw_name = s.get("subject") or s.get("displayName") or s.get("name") or ""
+                                    # Detect JID-like display names (no real group name)
+                                    is_jid = not raw_name or "@g.us" in raw_name
+                                    session_groups[group_id] = {
+                                        "key": key,
+                                        "display_name": raw_name if not is_jid else group_id,
+                                        "channel": channel,
+                                        "group_id": group_id,
+                                        "has_name": not is_jid,
+                                        "message_count": s.get("messageCount", 0),
+                                        "last_message_at": s.get("lastMessageAt"),
+                                        "has_session": True,
+                                    }
+                            break
+            except Exception as e:
+                logger.debug("list_groups WS failed for %s: %s", instance_name, e)
+
+        # ------------------------------------------------------------------
+        # Source 2: Cached Baileys group metadata (wa_group_meta_cache.json)
+        # ------------------------------------------------------------------
+        baileys_groups: dict[str, dict] = {}  # keyed by JID
+        try:
+            loop = asyncio.get_event_loop()
+            raw = await loop.run_in_executor(
+                None,
+                self._exec_in_pod,
+                namespace,
+                pod_name,
+                ["cat", "/home/openclaw/.openclaw/wa_group_meta_cache.json"],
+            )
+            if raw and raw.strip().startswith("{"):
+                import json as _json
+                data = _json.loads(raw.strip())
+                for jid, meta in data.items():
+                    baileys_groups[jid] = {
+                        "subject": meta.get("subject", ""),
+                        "size": meta.get("size", 0),
+                    }
+                logger.info("Loaded %d groups from wa_group_meta_cache.json", len(baileys_groups))
         except Exception as e:
-            logger.debug("list_groups failed for %s: %s", instance_name, e)
-        return []
+            logger.warning("list_groups Baileys cache read failed for %s: %s", instance_name, e)
+
+        # ------------------------------------------------------------------
+        # Source 3 (fallback): Filesystem scan for sender-key files
+        # ------------------------------------------------------------------
+        fs_jids: set[str] = set()
+        if not baileys_groups:
+            try:
+                loop = asyncio.get_event_loop()
+                raw = await loop.run_in_executor(
+                    None,
+                    self._exec_in_pod,
+                    namespace,
+                    pod_name,
+                    [
+                        "find",
+                        "/home/openclaw/.openclaw/credentials/whatsapp",
+                        "-name", "sender-key-*@g.us*",
+                        "-type", "f",
+                    ],
+                )
+                import re
+                for line in raw.splitlines():
+                    m = re.search(r"sender-key-(?:memory-)?(.+?@g\.us)", line)
+                    if m:
+                        fs_jids.add(m.group(1))
+            except Exception as e:
+                logger.debug("list_groups filesystem scan failed for %s: %s", instance_name, e)
+
+        # ------------------------------------------------------------------
+        # Merge all sources
+        # ------------------------------------------------------------------
+        seen_jids: set[str] = set()
+        groups: list[dict] = []
+
+        def _bare_jid(gid: str) -> str:
+            """Extract the raw JID (e.g. '...@g.us') from a session key."""
+            import re as _re
+            m = _re.search(r'(\d[\d@.\-]+@g\.us)', gid)
+            return m.group(1) if m else gid
+
+        # Add session groups first (they may have message counts)
+        for gid, g in session_groups.items():
+            bare = _bare_jid(gid)
+            seen_jids.add(bare)
+            # Enrich with Baileys group name if session had a JID-like name
+            if not g.get("has_name") and bare in baileys_groups:
+                subj = baileys_groups[bare].get("subject", "")
+                if subj:
+                    g["display_name"] = subj
+                    g["has_name"] = True
+            groups.append(g)
+
+        # Add Baileys-discovered groups not already in sessions
+        for jid, meta in baileys_groups.items():
+            if jid in seen_jids:
+                continue
+            seen_jids.add(jid)
+            subj = meta.get("subject", "")
+            groups.append({
+                "key": f"whatsapp:group:{jid}",
+                "display_name": subj if subj else jid,
+                "channel": "whatsapp",
+                "group_id": jid,
+                "has_name": bool(subj),
+                "message_count": 0,
+                "last_message_at": None,
+                "has_session": False,
+            })
+
+        # Add filesystem-only groups (fallback when Baileys fetch fails)
+        for jid in sorted(fs_jids):
+            if jid in seen_jids:
+                continue
+            seen_jids.add(jid)
+            groups.append({
+                "key": f"whatsapp:group:{jid}",
+                "display_name": jid,
+                "channel": "whatsapp",
+                "group_id": jid,
+                "has_name": False,
+                "message_count": 0,
+                "last_message_at": None,
+                "has_session": False,
+            })
+
+        return groups
 
     async def deploy_agent(
         self,
@@ -669,44 +922,50 @@ class OpenClawService:
             )
             return
 
-        # 2. Wait an extra 10s for the CLI to register its device pairing request
-        await asyncio.sleep(10)
-
-        # 3. List pending devices and approve them
-        try:
-            output = await loop.run_in_executor(
-                None,
-                self._exec_in_pod,
-                namespace,
-                pod_name,
-                ["openclaw", "devices", "list", "--json"],
-            )
-            import json as _json
-            devices = _json.loads(output) if output.strip() else {}
-            pending = devices.get("pending", [])
-            if not pending:
-                logger.info("No pending device pairing in %s/%s", namespace, pod_name)
-                return
-            for dev in pending:
-                req_id = dev.get("requestId") or dev.get("id", "")
-                if not req_id:
-                    continue
-                await loop.run_in_executor(
+        # 2. Retry approval a few times — the CLI registers its device
+        #    pairing request asynchronously after gateway startup.
+        import json as _json
+        for attempt in range(4):
+            await asyncio.sleep(10 if attempt == 0 else 15)
+            try:
+                output = await loop.run_in_executor(
                     None,
                     self._exec_in_pod,
                     namespace,
                     pod_name,
-                    ["openclaw", "devices", "approve", req_id],
+                    ["openclaw", "devices", "list", "--json"],
                 )
-                logger.info(
-                    "Auto-approved device pairing %s in %s/%s",
-                    req_id, namespace, pod_name,
+                # stdout may contain stderr lines before the JSON object
+                json_start = output.find("{")
+                if json_start < 0:
+                    logger.debug("No JSON in devices list output (attempt %d): %s", attempt, output[:200])
+                    continue
+                devices = _json.loads(output[json_start:])
+                pending = devices.get("pending", [])
+                if not pending:
+                    logger.info("No pending device pairing in %s/%s (attempt %d)", namespace, pod_name, attempt)
+                    return
+                for dev in pending:
+                    req_id = dev.get("requestId") or dev.get("id", "")
+                    if not req_id:
+                        continue
+                    await loop.run_in_executor(
+                        None,
+                        self._exec_in_pod,
+                        namespace,
+                        pod_name,
+                        ["openclaw", "devices", "approve", req_id],
+                    )
+                    logger.info(
+                        "Auto-approved device pairing %s in %s/%s",
+                        req_id, namespace, pod_name,
+                    )
+                return
+            except Exception:
+                logger.warning(
+                    "Failed to auto-approve devices in %s/%s (attempt %d)",
+                    namespace, pod_name, attempt, exc_info=True,
                 )
-        except Exception:
-            logger.warning(
-                "Failed to auto-approve devices in %s/%s",
-                namespace, pod_name, exc_info=True,
-            )
 
     @staticmethod
     def _is_pod_ready(namespace: str, pod_name: str) -> bool:
@@ -724,11 +983,11 @@ class OpenClawService:
     def _exec_in_pod(
         namespace: str, pod_name: str, command: list[str], container: str = "openclaw"
     ) -> str:
-        """Execute a command inside a pod and return stdout."""
+        """Execute a command inside a pod and return stdout only."""
         from kubernetes.stream import stream as k8s_stream
 
         core_v1, _ = _get_k8s_clients()
-        resp = k8s_stream(
+        client = k8s_stream(
             core_v1.connect_get_namespaced_pod_exec,
             name=pod_name,
             namespace=namespace,
@@ -738,9 +997,12 @@ class OpenClawService:
             stdin=False,
             stdout=True,
             tty=False,
-            _preload_content=True,
+            _preload_content=False,
         )
-        return resp
+        client.run_forever(timeout=60)
+        stdout = client.read_stdout() or ""
+        client.close()
+        return stdout
 
     async def update_agent(
         self,
@@ -841,6 +1103,11 @@ class OpenClawService:
             if allowed:
                 channels_config["telegram"]["allowFrom"] = [str(u) for u in allowed]
 
+            # Channel-level instructions for Telegram
+            tg_instructions = channels.get("telegram_channel_instructions", "")
+            if tg_instructions:
+                channels_config["telegram"]["instructions"] = tg_instructions
+
         # WhatsApp channel — uses QR-code session linking (no static secret)
         whatsapp = openclaw_config.get("whatsapp") or {}
         if whatsapp.get("whatsapp_enabled"):
@@ -868,29 +1135,52 @@ class OpenClawService:
             groups_cfg: dict = {}
             if group_rules:
                 for rule in group_rules:
-                    gid = rule.get("group_jid") or rule.get("group_name", "")
+                    gid = rule.get("group_jid")
                     if not gid:
+                        # Pending groups (name-only, no JID) are skipped —
+                        # OpenClaw can't match incoming messages by Hebrew
+                        # name, only by JID.  They'll be auto-resolved when
+                        # the Refresh endpoint runs.
                         continue
+                    # Strip session-key prefix (e.g. "main:whatsapp:group:...@g.us" → "...@g.us")
+                    import re as _re
+                    m = _re.search(r'(\d[\d@.\-]+@g\.us)', gid)
+                    if m:
+                        gid = m.group(1)
                     if rule.get("policy") == "blocked":
-                        groups_cfg[gid] = {"blocked": True}
+                        # Skip blocked groups — under allowlist groupPolicy,
+                        # unlisted groups are ignored automatically
                         continue
                     entry: dict = {
                         "requireMention": rule.get("require_mention", False),
                     }
+                    # NOTE: OpenClaw's config schema only allows "requireMention"
+                    # and "allowFrom" per group. Group names and per-group
+                    # instructions are injected via the system prompt in
+                    # agent_execution.py instead.
                     rule_phones = rule.get("allowed_phones", [])
                     if rule.get("policy") == "allowlist" and rule_phones:
                         entry["allowFrom"] = [str(p) for p in rule_phones]
-                    rule_instructions = rule.get("instructions", "")
-                    if rule_instructions:
-                        entry["instructions"] = rule_instructions
                     groups_cfg[gid] = entry
             if not groups_cfg:
                 if group_policy == "open":
                     # Open policy: respond to all groups without requiring @mention
                     groups_cfg = {"*": {"requireMention": False}}
-                # else: allowlist with no rules = agent responds to no groups
+                else:
+                    # Allowlist with no rules: set groupPolicy to "open" so
+                    # OpenClaw tracks incoming group messages (enabling
+                    # discovery), but require @mention so the agent does
+                    # NOT respond unless explicitly addressed.
+                    wa_config["groupPolicy"] = "open"
+                    groups_cfg = {"*": {"requireMention": True}}
             if groups_cfg:
                 wa_config["groups"] = groups_cfg
+
+            # Channel-level instructions for WhatsApp
+            wa_instructions = whatsapp.get("whatsapp_channel_instructions", "")
+            if wa_instructions:
+                wa_config["instructions"] = wa_instructions
+
             channels_config["whatsapp"] = wa_config
 
         # MCP servers
@@ -970,7 +1260,6 @@ class OpenClawService:
             "bind": "loopback",
             "controlUi": {
                 "allowedOrigins": ["*"],
-                "dangerouslyDisableDeviceAuth": True,
             },
             "trustedProxies": ["127.0.0.0/8"],
             "http": {
@@ -998,6 +1287,11 @@ class OpenClawService:
                 },
             },
             "spec": {
+                "image": {
+                    "repository": OPENCLAW_IMAGE_REPO,
+                    "tag": OPENCLAW_IMAGE_TAG,
+                    "pullPolicy": "Always",
+                },
                 "envFrom": [{"secretRef": {"name": f"{instance_name}-secrets"}}],
                 "storage": {"persistence": {"enabled": True, "size": "10Gi"}},
                 "config": {"raw": raw_config},
@@ -1315,12 +1609,26 @@ class OpenClawService:
 
     @staticmethod
     def _replace_cr(namespace: str, instance_name: str, cr: dict) -> None:
-        """Patch an existing OpenClawInstance CR (for updates)."""
+        """Replace an existing OpenClawInstance CR (full replace, not merge)."""
+        from datetime import datetime, timezone
         from kubernetes import client
 
         _, custom_api = _get_k8s_clients()
         try:
-            custom_api.patch_namespaced_custom_object(
+            # Fetch existing to get resourceVersion (required for replace)
+            existing = custom_api.get_namespaced_custom_object(
+                group=OPENCLAW_GROUP,
+                version=OPENCLAW_VERSION,
+                namespace=namespace,
+                plural=OPENCLAW_PLURAL,
+                name=instance_name,
+            )
+            cr["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+            # Force reconciliation by bumping a timestamp annotation
+            annotations = cr.get("metadata", {}).get("annotations") or {}
+            annotations["aiplatform.io/last-deployed"] = datetime.now(timezone.utc).isoformat()
+            cr["metadata"]["annotations"] = annotations
+            custom_api.replace_namespaced_custom_object(
                 group=OPENCLAW_GROUP,
                 version=OPENCLAW_VERSION,
                 namespace=namespace,

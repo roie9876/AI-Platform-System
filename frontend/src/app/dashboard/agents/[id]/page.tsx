@@ -11,7 +11,7 @@ import { AgentMonitorPanel } from "@/components/agent/agent-monitor-panel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { KnowledgeSection } from "@/components/knowledge/knowledge-section";
 import { ToolCatalogModal } from "@/components/tools/tool-catalog-modal";
-import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip, Smartphone } from "lucide-react";
+import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, Brain, Plus, MessageSquare, Clock, Puzzle, X, Shield, Paperclip, Smartphone, RefreshCw } from "lucide-react";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 import { CodeExecutionBlock, type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
 import { ChannelWizard, type ChannelWizardState, type WhatsAppGroupRule, type TelegramGroupRule } from "@/components/agent/channel-wizard";
@@ -52,6 +52,7 @@ interface Agent {
       telegram_bot_token_secret?: string;
       telegram_allowed_users?: string[];
       dm_policy?: string;
+      telegram_channel_instructions?: string;
     };
     gmail?: {
       gmail_enabled?: boolean;
@@ -65,8 +66,10 @@ interface Agent {
       whatsapp_allowed_phones?: string[];
       whatsapp_group_policy?: string;
       whatsapp_group_rules?: WhatsAppGroupRule[];
+      whatsapp_channel_instructions?: string;
     };
     telegram_group_rules?: TelegramGroupRule[];
+    telegram_channel_instructions?: string;
     enable_web_browsing?: boolean;
     enable_shell?: boolean;
     enable_deep_research?: boolean;
@@ -226,6 +229,7 @@ export default function AgentDetailPage() {
     whatsapp_allowed_phones: "",
     whatsapp_group_policy: "allowlist",
     whatsapp_group_rules: [],
+    whatsapp_channel_instructions: "",
     telegram_enabled: false,
     telegram_bot_token: "",
     telegram_bot_token_secret: "",
@@ -233,6 +237,7 @@ export default function AgentDetailPage() {
     telegram_allowed_users: "",
     dm_policy: "allowlist",
     telegram_group_rules: [],
+    telegram_channel_instructions: "",
   });
   const [channelsDirty, setChannelsDirty] = useState(false);
 
@@ -453,6 +458,7 @@ export default function AgentDetailPage() {
               ? channels.telegram_allowed_users.split(",").map((s: string) => s.trim())
               : [],
             dm_policy: channels.dm_policy,
+            telegram_channel_instructions: channels.telegram_channel_instructions || "",
           },
           telegram_group_rules: channels.telegram_group_rules,
           gmail: channelForm.gmail_enabled
@@ -477,6 +483,7 @@ export default function AgentDetailPage() {
                   : [],
                 whatsapp_group_policy: channels.whatsapp_group_policy,
                 whatsapp_group_rules: channels.whatsapp_group_rules,
+                whatsapp_channel_instructions: channels.whatsapp_channel_instructions || "",
               }
             : null,
           enable_web_browsing: channelForm.enable_web_browsing,
@@ -536,6 +543,7 @@ export default function AgentDetailPage() {
             whatsapp_allowed_phones: Array.isArray(wa.whatsapp_allowed_phones) ? wa.whatsapp_allowed_phones.join(", ") : "",
             whatsapp_group_policy: (wa.whatsapp_group_policy as ChannelWizardState["whatsapp_group_policy"]) || "allowlist",
             whatsapp_group_rules: wa.whatsapp_group_rules || [],
+            whatsapp_channel_instructions: wa.whatsapp_channel_instructions || "",
             telegram_enabled: !!ch.telegram_enabled,
             telegram_bot_token: "",
             telegram_bot_token_secret: ch.telegram_bot_token_secret || "",
@@ -543,12 +551,43 @@ export default function AgentDetailPage() {
             telegram_allowed_users: Array.isArray(ch.telegram_allowed_users) ? ch.telegram_allowed_users.join(", ") : "",
             dm_policy: (ch.dm_policy as ChannelWizardState["dm_policy"]) || "allowlist",
             telegram_group_rules: oc.telegram_group_rules || [],
+            telegram_channel_instructions: ch.telegram_channel_instructions || "",
           });
         }
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [agentId]);
+
+  // Poll every 5s while agent is provisioning
+  useEffect(() => {
+    if (agent?.status !== "provisioning") return;
+    const interval = setInterval(async () => {
+      try {
+        const fresh = await apiFetch<Agent>(`/api/v1/agents/${agentId}`);
+        setAgent((prev) => (prev ? { ...prev, status: fresh.status, whatsapp_status: fresh.whatsapp_status } : prev));
+      } catch {
+        // ignore
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [agent?.status, agentId]);
+
+  // Poll WhatsApp status every 10s when WA is enabled but not connected
+  useEffect(() => {
+    if (agent?.agent_type !== "openclaw") return;
+    if (!agent?.openclaw_config?.whatsapp?.whatsapp_enabled) return;
+    if (agent?.whatsapp_status === "connected") return;
+    const interval = setInterval(async () => {
+      try {
+        const fresh = await apiFetch<Agent>(`/api/v1/agents/${agentId}`);
+        setAgent((prev) => (prev ? { ...prev, whatsapp_status: fresh.whatsapp_status } : prev));
+      } catch {
+        // ignore
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [agent?.agent_type, agent?.openclaw_config?.whatsapp?.whatsapp_enabled, agent?.whatsapp_status, agentId]);
 
   useEffect(() => {
     loadAttachedTools();
@@ -1133,7 +1172,113 @@ export default function AgentDetailPage() {
               </span>
             </div>
 
-            {agent.whatsapp_status !== "connected" && (
+            {/* Re-link button when connected */}
+            {agent.whatsapp_status === "connected" && !whatsappQrUrl && (
+              <button
+                type="button"
+                disabled={whatsappLinking}
+                onClick={async () => {
+                  setWhatsappLinking(true);
+                  setWhatsappError(null);
+                  setWhatsappLinkStatus(null);
+                  if (whatsappPollRef.current) {
+                    clearInterval(whatsappPollRef.current);
+                    whatsappPollRef.current = null;
+                  }
+                  try {
+                    // First logout to clear stale credentials
+                    await apiFetch(`/api/v1/agents/${agentId}/whatsapp/logout`, {
+                      method: "POST",
+                    });
+                    // Then request a fresh QR code
+                    const data = await apiFetch<{ qr_data: string }>(
+                      `/api/v1/agents/${agentId}/whatsapp/link`
+                    );
+                    setWhatsappQrUrl(data.qr_data);
+                    setWhatsappLinkStatus("linking");
+                    const poll = setInterval(async () => {
+                      try {
+                        const status = await apiFetch<{ status: string; error?: string }>(
+                          `/api/v1/agents/${agentId}/whatsapp/link-status`
+                        );
+                        if (status.status === "connected") {
+                          clearInterval(poll);
+                          whatsappPollRef.current = null;
+                          setWhatsappLinkStatus("connected");
+                          setWhatsappQrUrl(null);
+                        } else if (status.status === "failed") {
+                          clearInterval(poll);
+                          whatsappPollRef.current = null;
+                          setWhatsappLinkStatus("failed");
+                          setWhatsappError(status.error || "Linking failed");
+                        }
+                      } catch {
+                        // Polling error — ignore, will retry
+                      }
+                    }, 3000);
+                    whatsappPollRef.current = poll;
+                    setTimeout(() => {
+                      if (whatsappPollRef.current === poll) {
+                        clearInterval(poll);
+                        whatsappPollRef.current = null;
+                      }
+                    }, 150000);
+                  } catch (err: unknown) {
+                    setWhatsappError(
+                      err instanceof Error ? err.message : "Failed to re-link"
+                    );
+                  } finally {
+                    setWhatsappLinking(false);
+                  }
+                }}
+                className="w-full rounded-md bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {whatsappLinking ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Disconnecting &amp; Getting QR...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Re-link WhatsApp
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* QR code display (shown during both initial link and re-link) */}
+            {whatsappQrUrl && (
+              <div className="rounded-md border border-gray-200 bg-white p-4 flex flex-col items-center gap-2">
+                <img
+                  src={whatsappQrUrl}
+                  alt="WhatsApp QR Code"
+                  className="w-48 h-48"
+                />
+                <p className="text-xs text-gray-400 text-center">
+                  Open WhatsApp → Settings → Linked Devices → Link a Device
+                </p>
+                {whatsappLinkStatus === "linking" && (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Waiting for you to scan...
+                  </div>
+                )}
+              </div>
+            )}
+
+            {whatsappLinkStatus === "connected" && (
+              <div className="rounded-md border border-green-200 bg-green-50 p-3 text-center">
+                <p className="text-sm font-medium text-green-700">WhatsApp linked successfully!</p>
+                <p className="text-xs text-green-600 mt-1">Reload the page to see updated status.</p>
+              </div>
+            )}
+
+            {whatsappError && (
+              <p className="text-xs text-red-600">{whatsappError}</p>
+            )}
+
+            {agent.whatsapp_status !== "connected" && !whatsappQrUrl && (
               <>
                 <p className="text-xs text-gray-500">
                   Scan the QR code with WhatsApp on your phone to link this agent.
@@ -1207,36 +1352,6 @@ export default function AgentDetailPage() {
                     </>
                   )}
                 </button>
-
-                {whatsappQrUrl && (
-                  <div className="rounded-md border border-gray-200 bg-white p-4 flex flex-col items-center gap-2">
-                    <img
-                      src={whatsappQrUrl}
-                      alt="WhatsApp QR Code"
-                      className="w-48 h-48"
-                    />
-                    <p className="text-xs text-gray-400 text-center">
-                      Open WhatsApp → Settings → Linked Devices → Link a Device
-                    </p>
-                    {whatsappLinkStatus === "linking" && (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Waiting for you to scan...
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {whatsappLinkStatus === "connected" && (
-                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-center">
-                    <p className="text-sm font-medium text-green-700">WhatsApp linked successfully!</p>
-                    <p className="text-xs text-green-600 mt-1">Reload the page to see updated status.</p>
-                  </div>
-                )}
-
-                {whatsappError && (
-                  <p className="text-xs text-red-600">{whatsappError}</p>
-                )}
               </>
             )}
           </div>

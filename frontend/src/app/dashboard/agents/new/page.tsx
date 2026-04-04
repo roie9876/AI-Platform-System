@@ -51,6 +51,7 @@ export default function NewAgentPage() {
     whatsapp_allowed_phones: "",
     whatsapp_group_policy: "allowlist",
     whatsapp_group_rules: [],
+    whatsapp_channel_instructions: "",
     telegram_enabled: false,
     telegram_bot_token: "",
     telegram_bot_token_secret: "",
@@ -58,6 +59,7 @@ export default function NewAgentPage() {
     telegram_allowed_users: "",
     dm_policy: "allowlist",
     telegram_group_rules: [],
+    telegram_channel_instructions: "",
   });
 
   useEffect(() => {
@@ -97,6 +99,7 @@ export default function NewAgentPage() {
               ? channels.telegram_allowed_users.split(",").map((s: string) => s.trim())
               : [],
             dm_policy: channels.dm_policy,
+            telegram_channel_instructions: channels.telegram_channel_instructions || "",
             telegram_group_rules: channels.telegram_group_rules,
           },
           gmail: form.gmail_enabled
@@ -121,6 +124,7 @@ export default function NewAgentPage() {
                   : [],
                 whatsapp_group_policy: channels.whatsapp_group_policy,
                 whatsapp_group_rules: channels.whatsapp_group_rules,
+                whatsapp_channel_instructions: channels.whatsapp_channel_instructions || "",
               }
             : null,
           enable_web_browsing: form.enable_web_browsing,
