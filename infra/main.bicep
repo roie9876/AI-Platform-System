@@ -31,7 +31,7 @@ param logRetentionDays int = 30
 param alertEmail string = 'admin@stumsft.com'
 
 @description('Entra ID SPA application client ID (for user authentication)')
-param entraAppClientId string
+param entraAppClientId string = ''
 
 @description('Platform admin email addresses (comma-separated)')
 param platformAdminEmails string = ''
