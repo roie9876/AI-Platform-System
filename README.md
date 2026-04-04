@@ -1236,7 +1236,8 @@ This runs the full pipeline:
 1. **`preprovision.sh`** — Validates tools, creates App Registration if needed, copies parameter file
 2. **Bicep provisioning** — Creates all Azure resources (~15-20 min on first run):
    - VNet, AKS, ACR, Cosmos DB, Key Vault, Service Bus, App Insights, AGC
-   - Managed identities with RBAC role assignments
+   - Azure AI Services (OpenAI) account with default embedding model
+   - Managed identities with RBAC role assignments (including deployer admin access)
    - Federated identity credentials for workload identity
 3. **`postprovision.sh`** — Configures AKS cluster, builds 11 Docker images, deploys K8s manifests
 4. **`postdeploy.sh`** — Final configuration and health checks
@@ -1267,25 +1268,31 @@ For local frontend development against the deployed backend, create `frontend/.e
 NEXT_PUBLIC_AZURE_CLIENT_ID=<your-app-registration-client-id>
 ```
 
-### 11.4 Configure LLM Provider (Post-Deployment)
+### 11.4 Azure AI Services (Auto-Provisioned)
 
-The platform deploys and runs without an LLM — the control plane (UI, API, tenant management) is fully functional. You only need to configure an LLM provider when you want agents to **execute** (i.e., send prompts and receive completions).
+The deployment automatically provisions an Azure AI Services (OpenAI) account with:
+
+- **Account:** `stumsft-aiplat-{env}-ai` — shared across all tenants
+- **Default model:** `text-embedding-3-large` — used by the platform's RAG and memory system
+- **Key Vault secrets:** `azure-openai-endpoint` and `azure-openai-key` are auto-populated from the provisioned account
+
+**No manual configuration is needed for Azure OpenAI.** The endpoint and key are injected into Key Vault during provisioning.
+
+To deploy additional chat models (e.g., GPT-4.1, o4-mini), platform admins can create them from the Azure Portal or CLI:
 
 ```bash
-KEY_VAULT_NAME="stumsft-aiplat-dev-kv"  # Adjust for your environment
-
-# Azure OpenAI
-az keyvault secret set --vault-name $KEY_VAULT_NAME \
-  --name azure-openai-endpoint \
-  --value "https://<your-openai-resource>.openai.azure.com"
-
-az keyvault secret set --vault-name $KEY_VAULT_NAME \
-  --name azure-openai-key \
-  --value "<your-openai-key>"
-
-# Restart pods to pick up the new secrets
-kubectl rollout restart deployment -n aiplatform
+az cognitiveservices account deployment create \
+  --resource-group rg-dev \
+  --name stumsft-aiplat-dev-ai \
+  --deployment-name gpt-4.1 \
+  --model-name gpt-4.1 \
+  --model-version "2025-04-14" \
+  --model-format OpenAI \
+  --sku-name Standard \
+  --sku-capacity 80
 ```
+
+> **Future:** Model deployment management will be available directly from the platform UI.
 
 ### 11.5 Configure Tool Integrations (Optional)
 
@@ -1319,6 +1326,7 @@ kubectl rollout restart deployment -n aiplatform
 | AGC | `stumsft-aiplatform-{env}-agc` | Application Gateway for Containers |
 | Managed Identity (AKS) | `stumsft-aiplatform-{env}-aks-id` | AKS control plane identity |
 | Managed Identity (Workload) | `stumsft-aiplatform-{env}-workload-id` | Pod workload identity |
+| AI Services (OpenAI) | `stumsft-aiplat-{env}-ai` | LLM and embedding model hosting |
 
 ### 11.7 RBAC Assignments (Auto-Provisioned)
 
@@ -1329,7 +1337,13 @@ These role assignments are created automatically by Bicep:
 | Workload Identity | Key Vault Secrets User | Key Vault | Read secrets from pods via CSI driver |
 | Workload Identity | Cosmos DB Contributor | Cosmos DB account | Read/write database operations |
 | Workload Identity | Service Bus Data Owner | Service Bus namespace | Send/receive async messages |
+| Workload Identity | Cognitive Services OpenAI User | AI Services account | Invoke LLM and embedding models |
+| Workload Identity | Cognitive Services OpenAI Contributor | AI Services account | Create/manage model deployments via API |
 | AKS Identity | AcrPull | ACR | Pull container images |
+| Deployer (admin) | Key Vault Secrets Officer | Key Vault (main + tenants) | Read/write secrets in portal & CLI |
+| Deployer (admin) | Cosmos DB Data Contributor | Cosmos DB account | Access data in Data Explorer |
+| Deployer (admin) | Service Bus Data Owner | Service Bus namespace | Manage queues in portal |
+| Deployer (admin) | Cognitive Services OpenAI Contributor | AI Services account | Manage model deployments |
 
 ### 11.8 Deployment Pipeline (Manual)
 
