@@ -1,0 +1,28 @@
+name: ai-agent-platform
+metadata:
+  template: ai-agent-platform@4.0.0
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+hooks:
+  preprovision:
+    posix:
+      shell: sh
+      run: ./hooks/preprovision.sh
+      interactive: true
+      continueOnError: false
+  postprovision:
+    posix:
+      shell: sh
+      run: ./hooks/postprovision.sh
+      interactive: true
+      continueOnError: false
+  postdeploy:
+    posix:
+      shell: sh
+      run: ./hooks/postdeploy.sh
+      interactive: true
+      continueOnError: false

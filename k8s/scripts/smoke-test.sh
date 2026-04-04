@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 SERVICES=("api-gateway" "agent-executor" "workflow-engine" "tool-executor" "mcp-proxy")
-NAMESPACE="default"
+NAMESPACE="aiplatform"
 EXTENDED=false
 INGRESS_URL=""
 

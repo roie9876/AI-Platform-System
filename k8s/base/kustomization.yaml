@@ -5,6 +5,7 @@ resources:
   - configmap.yaml
   - ingress.yaml
   - health-check-policies.yaml
+  - rbac-tenant-provisioner.yaml
   - secrets/secret-provider-class.yaml
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
