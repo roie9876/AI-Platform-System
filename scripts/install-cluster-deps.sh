@@ -42,6 +42,11 @@ helm repo add kedacore https://kedacore.github.io/charts 2>/dev/null || true
 helm repo update
 
 kubectl create namespace keda --dry-run=client -o yaml | kubectl apply -f -
+
+# KEDA webhook may conflict with AKS Gatekeeper admissionsenforcer
+# which modifies webhook namespaceSelector. Delete stale webhook before upgrade.
+kubectl delete validatingwebhookconfiguration keda-admission 2>/dev/null || true
+
 helm upgrade --install keda kedacore/keda \
   --namespace keda \
   --set podIdentity.azureWorkload.enabled=true \
