@@ -1382,7 +1382,7 @@ kubectl rollout restart deployment/<service> -n aiplatform
 | `AADSTS700016: Application not found` | Wrong `entraAppClientId` in param file | Verify client ID matches your App Registration |
 | Pods stuck in `CreateContainerConfigError` | Missing Key Vault secrets | Run Step 5 (post-deploy secrets) and restart pods |
 | `401 Unauthorized` on API calls | Client secret expired or missing | Rotate secret: `az ad app credential reset`, update Key Vault |
-| `AZURE_OPENAI_ENDPOINT` empty | Secret not set in Key Vault | Run `az keyvault secret set` for OpenAI secrets |
+| `AZURE_OPENAI_ENDPOINT` empty | AI Services account not yet provisioned | Re-run `azd up` — endpoint is auto-populated from the provisioned AI account |
 | ACR pull errors | AKS identity missing AcrPull role | Re-run `azd up` to fix RBAC, or add manually |
 | Frontend login redirect fails | Missing SPA redirect URI | Add your domain to App Registration → Authentication → SPA |
 

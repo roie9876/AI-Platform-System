@@ -35,14 +35,21 @@
 **Files:** `openclaw_service.py` for CR config, `agents.py` API for identity CRUD  
 **Depends on:** Item 1 (session tools must be enabled first)
 
-### 3. Agent Workspace Initial Files via Platform
-**Status:** Not started  
+### 3. 🟡 Agent Workspace Initial Files via Platform
+**Status:** Partial — backend done, frontend editor missing  
 **Problem:** Agent has no `MEMORY.md` or custom instructions beyond system prompt.  
 **Solution:** Allow platform users to upload/edit workspace files (MEMORY.md, AGENTS.md, custom skills) via the agent config UI. Inject them via `spec.workspace.initialFiles` in the CR.  
 **Options:**
 - **A) Simple textarea** — edit MEMORY.md and AGENTS.md from agent settings page
 - **B) File manager** — full workspace file browser in the UI
 - **C) Git sync** — point to a git repo with workspace files
+
+**Implemented:**
+- `openclaw_service.py` builds `spec.workspace.initialFiles` in CR (SOUL.md instruction files injected)
+- Workspace deletion logic for updates in `openclaw_service.py`
+
+**Remaining:**
+- Frontend agent settings page lacks workspace file editor UI (MEMORY.md / AGENTS.md editing)
 
 **Files:** Frontend agent settings page, `openclaw_service.py` for CR workspace config
 
@@ -61,8 +68,8 @@
 
 ## 🏗️ Major Features
 
-### 5. OpenClaw → Cosmos DB Memory Sync Service
-**Status:** Architecture designed, not built  
+### 5. 🟡 OpenClaw → Cosmos DB Memory Sync Service
+**Status:** Partial — MCP-based approach implemented (Phase 30), polling sync not built  
 **Problem:** OpenClaw's file-based memory (SQLite + JSONL + Markdown on PVC) doesn't scale beyond ~6 weeks at 20K messages/day. No backup, no multi-instance, no enterprise-grade search.  
 **Solution:** Background sync service that reads OpenClaw session data and stores it in platform's Cosmos DB + Azure AI Search.  
 **Architecture:**
@@ -83,6 +90,16 @@ OpenClaw Pod (hot path)           Platform (cold path)
 - 3 months: ~11GB in Cosmos DB (affordable, scalable, replicated)
 - Azure AI Search handles millions of vectors with sub-second latency
 
+**Implemented (alternative approach via Phase 30):**
+- `backend/microservices/mcp_platform_tools/memory.py` — MCP tools: `memory_search()`, `memory_store()`, `memory_list()`, `get_structured()`
+- Cosmos DB `agent_memories` collection read/write via MCP instead of file-based storage
+- Embeddings with in-memory LRU cache
+- Auto-injected into OpenClaw CR via `openclaw_service.py`
+
+**Remaining:**
+- Background polling sync service (`openclaw_sync_service.py`) not built — MCP approach may be sufficient
+- Azure AI Search vector index not yet created
+
 **Files:** New `backend/app/services/openclaw_sync_service.py`, scheduler in main app  
 **Depends on:** Item 1 (need session tools + memory search working first)
 
@@ -95,11 +112,22 @@ OpenClaw Pod (hot path)           Platform (cold path)
 - **B) Platform router** — platform intercepts WhatsApp webhooks and routes to different OpenClaw pods
 - **C) WhatsApp Business API** — use official Business API with chatbot routing instead of linked device
 
-### 7. Channel Analytics Dashboard
-**Status:** Not started  
+### 7. 🟡 Channel Analytics Dashboard
+**Status:** Partial — UI components exist, data population needs verification  
 **Problem:** No visibility into message volumes, response times, channel health across WhatsApp/Telegram/Gmail.  
 **Solution:** Collect metrics from OpenClaw session data, display in platform monitoring tab.  
 **Metrics:** Messages/day per channel, avg response time, active users, memory usage, session count.
+
+**Implemented:**
+- `frontend/src/app/dashboard/observability/page.tsx` — observability dashboard page
+- `frontend/src/components/observability/analytics-toolbar.tsx` — analytics toolbar
+- `frontend/src/components/observability/kpi-tiles.tsx` — KPI tiles
+- `frontend/src/components/observability/chart-card.tsx` — chart cards
+- E2E tests: `frontend/tests/e2e/observability.spec.ts`
+
+**Remaining:**
+- Verify actual data population from OpenClaw sessions
+- Channel-specific metrics breakdowns
 
 ### 8. Automated PVC Cleanup & Archival
 **Status:** Not started  
@@ -107,8 +135,8 @@ OpenClaw Pod (hot path)           Platform (cold path)
 **Solution:** Scheduled job that archives old session JSONL to blob storage and prunes PVC.  
 **Depends on:** Item 5 (data must be synced to Cosmos before pruning)
 
-### 9. KeyVault Separation — Platform vs Tenant Secrets
-**Status:** Not started  
+### 9. 🟡 KeyVault Separation — Platform vs Tenant Secrets
+**Status:** Partial — infrastructure deployed, backend wiring incomplete  
 **Priority:** High — security isolation + scalability  
 **Problem:** A single Key Vault (`stumsft-aiplat-prod-kv`) stores both platform infrastructure secrets (Cosmos endpoint, Entra IDs, Service Bus, App Insights) and per-tenant secrets (Telegram bot tokens, Gmail app passwords, AI model API keys). This means:
 - Every OpenClaw agent pod can read platform infra secrets (blast radius)
@@ -163,6 +191,18 @@ OpenClaw Pod (hot path)           Platform (cold path)
 **AI Model Provisioning (related enhancement):**
 When an admin provisions a new AI model (e.g., GPT-4o, Claude), the API key/endpoint should be stored in the **tenant vault** with a naming convention like `{model-slug}-api-key` and `{model-slug}-api-base`. The model wizard UI should write these via the existing `_set_kv_secret()` path (now targeting tenant vault). End users consuming the model get secrets injected via the per-agent CSI SecretProviderClass — no code access to raw keys.
 
+**Implemented:**
+- `infra/modules/keyvault-tenants.bicep` — tenant vault Bicep module deployed
+- `scripts/migrate-tenant-secrets.sh` — migration script exists
+- `hooks/postprovision.sh` — references `TENANT_KEY_VAULT_NAME`
+- `openclaw_service.py` L18 — `TENANT_KEY_VAULT_NAME` env var with fallback to `KEY_VAULT_NAME`
+
+**Remaining:**
+- `openclaw_service.py` `_get_kv_secret()` / `_set_kv_secret()` still use `KEY_VAULT_NAME` directly — not parameterized
+- `_build_secret_provider_class()` not yet updated to use tenant vault
+- API endpoints in `agents.py` still target platform vault
+- Need to run migration script and cut over
+
 **Risk:** Medium — fallback pattern ensures backward compatibility. Rollback = revert `TENANT_KEY_VAULT_NAME` to same value as `KEY_VAULT_NAME`.  
 **Depends on:** Nothing — can be done independently  
 **Files:** See touchpoints above (~15 files across infra/k8s/backend/scripts)
@@ -185,9 +225,9 @@ OpenClaw's release cadence is extremely high — new features, channels, and imp
 | Agent configuration | OpenClaw native UI | System prompt, tools, channels, skills |
 | Agent capabilities | OpenClaw | Chat, ReAct, MCP tools, channels, memory |
 
-### 10. Expose OpenClaw Native UI via Reverse Proxy
-**Status:** Not started  
-**Priority:** 🔥 Critical — enables the architecture pivot  
+### 10. ✅ Expose OpenClaw Native UI via Reverse Proxy
+**Status:** Implemented (Phase 31 — completed 2026-04-05)
+**Priority:** 🔥 Critical — enables the architecture pivot
 **Problem:** OpenClaw's web UI runs on port 18789 inside the pod but is not accessible to end users. Users must configure everything through our limited custom UI.  
 **Solution:** Reverse-proxy the native OpenClaw UI through the platform's API gateway/Ingress so authenticated users can access it directly.
 
@@ -220,12 +260,21 @@ Simpler DNS but requires URL rewriting and may break OpenClaw's SPA routing.
 - `infra/modules/aks.bicep` — wildcard TLS cert (Let's Encrypt or Azure-managed)
 - Frontend — link to `agent-{id}.your-platform.com` from agent details page
 
+**Implemented:**
+- `backend/microservices/auth_gateway/main.py` — OIDC auth + HTTP/WebSocket proxy
+- `k8s/base/auth-gateway/ingress-agents.yaml` — wildcard Ingress on AGC
+- `k8s/base/auth-gateway/deployment.yaml` — auth gateway service
+- Subdomain routing: `agent-{slug}.agents.{domain}` → OpenClaw pod port 18789
+- OIDC login flow via MSAL
+- WebSocket bidirectional relay
+- Tenant access validation before proxying
+
 **Risk:** Medium — WebSocket proxying needs careful testing  
 **Depends on:** Nothing — can be done independently
 
-### 11. Platform MCP Servers as Azure Infrastructure Bridge
-**Status:** Not started  
-**Priority:** 🔧 High — prevents losing Azure integration when users switch to native UI  
+### 11. 🟡 Platform MCP Servers as Azure Infrastructure Bridge
+**Status:** Partial — memory tools done (Phase 30), Azure Search & Key Vault servers not built
+**Priority:** 🔧 High — prevents losing Azure integration when users switch to native UI
 **Problem:** When users configure agents through OpenClaw's native UI instead of our custom UI, we lose the ability to inject Azure infrastructure services (AI Search, Cosmos DB, Key Vault) into the agent's context.  
 **Solution:** Expose Azure services as MCP servers that OpenClaw consumes natively.
 
@@ -257,12 +306,22 @@ When the platform deploys an OpenClaw agent, it **auto-configures MCP server URL
 - `backend/app/services/openclaw_service.py` — inject MCP server URLs into CR `config.raw.mcpServers`
 - K8s deployments for MCP servers (per-tenant or shared)
 
+**Implemented (Phase 30 — completed 2026-04-04):**
+- `backend/microservices/mcp_platform_tools/main.py` — FastMCP server with 4 tools
+- `backend/microservices/mcp_platform_tools/memory.py` — `memory_search()`, `memory_store()`, `memory_list()`, `get_structured()`
+- Cosmos DB memory access with embeddings + LRU cache
+- Auto-injection of `platform-tools` MCP server URL into OpenClaw CR
+
+**Remaining:**
+- `mcp_server_azure_search.py` — Azure AI Search integration
+- `mcp_server_key_vault.py` — Key Vault secret retrieval tool
+
 **Risk:** Low — MCP is a standard protocol, OpenClaw already supports it natively  
 **Depends on:** Item 10 (value is marginal without native UI exposure)
 
-### 12. LLM Token Tracking Proxy
-**Status:** Not started  
-**Priority:** 🔧 High — required for monitoring/billing after pivot  
+### 12. ✅ LLM Token Tracking Proxy
+**Status:** Implemented (Phase 29 — completed 2025-07-16)
+**Priority:** 🔧 High — required for monitoring/billing after pivot
 **Problem:** When agents are configured through OpenClaw's native UI, the platform loses visibility into token consumption. Currently, tokens are tracked in the Agent Executor layer which won't be in the path anymore.  
 **Solution:** Route OpenClaw's LLM calls through a thin platform proxy that counts tokens.
 
@@ -290,12 +349,22 @@ OpenClaw → token-proxy.aiplatform.svc:8080 → Azure OpenAI
 - K8s deployment for the proxy
 - Cosmos DB collection for token logs
 
+**Implemented:**
+- `backend/microservices/llm_proxy/main.py` — FastAPI proxy service
+- `backend/microservices/llm_proxy/Dockerfile`
+- `backend/app/repositories/token_log_repository.py` — Cosmos DB token logging
+- Streaming support with `stream_options.include_usage` injection
+- Token extraction from both streaming and non-streaming responses
+- Fire-and-forget Cosmos DB logging (async, non-blocking)
+- Path-based tenant/agent routing: `/proxy/{tenant_id}/{agent_id}/`
+- `openclaw_service.py` injects proxy URL into agent CR config
+
 **Risk:** Low — simple transparent proxy, easy to bypass in emergency by pointing back to Azure OpenAI  
 **Depends on:** Nothing
 
-### 13. Memory as MCP Tool (Replaces System Message Injection)
-**Status:** Not started  
-**Priority:** 🔧 Medium  
+### 13. ✅ Memory as MCP Tool (Replaces System Message Injection)
+**Status:** Implemented (Phase 30 — completed 2026-04-04)
+**Priority:** 🔧 Medium
 **Problem:** Today the platform injects Cosmos DB memories as system messages before each chat. With the native UI pivot, we lose this injection point.  
 **Solution:** Expose the memory system as an MCP tool so the agent can search/store memories on demand.
 
@@ -306,12 +375,17 @@ OpenClaw → token-proxy.aiplatform.svc:8080 → Azure OpenAI
 
 **Why this is better:** The agent decides when to search memory (on-demand) rather than getting a dump every single message. More efficient and context-aware.
 
+**Implemented:**
+- MCP tools: `memory_search(query, top_k)`, `memory_store(key, value, tags)`, `memory_list(filter)`, `get_structured(key)`
+- `backend/microservices/mcp_platform_tools/memory.py`
+- Auto-injected into agent OpenClaw CR as `platform-tools` MCP server
+
 **Files:** Part of Item 11 (`mcp-cosmos-memory` server)  
 **Depends on:** Item 11
 
-### 14. Agent Chaining via OpenAI-Compatible Endpoint
-**Status:** Not started  
-**Priority:** 🔧 Medium  
+### 14. 🟡 Agent Chaining via OpenAI-Compatible Endpoint
+**Status:** Partial — endpoint enabled in CR, orchestration not wired
+**Priority:** 🔧 Medium
 **Problem:** The workflow engine currently chains agents through internal Python calls. With standalone OpenClaw instances, agents need a standard API to call each other.  
 **Solution:** Use OpenClaw's built-in `/v1/chat/completions` endpoint. Each agent pod exposes this endpoint. The workflow engine calls Agent B just like calling an LLM.
 
@@ -330,6 +404,15 @@ response = await httpx.post(
 - `backend/microservices/workflow_engine/` — update agent-to-agent calls to use HTTP
 - `backend/app/services/agent_execution.py` — add OpenAI-compatible proxy route for external consumers
 - New API endpoint: `POST /api/v1/agents/{id}/openai/v1/chat/completions` — authenticates + proxies
+
+**Implemented:**
+- `openclaw_service.py` sets `gateway.http.endpoints.chatCompletions.enabled: true` in CR
+- Each agent pod exposes `/v1/chat/completions` endpoint
+
+**Remaining:**
+- Workflow engine still uses internal Python calls, not HTTP to OpenClaw endpoints
+- Need to update `backend/microservices/workflow_engine/` to use agent-to-agent HTTP calls
+- Platform API proxy route `POST /api/v1/agents/{id}/openai/v1/chat/completions` not built
 
 **Risk:** Low — OpenClaw already serves this endpoint  
 **Depends on:** Nothing
@@ -356,6 +439,35 @@ response = await httpx.post(
 **Files:** Frontend pages under `src/app/dashboard/agents/`  
 **Depends on:** Items 10, 11, 12
 
+### 16. Pod Resource Sizing (T-Shirt Sizes) for Agent Deployment
+**Status:** Not started  
+**Priority:** 🔧 Medium  
+**Problem:** When deploying an OpenClaw agent from the platform UI, there's no option to specify pod resource sizing. All agents get the same default CPU/memory/disk — no way to right-size for lightweight bots vs. heavy workloads.  
+**Solution:** Add a "Resource Profile" selector to the agent deployment flow with T-shirt sizes:
+
+| Size | CPU Request/Limit | Memory Request/Limit | PVC | Use Case |
+|---|---|---|---|---|
+| Small | 250m / 500m | 256Mi / 512Mi | 1Gi | Low-traffic bot, single channel |
+| Medium (default) | 500m / 1000m | 512Mi / 1Gi | 5Gi | Standard agent, multi-channel |
+| Large | 1000m / 2000m | 1Gi / 2Gi | 10Gi | High-traffic, heavy memory/tools |
+| Custom | user-defined | user-defined | user-defined | Power users / enterprise |
+
+**Touchpoints:**
+- **Frontend** — Add resource profile selector (dropdown or radio group) to agent create/edit page. "Custom" option reveals CPU/memory/disk inputs.
+- **Backend API** — `POST /api/v1/agents` and `PUT /api/v1/agents/{id}` accept `resource_profile` (enum) or `resource_overrides` (object with cpu/memory/disk).
+- **Agent model** — Add `resource_profile` field to agent schema in Cosmos DB.
+- **`openclaw_service.py`** — `_build_cr()` and `_build_deployment()` use profile to set `resources.requests/limits` and PVC size in the K8s manifests.
+- **ResourceQuota** — Ensure per-tenant namespace quotas still enforce overall limits regardless of individual pod sizing.
+
+**UX considerations:**
+- Default to "Medium" — users shouldn't have to think about this on first deploy.
+- Show estimated monthly cost per profile (based on AKS node pricing).
+- Warn if "Large" would exceed tenant namespace quota.
+- Allow resizing an already-deployed agent (triggers rolling restart).
+
+**Risk:** Low — purely additive. Current agents continue with existing defaults.  
+**Depends on:** Nothing
+
 ---
 
 ## ⚠️ Known Limitations After Pivot
@@ -379,4 +491,27 @@ response = await httpx.post(
 
 ---
 
-*Last updated: 2026-04-04*
+---
+
+## 📊 Implementation Summary
+
+| # | Item | Status |
+|---|------|--------|
+| 1 | OpenClaw Memory & Session Tools | ✅ Done |
+| 2 | Cross-Channel Identity Linking | ❌ Not started |
+| 3 | Workspace Initial Files | 🟡 Partial (backend done, frontend missing) |
+| 4 | Honcho Plugin | ❌ Not started (deferred) |
+| 5 | Cosmos DB Memory Sync | 🟡 Partial (MCP approach, no polling sync) |
+| 6 | Multi-Agent WhatsApp Routing | ❌ Not started |
+| 7 | Channel Analytics Dashboard | 🟡 Partial (UI components exist, data TBD) |
+| 8 | PVC Cleanup & Archival | ❌ Not started |
+| 9 | KeyVault Separation | 🟡 Partial (infra done, backend wiring incomplete) |
+| 10 | OpenClaw Native UI Proxy | ✅ Done (Phase 31) |
+| 11 | Platform MCP Servers | 🟡 Partial (memory done, Search/KV missing) |
+| 12 | LLM Token Tracking Proxy | ✅ Done (Phase 29) |
+| 13 | Memory as MCP Tool | ✅ Done (Phase 30) |
+| 14 | Agent Chaining | 🟡 Partial (endpoint enabled, orchestration TBD) |
+| 15 | Simplified Platform UI | ❌ Not started |
+| 16 | Pod Resource Sizing | ❌ Not started |
+
+*Last updated: 2026-04-05*

@@ -127,3 +127,6 @@ output aksClusterName string = cluster.name
 
 @description('OIDC issuer URL for workload identity federation')
 output aksOidcIssuerUrl string = cluster.properties.oidcIssuerProfile.issuerURL
+
+@description('Principal ID of the kubelet managed identity (used for ACR pull)')
+output aksKubeletIdentityObjectId string = cluster.properties.identityProfile.kubeletidentity.objectId

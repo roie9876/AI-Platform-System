@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - configmap.yaml
+  - service-account.yaml
   - ingress.yaml
   - health-check-policies.yaml
   - rbac-tenant-provisioner.yaml

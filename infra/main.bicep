@@ -153,7 +153,6 @@ module acr './modules/acr.bicep' = {
     location: location
     environmentName: environmentName
     sku: acrSku
-    aksIdentityPrincipalId: identity.outputs.aksIdentityPrincipalId
     tags: commonTags
   }
 }
@@ -174,6 +173,15 @@ module aks './modules/aks.bicep' = {
     kubernetesVersion: aksKubernetesVersion
     deployerPrincipalId: deployerPrincipalId
     tags: commonTags
+  }
+}
+
+// AcrPull role for AKS kubelet identity — must be after AKS (kubelet identity is auto-created)
+module acrPullRole './modules/acr-pull-role.bicep' = {
+  name: 'acr-pull-role-deployment'
+  params: {
+    acrName: acr.outputs.acrName
+    kubeletIdentityObjectId: aks.outputs.aksKubeletIdentityObjectId
   }
 }
 
@@ -325,6 +333,9 @@ output appInsightsConnectionString string = appInsights.outputs.connectionString
 
 @description('Application Gateway for Containers resource ID')
 output agcId string = agc.outputs.agcId
+
+@description('Application Gateway for Containers frontend FQDN')
+output agcFqdn string = agc.outputs.agcFqdn
 
 @description('Service Bus namespace FQDN')
 output serviceBusNamespace string = servicebus.outputs.serviceBusNamespace

@@ -4,16 +4,12 @@ metadata:
   name: aiplatform-ingress
   annotations:
     alb.networking.azure.io/alb-id: "${AGC_RESOURCE_ID}"
-    alb.networking.azure.io/ssl-redirect: "true"
 spec:
   ingressClassName: azure-alb-external
   tls:
-    - hosts:
-        - "${AGC_FQDN}"
-      secretName: agc-tls-secret
+    - secretName: agc-tls-secret
   rules:
-    - host: "${AGC_FQDN}"
-      http:
+    - http:
         paths:
           # Threads — agent-executor
           - path: /api/v1/threads

@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: mcp-server
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: mcp-sharepoint
@@ -33,21 +38,25 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: SHAREPOINT_TENANT_ID
+                  optional: true
             - name: SHAREPOINT_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: SHAREPOINT_CLIENT_ID
+                  optional: true
             - name: SHAREPOINT_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: SHAREPOINT_CLIENT_SECRET
+                  optional: true
             - name: SHAREPOINT_SITE_HOSTNAME
               valueFrom:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: SHAREPOINT_SITE_HOSTNAME
+                  optional: true
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"

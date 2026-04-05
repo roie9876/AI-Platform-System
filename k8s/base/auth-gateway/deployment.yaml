@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: backend
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: auth-gateway
@@ -61,6 +66,7 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: ENTRA_APP_CLIENT_ID
+                  optional: true
             - name: ENTRA_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

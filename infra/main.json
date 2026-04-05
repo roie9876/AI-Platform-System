@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "11580746452774674673"
+      "templateHash": "2010870415613882436"
     }
   },
   "parameters": {
@@ -80,6 +80,7 @@
     },
     "entraAppClientId": {
       "type": "string",
+      "defaultValue": "",
       "metadata": {
         "description": "Entra ID SPA application client ID (for user authentication)"
       }
@@ -138,6 +139,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "ICANN contact phone for domain purchase."
+      }
+    },
+    "deployerPrincipalId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Object ID of the deployer (admin) principal — auto-set by preprovision.sh for data-plane RBAC on Key Vault, Cosmos DB, etc."
       }
     }
   },
@@ -761,6 +769,9 @@
           "workloadIdentityPrincipalId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityPrincipalId.value]"
           },
+          "deployerPrincipalId": {
+            "value": "[parameters('deployerPrincipalId')]"
+          },
           "tags": {
             "value": "[variables('commonTags')]"
           }
@@ -772,7 +783,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "2930633646957984242"
+              "templateHash": "1271158062717640621"
             }
           },
           "parameters": {
@@ -800,6 +811,13 @@
               "type": "string",
               "metadata": {
                 "description": "Principal ID of workload identity for Cosmos DB data plane RBAC"
+              }
+            },
+            "deployerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the deployer principal for admin RBAC access"
               }
             },
             "tags": {
@@ -862,6 +880,9 @@
                 "capabilities": [
                   {
                     "name": "EnableServerless"
+                  },
+                  {
+                    "name": "EnableNoSQLVectorSearch"
                   }
                 ],
                 "consistencyPolicy": {
@@ -985,6 +1006,45 @@
               ]
             },
             {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', 'memory_query_cache')]",
+              "properties": {
+                "resource": {
+                  "id": "memory_query_cache",
+                  "partitionKey": {
+                    "paths": [
+                      "/tenant_id"
+                    ],
+                    "kind": "Hash"
+                  },
+                  "defaultTtl": 3600
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
+              ]
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}/{2}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform', 'structured_memories')]",
+              "properties": {
+                "resource": {
+                  "id": "structured_memories",
+                  "partitionKey": {
+                    "paths": [
+                      "/tenant_id"
+                    ],
+                    "kind": "Hash"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), 'aiplatform')]"
+              ]
+            },
+            {
               "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
@@ -1029,6 +1089,20 @@
               "dependsOn": [
                 "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
               ]
+            },
+            {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))), parameters('deployerPrincipalId'), '00000000-0000-0000-0000-000000000002'))]",
+              "properties": {
+                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName'))))]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('stumsft-aiplatform-{0}-cosmos', parameters('environmentName')))]"
+              ]
             }
           ],
           "outputs": {
@@ -1059,6 +1133,250 @@
                 "description": "Name of the database"
               },
               "value": "aiplatform"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "ai-services-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "workloadIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityPrincipalId.value]"
+          },
+          "deployerPrincipalId": {
+            "value": "[parameters('deployerPrincipalId')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "14456207228965606161"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "prod",
+              "metadata": {
+                "description": "Environment name used in resource naming"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of Log Analytics workspace for diagnostics"
+              }
+            },
+            "workloadIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of workload identity for Cognitive Services RBAC"
+              }
+            },
+            "deployerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the deployer principal for admin RBAC access"
+              }
+            },
+            "embeddingModelName": {
+              "type": "string",
+              "defaultValue": "text-embedding-3-large",
+              "metadata": {
+                "description": "Embedding model to deploy (platform-level, shared across tenants)"
+              }
+            },
+            "embeddingModelVersion": {
+              "type": "string",
+              "defaultValue": "1",
+              "metadata": {
+                "description": "Embedding model version"
+              }
+            },
+            "embeddingModelCapacity": {
+              "type": "int",
+              "defaultValue": 120,
+              "metadata": {
+                "description": "Embedding model TPM capacity (in thousands)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to all resources"
+              }
+            }
+          },
+          "variables": {
+            "accountName": "[format('stumsft-aiplat-{0}-ai', parameters('environmentName'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2024-10-01",
+              "name": "[variables('accountName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "OpenAI",
+              "sku": {
+                "name": "S0"
+              },
+              "properties": {
+                "customSubDomainName": "[variables('accountName')]",
+                "publicNetworkAccess": "Enabled",
+                "disableLocalAuth": false
+              }
+            },
+            {
+              "type": "Microsoft.CognitiveServices/accounts/deployments",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', variables('accountName'), parameters('embeddingModelName'))]",
+              "sku": {
+                "name": "Standard",
+                "capacity": "[parameters('embeddingModelCapacity')]"
+              },
+              "properties": {
+                "model": {
+                  "format": "OpenAI",
+                  "name": "[parameters('embeddingModelName')]",
+                  "version": "[parameters('embeddingModelVersion')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('accountName')), parameters('workloadIdentityPrincipalId'), '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]",
+                "principalId": "[parameters('workloadIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('accountName')), parameters('deployerPrincipalId'), 'a001fd3d-188f-4b5d-821b-7da978bf7442')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a001fd3d-188f-4b5d-821b-7da978bf7442')]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "User"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('accountName')), parameters('workloadIdentityPrincipalId'), 'a001fd3d-188f-4b5d-821b-7da978bf7442')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a001fd3d-188f-4b5d-821b-7da978bf7442')]",
+                "principalId": "[parameters('workloadIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]",
+              "name": "ai-diagnostics",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "Audit",
+                    "enabled": true
+                  },
+                  {
+                    "category": "RequestResponse",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "aiEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AI Services endpoint"
+              },
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('accountName')), '2024-10-01').endpoint]"
+            },
+            "aiAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AI Services account name"
+              },
+              "value": "[variables('accountName')]"
+            },
+            "aiAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AI Services account resource ID"
+              },
+              "value": "[resourceId('Microsoft.CognitiveServices/accounts', variables('accountName'))]"
             }
           }
         }
@@ -1286,9 +1604,6 @@
           "sku": {
             "value": "[parameters('acrSku')]"
           },
-          "aksIdentityPrincipalId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.aksIdentityPrincipalId.value]"
-          },
           "tags": {
             "value": "[variables('commonTags')]"
           }
@@ -1300,7 +1615,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "7907393186679099110"
+              "templateHash": "13400918195908414029"
             }
           },
           "parameters": {
@@ -1324,12 +1639,6 @@
                 "description": "ACR SKU"
               }
             },
-            "aksIdentityPrincipalId": {
-              "type": "string",
-              "metadata": {
-                "description": "Principal ID of AKS identity for AcrPull role assignment"
-              }
-            },
             "tags": {
               "type": "object",
               "defaultValue": {},
@@ -1351,20 +1660,6 @@
               "properties": {
                 "adminUserEnabled": false
               }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]",
-              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName'))), parameters('aksIdentityPrincipalId'), '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-                "principalId": "[parameters('aksIdentityPrincipalId')]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.ContainerRegistry/registries', format('stumsftaiplatform{0}acr', parameters('environmentName')))]"
-              ]
             }
           ],
           "outputs": {
@@ -1391,10 +1686,7 @@
             }
           }
         }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]"
-      ]
+      }
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -1439,6 +1731,9 @@
           "kubernetesVersion": {
             "value": "[parameters('aksKubernetesVersion')]"
           },
+          "deployerPrincipalId": {
+            "value": "[parameters('deployerPrincipalId')]"
+          },
           "tags": {
             "value": "[variables('commonTags')]"
           }
@@ -1450,7 +1745,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "11165858731296473989"
+              "templateHash": "5992428405092768439"
             }
           },
           "parameters": {
@@ -1517,6 +1812,13 @@
               "defaultValue": "Standard_D4s_v5",
               "metadata": {
                 "description": "VM size for user node pool"
+              }
+            },
+            "deployerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the deployer principal for AKS RBAC Cluster Admin"
               }
             },
             "kubernetesVersion": {
@@ -1606,6 +1908,21 @@
                   }
                 ]
               }
+            },
+            {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName')))]",
+              "name": "[guid(resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))), parameters('deployerPrincipalId'), 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "User"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName')))]"
+              ]
             }
           ],
           "outputs": {
@@ -1629,6 +1946,13 @@
                 "description": "OIDC issuer URL for workload identity federation"
               },
               "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))), '2024-05-01').oidcIssuerProfile.issuerURL]"
+            },
+            "aksKubeletIdentityObjectId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the kubelet managed identity (used for ACR pull)"
+              },
+              "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('stumsft-aiplatform-{0}-aks', parameters('environmentName'))), '2024-05-01').identityProfile.kubeletidentity.objectId]"
             }
           }
         }
@@ -1637,6 +1961,67 @@
         "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]",
         "[resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment')]",
         "[resourceId('Microsoft.Resources/deployments', 'vnet-deployment')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "acr-pull-role-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "acrName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.acrName.value]"
+          },
+          "kubeletIdentityObjectId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aks-deployment'), '2025-04-01').outputs.aksKubeletIdentityObjectId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "5385184306964209801"
+            }
+          },
+          "parameters": {
+            "acrName": {
+              "type": "string",
+              "metadata": {
+                "description": "ACR resource name"
+              }
+            },
+            "kubeletIdentityObjectId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of AKS kubelet identity for AcrPull role assignment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), parameters('kubeletIdentityObjectId'), '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                "principalId": "[parameters('kubeletIdentityObjectId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'acr-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'aks-deployment')]"
       ]
     },
     {
@@ -2046,6 +2431,9 @@
           "workloadIdentityPrincipalId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identity-deployment'), '2025-04-01').outputs.workloadIdentityPrincipalId.value]"
           },
+          "deployerPrincipalId": {
+            "value": "[parameters('deployerPrincipalId')]"
+          },
           "tags": {
             "value": "[variables('commonTags')]"
           }
@@ -2057,7 +2445,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "1789122276491171490"
+              "templateHash": "13509223955548477856"
             }
           },
           "parameters": {
@@ -2083,6 +2471,13 @@
               "type": "string",
               "metadata": {
                 "description": "Workload identity principal ID for RBAC"
+              }
+            },
+            "deployerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the deployer principal for admin RBAC access"
               }
             },
             "tags": {
@@ -2176,6 +2571,21 @@
               ]
             },
             {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespaceName'))]",
+              "name": "[guid(resourceId('Microsoft.ServiceBus/namespaces', variables('namespaceName')), parameters('deployerPrincipalId'), 'sbDataOwnerDeployer')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '090c5cfd-751d-490a-894a-3ce6f1109419')]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "User"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespaceName'))]"
+              ]
+            },
+            {
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
               "scope": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespaceName'))]",
@@ -2260,7 +2670,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "11046405991168205961"
+              "templateHash": "16195607536451598401"
             }
           },
           "parameters": {
@@ -2314,6 +2724,16 @@
               "dependsOn": [
                 "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
               ]
+            },
+            {
+              "type": "Microsoft.ServiceNetworking/trafficControllers/frontends",
+              "apiVersion": "2025-01-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'default-frontend')]",
+              "location": "[parameters('location')]",
+              "properties": {},
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceNetworking/trafficControllers', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')))]"
+              ]
             }
           ],
           "outputs": {
@@ -2330,6 +2750,13 @@
                 "description": "Name of the Application Gateway for Containers"
               },
               "value": "[format('stumsft-aiplatform-{0}-agc', parameters('environmentName'))]"
+            },
+            "agcFqdn": {
+              "type": "string",
+              "metadata": {
+                "description": "AGC frontend FQDN (auto-generated by Azure)"
+              },
+              "value": "[reference(resourceId('Microsoft.ServiceNetworking/trafficControllers/frontends', format('stumsft-aiplatform-{0}-agc', parameters('environmentName')), 'default-frontend'), '2025-01-01').fqdn]"
             }
           }
         }
@@ -2381,6 +2808,15 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
           },
+          "deployerPrincipalId": {
+            "value": "[parameters('deployerPrincipalId')]"
+          },
+          "aiServicesEndpoint": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai-services-deployment'), '2025-04-01').outputs.aiEndpoint.value]"
+          },
+          "aiServicesAccountName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai-services-deployment'), '2025-04-01').outputs.aiAccountName.value]"
+          },
           "tags": {
             "value": "[variables('commonTags')]"
           }
@@ -2392,7 +2828,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "7751934682045784307"
+              "templateHash": "4463088203877536029"
             }
           },
           "parameters": {
@@ -2461,6 +2897,27 @@
                 "description": "Entra admin group ID for platform admins"
               }
             },
+            "deployerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the deployer principal for admin RBAC access"
+              }
+            },
+            "aiServicesEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Azure AI Services endpoint (auto-provisioned)"
+              }
+            },
+            "aiServicesAccountName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Azure AI Services account name (for key lookup)"
+              }
+            },
             "logAnalyticsWorkspaceId": {
               "type": "string",
               "defaultValue": "",
@@ -2511,6 +2968,21 @@
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
                 "principalId": "[parameters('workloadIdentityPrincipalId')]",
                 "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName'))), parameters('deployerPrincipalId'), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "User"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
@@ -2609,6 +3081,50 @@
               ]
             },
             {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'entra-client-secret')]",
+              "properties": {
+                "value": "PLACEHOLDER_UPDATE_AFTER_DEPLOY"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'jira')]",
+              "properties": {
+                "value": "PLACEHOLDER_UPDATE_AFTER_DEPLOY"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'azure-openai-endpoint')]",
+              "properties": {
+                "value": "[if(not(empty(parameters('aiServicesEndpoint'))), parameters('aiServicesEndpoint'), 'PLACEHOLDER_UPDATE_AFTER_DEPLOY')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', format('stumsft-aiplat-{0}-kv', parameters('environmentName')), 'azure-openai-key')]",
+              "properties": {
+                "value": "[if(not(empty(parameters('aiServicesAccountName'))), listKeys(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesAccountName')), '2024-10-01').key1, 'PLACEHOLDER_UPDATE_AFTER_DEPLOY')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-kv', parameters('environmentName')))]"
+              ]
+            },
+            {
               "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
@@ -2660,6 +3176,7 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'ai-services-deployment')]",
         "[resourceId('Microsoft.Resources/deployments', 'appinsights-deployment')]",
         "[resourceId('Microsoft.Resources/deployments', 'cosmos-deployment')]",
         "[resourceId('Microsoft.Resources/deployments', 'identity-deployment')]",
@@ -2689,6 +3206,9 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'loganalytics-deployment'), '2025-04-01').outputs.workspaceId.value]"
           },
+          "deployerPrincipalId": {
+            "value": "[parameters('deployerPrincipalId')]"
+          },
           "tags": {
             "value": "[variables('commonTags')]"
           }
@@ -2700,7 +3220,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "1683851483508375663"
+              "templateHash": "18002919157634486395"
             }
           },
           "parameters": {
@@ -2735,6 +3255,13 @@
               "defaultValue": "[subscription().tenantId]",
               "metadata": {
                 "description": "Azure AD tenant ID"
+              }
+            },
+            "deployerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the deployer principal for admin RBAC access"
               }
             },
             "tags": {
@@ -2773,6 +3300,21 @@
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
                 "principalId": "[parameters('workloadIdentityPrincipalId')]",
                 "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-tkv', parameters('environmentName')))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-tkv', parameters('environmentName')))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-tkv', parameters('environmentName'))), parameters('deployerPrincipalId'), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "User"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', format('stumsft-aiplat-{0}-tkv', parameters('environmentName')))]"
@@ -2901,6 +3443,13 @@
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'agc-deployment'), '2025-04-01').outputs.agcId.value]"
     },
+    "agcFqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Gateway for Containers frontend FQDN"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'agc-deployment'), '2025-04-01').outputs.agcFqdn.value]"
+    },
     "serviceBusNamespace": {
       "type": "string",
       "metadata": {
@@ -2935,6 +3484,20 @@
         "description": "Custom agents domain (empty if not configured)"
       },
       "value": "[parameters('agentsDomain')]"
+    },
+    "aiServicesEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure AI Services endpoint"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai-services-deployment'), '2025-04-01').outputs.aiEndpoint.value]"
+    },
+    "aiServicesAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure AI Services account name"
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai-services-deployment'), '2025-04-01').outputs.aiAccountName.value]"
     }
   }
 }

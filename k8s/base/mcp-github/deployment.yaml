@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: mcp-server
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: mcp-github
@@ -33,6 +38,7 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: GITHUB_TOKEN
+                  optional: true
             - name: GITHUB_DEFAULT_ORG
               valueFrom:
                 configMapKeyRef:

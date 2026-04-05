@@ -7,9 +7,6 @@ param environmentName string = 'prod'
 @description('ACR SKU')
 param sku string = 'Standard'
 
-@description('Principal ID of AKS identity for AcrPull role assignment')
-param aksIdentityPrincipalId string
-
 @description('Tags to apply to all resources')
 param tags object = {}
 
@@ -23,17 +20,6 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
   properties: {
     adminUserEnabled: false
-  }
-}
-
-// AcrPull role assignment for AKS identity
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, aksIdentityPrincipalId, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-  scope: acr
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-    principalId: aksIdentityPrincipalId
-    principalType: 'ServicePrincipal'
   }
 }
 
