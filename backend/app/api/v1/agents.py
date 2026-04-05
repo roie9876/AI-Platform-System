@@ -232,7 +232,7 @@ async def get_agent(
     if (
         agent.get("agent_type") == "openclaw"
         and agent.get("openclaw_instance_name")
-        and (agent.get("openclaw_config") or {}).get("whatsapp", {}).get("whatsapp_enabled")
+        and ((agent.get("openclaw_config") or {}).get("whatsapp") or {}).get("whatsapp_enabled")
     ):
         tenant = await tenant_repo.get(tenant_id, tenant_id)
         slug = tenant["slug"] if tenant else None
