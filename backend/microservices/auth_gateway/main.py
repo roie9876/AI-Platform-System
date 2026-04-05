@@ -53,35 +53,21 @@ ROUTE_MODE = "subdomain" if AGENTS_DOMAIN else "path"
 _signer = URLSafeTimedSerializer(COOKIE_SECRET)
 
 # ---------------------------------------------------------------------------
-# In-memory session store
+# Cookie-embedded sessions (no server-side state — survives multi-pod)
 # ---------------------------------------------------------------------------
-_sessions: dict[str, tuple[dict, float]] = {}
 
 
-def _gc_sessions() -> None:
-    """Remove expired sessions."""
-    now = time.time()
-    expired = [sid for sid, (_, exp) in _sessions.items() if exp <= now]
-    for sid in expired:
-        del _sessions[sid]
+def create_signed_cookie(user_context: dict) -> str:
+    """Sign user_context into a tamper-proof cookie value."""
+    return _signer.dumps(user_context)
 
 
-def create_session(user_context: dict) -> str:
-    _gc_sessions()
-    session_id = secrets.token_urlsafe(32)
-    _sessions[session_id] = (user_context, time.time() + SESSION_TTL)
-    return session_id
-
-
-def get_session(session_id: str) -> dict | None:
-    entry = _sessions.get(session_id)
-    if entry is None:
+def load_signed_cookie(cookie_value: str) -> dict | None:
+    """Verify signature + TTL and return user_context, or None."""
+    try:
+        return _signer.loads(cookie_value, max_age=SESSION_TTL)
+    except BadSignature:
         return None
-    user_context, expires_at = entry
-    if time.time() >= expires_at:
-        del _sessions[session_id]
-        return None
-    return user_context
 
 
 # ---------------------------------------------------------------------------
@@ -347,8 +333,7 @@ async def path_auth_callback(request: Request):
 
     claims = result.get("id_token_claims", {})
     user_context = extract_user_context(claims)
-    session_id = create_session(user_context)
-    signed = _signer.dumps(session_id)
+    signed = create_signed_cookie(user_context)
 
     try:
         state = json.loads(state_raw)
@@ -364,13 +349,6 @@ async def path_auth_callback(request: Request):
 @app.get("/agents/auth/logout")
 async def path_auth_logout(request: Request):
     """Clear session (path-based mode)."""
-    cookie = request.cookies.get(COOKIE_NAME)
-    if cookie:
-        try:
-            session_id = _signer.loads(cookie, max_age=SESSION_TTL)
-            _sessions.pop(session_id, None)
-        except BadSignature:
-            pass
 
     entra_client_id = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
     logout_url = (
@@ -556,9 +534,7 @@ async def auth_callback(request: Request):
 
     claims = result.get("id_token_claims", {})
     user_context = extract_user_context(claims)
-
-    session_id = create_session(user_context)
-    signed = _signer.dumps(session_id)
+    signed = create_signed_cookie(user_context)
 
     try:
         state = json.loads(state_raw)
@@ -574,13 +550,6 @@ async def auth_callback(request: Request):
 @app.get("/auth/logout")
 async def auth_logout(request: Request):
     """Clear session and redirect to Entra ID logout."""
-    cookie = request.cookies.get(COOKIE_NAME)
-    if cookie:
-        try:
-            session_id = _signer.loads(cookie, max_age=SESSION_TTL)
-            _sessions.pop(session_id, None)
-        except BadSignature:
-            pass
 
     entra_client_id = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
     logout_url = (
@@ -601,11 +570,7 @@ def _get_user_from_cookie(request: Request) -> dict | None:
     cookie = request.cookies.get(COOKIE_NAME)
     if not cookie:
         return None
-    try:
-        session_id = _signer.loads(cookie, max_age=SESSION_TTL)
-    except BadSignature:
-        return None
-    return get_session(session_id)
+    return load_signed_cookie(cookie)
 
 
 def _get_user_from_ws_cookie(websocket: WebSocket) -> dict | None:
@@ -613,11 +578,7 @@ def _get_user_from_ws_cookie(websocket: WebSocket) -> dict | None:
     cookie = websocket.cookies.get(COOKIE_NAME)
     if not cookie:
         return None
-    try:
-        session_id = _signer.loads(cookie, max_age=SESSION_TTL)
-    except BadSignature:
-        return None
-    return get_session(session_id)
+    return load_signed_cookie(cookie)
 
 
 # ---------------------------------------------------------------------------

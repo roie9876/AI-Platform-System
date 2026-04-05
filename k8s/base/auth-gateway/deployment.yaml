@@ -72,6 +72,11 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: ENTRA_CLIENT_SECRET
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: COOKIE_SECRET
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
