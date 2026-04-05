@@ -95,7 +95,6 @@ async def resolve_agent(agent_slug: str) -> dict | None:
     async for item in container.query_items(
         query="SELECT * FROM c WHERE c.slug = @slug OR c.id = @slug",
         parameters=[{"name": "@slug", "value": agent_slug}],
-        enable_cross_partition_query=True,
     ):
         items.append(item)
     if not items:
@@ -124,7 +123,6 @@ async def resolve_tenant_slug(tenant_id: str) -> str | None:
     async for item in container.query_items(
         query="SELECT c.slug FROM c WHERE c.id = @tid",
         parameters=[{"name": "@tid", "value": tenant_id}],
-        enable_cross_partition_query=True,
     ):
         items.append(item)
     if not items:
