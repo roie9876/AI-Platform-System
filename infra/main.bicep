@@ -18,6 +18,15 @@ param aksUserNodeCount int = 1
 @description('VM size for AKS user node pool')
 param aksUserNodeVmSize string = 'Standard_D4s_v5'
 
+@description('Enable cluster autoscaler for user node pool')
+param aksEnableAutoScaling bool = true
+
+@description('Minimum node count for user pool autoscaler')
+param aksUserNodeMinCount int = 1
+
+@description('Maximum node count for user pool autoscaler')
+param aksUserNodeMaxCount int = 5
+
 @description('Kubernetes version')
 param aksKubernetesVersion string = '1.33'
 
@@ -170,6 +179,9 @@ module aks './modules/aks.bicep' = {
     systemNodeVmSize: aksSystemNodeVmSize
     userNodeCount: aksUserNodeCount
     userNodeVmSize: aksUserNodeVmSize
+    enableAutoScaling: aksEnableAutoScaling
+    userNodeMinCount: aksUserNodeMinCount
+    userNodeMaxCount: aksUserNodeMaxCount
     kubernetesVersion: aksKubernetesVersion
     deployerPrincipalId: deployerPrincipalId
     tags: commonTags

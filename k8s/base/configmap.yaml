@@ -14,3 +14,4 @@ data:
   WORKFLOW_ENGINE_URL: "http://workflow-engine:8000"
   OTEL_SERVICE_NAME: "ai-platform"
   AGENTS_DOMAIN: "${AGENTS_DOMAIN}"
+  ACR_LOGIN_SERVER: "${ACR_SERVER}"

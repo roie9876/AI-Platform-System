@@ -10,8 +10,13 @@ from app.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
-# ACR image registry — read from env or use the known production ACR
-ACR_REGISTRY = os.getenv("ACR_REGISTRY", "stumsftaiplatformprodacr.azurecr.io")
+# ACR image registry — read from env (set via configmap) or fallback
+ACR_REGISTRY = os.getenv("ACR_REGISTRY", os.getenv("ACR_LOGIN_SERVER", ""))
+
+
+def _get_acr_registry() -> str:
+    """Get ACR registry at runtime (env may be set after module import)."""
+    return os.getenv("ACR_REGISTRY", os.getenv("ACR_LOGIN_SERVER", ACR_REGISTRY))
 
 DEFAULT_TOOLS = [
     {
@@ -51,8 +56,8 @@ DEFAULT_CATALOG = [
 # workflow-engine, mcp-proxy) is shared in the 'aiplatform' namespace and
 # serves all tenants via Cosmos DB partition keys.
 TENANT_MICROSERVICES = [
-    {"name": "agent-executor", "image": f"{ACR_REGISTRY}/aiplatform-api-gateway:latest", "port": 8000},
-    {"name": "tool-executor", "image": f"{ACR_REGISTRY}/aiplatform-api-gateway:latest", "port": 8000},
+    {"name": "agent-executor", "image_suffix": "aiplatform-agent-executor:latest", "port": 8000},
+    {"name": "tool-executor", "image_suffix": "aiplatform-tool-executor:latest", "port": 8000},
 ]
 
 # Name of the workload-identity service account to mirror into tenant namespaces
@@ -243,8 +248,13 @@ class TenantProvisioningService:
         logger.info("Created NetworkPolicy in %s", namespace)
 
         # 6. Deploy per-tenant compute services (agent-executor, tool-executor)
+        acr = _get_acr_registry()
+        if not acr:
+            raise RuntimeError("ACR_REGISTRY / ACR_LOGIN_SERVER env var not set — cannot create tenant deployments")
+
         for svc in TENANT_MICROSERVICES:
             svc_labels = {**labels, "app": svc["name"]}
+            image = f"{acr}/{svc['image_suffix']}"
 
             # Deployment
             deployment = k8s.V1Deployment(
@@ -259,7 +269,7 @@ class TenantProvisioningService:
                             containers=[
                                 k8s.V1Container(
                                     name=svc["name"],
-                                    image=svc["image"],
+                                    image=image,
                                     ports=[k8s.V1ContainerPort(container_port=svc["port"])],
                                     resources=k8s.V1ResourceRequirements(
                                         requests={"cpu": "100m", "memory": "128Mi"},

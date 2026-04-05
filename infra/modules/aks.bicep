@@ -28,6 +28,15 @@ param userNodeCount int = 1
 @description('VM size for user node pool')
 param userNodeVmSize string = 'Standard_D4s_v5'
 
+@description('Enable cluster autoscaler for user node pool')
+param enableAutoScaling bool = true
+
+@description('Minimum node count for user pool autoscaler')
+param userNodeMinCount int = 1
+
+@description('Maximum node count for user pool autoscaler')
+param userNodeMaxCount int = 5
+
 @description('Object ID of the deployer principal for AKS RBAC Cluster Admin')
 param deployerPrincipalId string = ''
 
@@ -94,6 +103,9 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
         vnetSubnetID: aksNodesSubnetId
         osType: 'Linux'
         osDiskSizeGB: 128
+        enableAutoScaling: enableAutoScaling
+        minCount: enableAutoScaling ? 1 : null
+        maxCount: enableAutoScaling ? 3 : null
       }
       {
         name: 'userpool'
@@ -103,6 +115,9 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
         vnetSubnetID: aksNodesSubnetId
         osType: 'Linux'
         osDiskSizeGB: 128
+        enableAutoScaling: enableAutoScaling
+        minCount: enableAutoScaling ? userNodeMinCount : null
+        maxCount: enableAutoScaling ? userNodeMaxCount : null
       }
     ]
   }
