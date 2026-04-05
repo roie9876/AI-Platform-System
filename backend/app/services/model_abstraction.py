@@ -7,7 +7,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
 
-from app.services.secret_store import decrypt_api_key
+from app.services.keyvault_client import get_tenant_secret, TENANT_KV_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +112,13 @@ def _build_client(endpoint: dict) -> AsyncOpenAI | AsyncAzureOpenAI:
     """Construct the appropriate async OpenAI client for the endpoint."""
     provider = endpoint.get("provider_type", "")
     api_key: Optional[str] = None
-    if endpoint.get("api_key_encrypted"):
-        api_key = decrypt_api_key(endpoint["api_key_encrypted"])
+
+    # Retrieve API key from tenant Key Vault if the endpoint uses key auth
+    if endpoint.get("has_api_key") and TENANT_KV_NAME:
+        tenant_id = endpoint.get("tenant_id", "")
+        endpoint_id = endpoint.get("id", "")
+        if tenant_id and endpoint_id:
+            api_key = get_tenant_secret(tenant_id, f"ep-{endpoint_id}-apikey")
 
     if provider == "azure_openai":
         base_url = endpoint.get("endpoint_url")

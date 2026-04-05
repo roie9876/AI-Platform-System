@@ -171,6 +171,66 @@ resource secretJira 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+// Platform secret key — used for JWT signing.  Auto-generated unique per deployment.
+resource secretSecretKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'secret-key'
+  properties: {
+    value: uniqueString(vault.id, 'secret-key', resourceGroup().id)
+  }
+}
+
+// Fernet encryption key — used for encrypting API keys at rest.
+// Auto-generated unique per deployment.
+resource secretEncryptionKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'encryption-key'
+  properties: {
+    value: uniqueString(vault.id, 'encryption-key', resourceGroup().id)
+  }
+}
+
+// Placeholder secrets for MCP integrations (optional — user updates post-deploy)
+resource secretGithubToken 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'github-token'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
+resource secretSharepointTenantId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'sharepoint-tenant-id'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
+resource secretSharepointClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'sharepoint-client-id'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
+resource secretSharepointClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'sharepoint-client-secret'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
+resource secretSharepointSiteHostname 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'sharepoint-site-hostname'
+  properties: {
+    value: 'PLACEHOLDER_UPDATE_AFTER_DEPLOY'
+  }
+}
+
 // Azure AI Services secrets — auto-populated from provisioned AI account
 resource aiServicesRef 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (!empty(aiServicesAccountName)) {
   name: aiServicesAccountName

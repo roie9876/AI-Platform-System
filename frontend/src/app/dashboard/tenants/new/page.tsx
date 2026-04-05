@@ -89,9 +89,11 @@ export default function NewTenantPage() {
     admin_email: "",
     // Step 2 — Model Endpoint (optional)
     endpoint_name: "",
-    provider: "azure-openai",
+    provider: "azure_openai",
+    auth_type: "entra_id",
     endpoint_url: "",
     model_name: "",
+    api_key: "",
     api_version: "",
     // Step 3 — First Agent (optional)
     agent_name: "",
@@ -114,6 +116,9 @@ export default function NewTenantPage() {
       }
       if (field === "slug" && !emailEdited) {
         next.admin_email = value ? `${value}-admin@${adminDomain}` : "";
+      }
+      if (field === "provider") {
+        next.auth_type = value === "azure_openai" ? "entra_id" : "api_key";
       }
       return next;
     });
@@ -162,11 +167,11 @@ export default function NewTenantPage() {
             method: "POST",
             body: JSON.stringify({
               name: formData.endpoint_name,
-              provider: formData.provider,
+              provider_type: formData.provider,
               endpoint_url: formData.endpoint_url,
               model_name: formData.model_name,
-              api_version: formData.api_version || undefined,
-              tenant_id: tenantId,
+              auth_type: formData.auth_type,
+              ...(formData.auth_type === "api_key" && formData.api_key ? { api_key: formData.api_key } : {}),
             }),
           }
         );
@@ -284,7 +289,7 @@ export default function NewTenantPage() {
               onChange={(e) => update("provider", e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
-              <option value="azure-openai">Azure OpenAI</option>
+              <option value="azure_openai">Azure OpenAI</option>
               <option value="anthropic">Anthropic</option>
               <option value="openai">OpenAI</option>
             </select>
@@ -313,17 +318,46 @@ export default function NewTenantPage() {
               placeholder="gpt-4o"
             />
           </label>
-          {formData.provider === "azure-openai" && (
+          {formData.provider === "azure_openai" && (
+            <>
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700">
+                  Authentication
+                </span>
+                <select
+                  value={formData.auth_type}
+                  onChange={(e) => update("auth_type", e.target.value)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="entra_id">Entra ID (Managed Identity)</option>
+                  <option value="api_key">API Key</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700">
+                  API Version
+                </span>
+                <input
+                  type="text"
+                  value={formData.api_version}
+                  onChange={(e) => update("api_version", e.target.value)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="2024-06-01"
+                />
+              </label>
+            </>
+          )}
+          {formData.auth_type === "api_key" && (
             <label className="block">
               <span className="text-sm font-medium text-gray-700">
-                API Version
+                API Key
               </span>
               <input
-                type="text"
-                value={formData.api_version}
-                onChange={(e) => update("api_version", e.target.value)}
+                type="password"
+                value={formData.api_key}
+                onChange={(e) => update("api_key", e.target.value)}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                placeholder="2024-06-01"
+                placeholder="sk-... or Azure API key"
               />
             </label>
           )}

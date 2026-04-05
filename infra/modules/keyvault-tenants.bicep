@@ -38,6 +38,17 @@ resource kvSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
+// Key Vault Secrets Officer role for workload identity (read+write tenant secrets at runtime)
+resource kvSecretsOfficerWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(tenantVault.id, workloadIdentityPrincipalId, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+  scope: tenantVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7') // Key Vault Secrets Officer
+    principalId: workloadIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Key Vault Secrets Officer role for deployer (admin can read/write tenant secrets)
 resource kvSecretsOfficerDeployer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
   name: guid(tenantVault.id, deployerPrincipalId, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')

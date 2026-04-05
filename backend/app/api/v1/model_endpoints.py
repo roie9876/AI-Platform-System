@@ -1,6 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.core.config import settings
 from app.middleware.tenant import get_tenant_id
 from app.api.v1.dependencies import get_current_user
 from app.repositories.config_repo import ModelEndpointRepository
@@ -12,24 +13,18 @@ from app.api.v1.schemas import (
     VALID_PROVIDER_TYPES,
     VALID_AUTH_TYPES,
 )
+from app.services.keyvault_client import set_tenant_secret, TENANT_KV_NAME
 
-from cryptography.fernet import Fernet
-import base64
-import hashlib
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 endpoint_repo = ModelEndpointRepository()
 
 
-def _get_fernet() -> Fernet:
-    key = hashlib.sha256(settings.ENCRYPTION_KEY.encode()).digest()
-    return Fernet(base64.urlsafe_b64encode(key))
-
-
-def _encrypt_api_key(raw_key: str) -> str:
-    f = _get_fernet()
-    return f.encrypt(raw_key.encode()).decode()
+def _kv_secret_name(tenant_id: str, endpoint_id: str) -> str:
+    """Deterministic KV secret name for an endpoint API key."""
+    return f"ep-{endpoint_id}-apikey"
 
 
 @router.post("", response_model=ModelEndpointResponse, status_code=201)
@@ -50,10 +45,7 @@ async def create_model_endpoint(
             detail=f"Invalid auth_type. Must be one of: {', '.join(sorted(VALID_AUTH_TYPES))}",
         )
 
-    encrypted_key = None
-    if body.auth_type == "api_key" and body.api_key:
-        encrypted_key = _encrypt_api_key(body.api_key)
-    elif body.auth_type == "api_key" and not body.api_key:
+    if body.auth_type == "api_key" and not body.api_key:
         raise HTTPException(status_code=400, detail="API key is required for api_key auth type")
 
     endpoint_data = {
@@ -61,12 +53,19 @@ async def create_model_endpoint(
         "provider_type": body.provider_type,
         "endpoint_url": body.endpoint_url,
         "model_name": body.model_name,
-        "api_key_encrypted": encrypted_key,
         "auth_type": body.auth_type,
         "priority": body.priority,
         "is_active": True,
+        "has_api_key": body.auth_type == "api_key" and bool(body.api_key),
     }
     endpoint = await endpoint_repo.create(tenant_id, endpoint_data)
+
+    # Store API key in tenant Key Vault (never in Cosmos)
+    if body.api_key and TENANT_KV_NAME:
+        secret_key = _kv_secret_name(tenant_id, endpoint["id"])
+        if not set_tenant_secret(tenant_id, secret_key, body.api_key):
+            logger.error("Failed to store API key in tenant KV for endpoint %s", endpoint["id"])
+
     return endpoint
 
 

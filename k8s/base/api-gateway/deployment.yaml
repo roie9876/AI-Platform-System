@@ -16,11 +16,13 @@ spec:
   selector:
     matchLabels:
       app: api-gateway
+      app.kubernetes.io/part-of: aiplatform
   template:
     metadata:
       labels:
         app: api-gateway
         app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/part-of: aiplatform
         azure.workload.identity/use: "true"
     spec:
       serviceAccountName: aiplatform-workload
@@ -86,6 +88,16 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: ENTRA_CLIENT_SECRET
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SECRET_KEY
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: ENCRYPTION_KEY
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"

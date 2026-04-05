@@ -16,11 +16,13 @@ spec:
   selector:
     matchLabels:
       app: mcp-platform-tools
+      app.kubernetes.io/part-of: aiplatform
   template:
     metadata:
       labels:
         app: mcp-platform-tools
         app.kubernetes.io/name: mcp-platform-tools
+        app.kubernetes.io/part-of: aiplatform
         azure.workload.identity/use: "true"
     spec:
       serviceAccountName: aiplatform-workload
@@ -71,6 +73,36 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: AZURE_OPENAI_KEY
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: GITHUB_TOKEN
+                  optional: true
+            - name: SHAREPOINT_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_TENANT_ID
+                  optional: true
+            - name: SHAREPOINT_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_CLIENT_ID
+                  optional: true
+            - name: SHAREPOINT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_CLIENT_SECRET
+                  optional: true
+            - name: SHAREPOINT_SITE_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: SHAREPOINT_SITE_HOSTNAME
+                  optional: true
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
