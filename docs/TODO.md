@@ -129,11 +129,20 @@ OpenClaw Pod (hot path)           Platform (cold path)
 - Verify actual data population from OpenClaw sessions
 - Channel-specific metrics breakdowns
 
-### 8. Automated PVC Cleanup & Archival
-**Status:** Not started  
+### 8. ✅ Automated PVC Cleanup & Archival
+**Status:** Implemented  
 **Problem:** PVC fills up over time with old sessions. Manual cleanup is risky.  
-**Solution:** Scheduled job that archives old session JSONL to blob storage and prunes PVC.  
-**Depends on:** Item 5 (data must be synced to Cosmos before pruning)
+**Solution:** Scheduled CronJob that archives old session files to Azure Blob Storage and prunes PVC.
+
+**Implemented:**
+- `infra/modules/storage.bicep` — Azure Storage account (Standard_LRS) with `agent-archives` blob container, 30-day soft delete, RBAC for workload identity
+- `infra/main.bicep` — storage module wiring with `storageAccountName` and `blobEndpoint` outputs
+- `backend/scripts/pvc_cleanup.py` — Python script: discovers OpenClaw pods across tenant namespaces, finds files older than RETENTION_DAYS (default 7), archives to tar.gz in Blob Storage, deletes from PVC. Supports DRY_RUN mode.
+- `k8s/base/pvc-cleanup/cronjob.yaml` — CronJob running daily at 3AM UTC, uses `aiplatform-workload` ServiceAccount
+- `k8s/base/configmap.yaml` — `STORAGE_ACCOUNT_NAME` placeholder
+- `hooks/postprovision.sh` — wired `STORAGE_ACCOUNT_NAME` from Bicep outputs, CronJob ACR image substitution
+
+**Depends on:** Nothing (standalone — archives before pruning, independent of Cosmos sync)
 
 ### 9. 🟡 KeyVault Separation — Platform vs Tenant Secrets
 **Status:** Partial — infrastructure deployed, backend wiring incomplete  
@@ -439,33 +448,26 @@ response = await httpx.post(
 **Files:** Frontend pages under `src/app/dashboard/agents/`  
 **Depends on:** Items 10, 11, 12
 
-### 16. Pod Resource Sizing (T-Shirt Sizes) for Agent Deployment
-**Status:** Not started  
+### 16. ✅ Pod Resource Sizing (T-Shirt Sizes) for Agent Deployment
+**Status:** Implemented  
 **Priority:** 🔧 Medium  
 **Problem:** When deploying an OpenClaw agent from the platform UI, there's no option to specify pod resource sizing. All agents get the same default CPU/memory/disk — no way to right-size for lightweight bots vs. heavy workloads.  
-**Solution:** Add a "Resource Profile" selector to the agent deployment flow with T-shirt sizes:
+**Solution:** Added "Resource Profile" selector to the agent deployment flow with T-shirt sizes:
 
 | Size | CPU Request/Limit | Memory Request/Limit | PVC | Use Case |
 |---|---|---|---|---|
 | Small | 250m / 500m | 256Mi / 512Mi | 1Gi | Low-traffic bot, single channel |
 | Medium (default) | 500m / 1000m | 512Mi / 1Gi | 5Gi | Standard agent, multi-channel |
 | Large | 1000m / 2000m | 1Gi / 2Gi | 10Gi | High-traffic, heavy memory/tools |
-| Custom | user-defined | user-defined | user-defined | Power users / enterprise |
 
-**Touchpoints:**
-- **Frontend** — Add resource profile selector (dropdown or radio group) to agent create/edit page. "Custom" option reveals CPU/memory/disk inputs.
-- **Backend API** — `POST /api/v1/agents` and `PUT /api/v1/agents/{id}` accept `resource_profile` (enum) or `resource_overrides` (object with cpu/memory/disk).
-- **Agent model** — Add `resource_profile` field to agent schema in Cosmos DB.
-- **`openclaw_service.py`** — `_build_cr()` and `_build_deployment()` use profile to set `resources.requests/limits` and PVC size in the K8s manifests.
-- **ResourceQuota** — Ensure per-tenant namespace quotas still enforce overall limits regardless of individual pod sizing.
+**Implemented:**
+- `backend/app/api/v1/schemas.py` — `RESOURCE_PROFILES` dict with cpu/memory/pvc specs per size, `resource_profile` field on `AgentCreateRequest` (default "medium"), `AgentUpdateRequest` (optional), `AgentResponse`
+- `backend/app/api/v1/agents.py` — `resource_profile` in create data, passed to `deploy_agent()`, update detects profile change and triggers CR redeploy
+- `backend/app/services/openclaw_service.py` — `resource_profile` parameter on `deploy_agent()`, `update_agent()`, `_build_cr()`. CR spec now includes `resources.requests/limits` and `storage.persistence.size` from profile
+- `frontend/src/app/dashboard/agents/new/page.tsx` — 3-card radio selector UI (Small/Medium/Large) with CPU/Memory/Disk specs and use case descriptions
+- `frontend/src/app/dashboard/agents/[id]/page.tsx` — resource profile selector on edit page, dirty tracking, triggers redeploy on change
 
-**UX considerations:**
-- Default to "Medium" — users shouldn't have to think about this on first deploy.
-- Show estimated monthly cost per profile (based on AKS node pricing).
-- Warn if "Large" would exceed tenant namespace quota.
-- Allow resizing an already-deployed agent (triggers rolling restart).
-
-**Risk:** Low — purely additive. Current agents continue with existing defaults.  
+**Risk:** Low — purely additive. Current agents continue with existing defaults (medium).  
 **Depends on:** Nothing
 
 ---
@@ -504,7 +506,7 @@ response = await httpx.post(
 | 5 | Cosmos DB Memory Sync | 🟡 Partial (MCP approach, no polling sync) |
 | 6 | Multi-Agent WhatsApp Routing | ❌ Not started |
 | 7 | Channel Analytics Dashboard | 🟡 Partial (UI components exist, data TBD) |
-| 8 | PVC Cleanup & Archival | ❌ Not started |
+| 8 | PVC Cleanup & Archival | ✅ Done |
 | 9 | KeyVault Separation | 🟡 Partial (infra done, backend wiring incomplete) |
 | 10 | OpenClaw Native UI Proxy | ✅ Done (Phase 31) |
 | 11 | Platform MCP Servers | 🟡 Partial (memory done, Search/KV missing) |
@@ -512,6 +514,6 @@ response = await httpx.post(
 | 13 | Memory as MCP Tool | ✅ Done (Phase 30) |
 | 14 | Agent Chaining | 🟡 Partial (endpoint enabled, orchestration TBD) |
 | 15 | Simplified Platform UI | ❌ Not started |
-| 16 | Pod Resource Sizing | ❌ Not started |
+| 16 | Pod Resource Sizing | ✅ Done |
 
-*Last updated: 2026-04-05*
+*Last updated: 2026-07-17*

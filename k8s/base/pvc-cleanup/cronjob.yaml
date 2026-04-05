@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pvc-cleanup
+  labels:
+    app.kubernetes.io/part-of: aiplatform
+    app.kubernetes.io/component: pvc-cleanup
+spec:
+  schedule: "0 3 * * *"  # Daily at 3:00 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800  # 30 minutes max
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: pvc-cleanup
+            app.kubernetes.io/part-of: aiplatform
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: aiplatform-workload
+          restartPolicy: OnFailure
+          containers:
+            - name: pvc-cleanup
+              image: "${ACR_LOGIN_SERVER}/aiplatform-backend:latest"
+              command: ["python", "-m", "scripts.pvc_cleanup"]
+              env:
+                - name: STORAGE_ACCOUNT_NAME
+                  valueFrom:
+                    configMapKeyRef:
+                      name: aiplatform-config
+                      key: STORAGE_ACCOUNT_NAME
+                      optional: true
+                - name: RETENTION_DAYS
+                  value: "7"
+                - name: DRY_RUN
+                  value: "false"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi

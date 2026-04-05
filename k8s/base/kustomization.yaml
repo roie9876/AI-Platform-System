@@ -34,6 +34,7 @@ resources:
   - mcp-platform-tools/deployment.yaml
   - mcp-platform-tools/service.yaml
   - mcp-platform-tools/hpa.yaml
+  - pvc-cleanup/cronjob.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: aiplatform

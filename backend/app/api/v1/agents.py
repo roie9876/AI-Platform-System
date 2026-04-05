@@ -54,6 +54,7 @@ async def create_agent(
         "temperature": body.temperature,
         "max_tokens": body.max_tokens,
         "timeout_seconds": body.timeout_seconds,
+        "resource_profile": body.resource_profile,
         "current_config_version": 1,
         "status": "active" if body.model_endpoint_id else "inactive",
     }
@@ -138,6 +139,7 @@ async def create_agent(
                 system_prompt=body.system_prompt or "",
                 model_endpoint=model_ep,
                 openclaw_config=oc_config,
+                resource_profile=body.resource_profile,
             )
             agent["openclaw_instance_name"] = instance_name["instance_name"]
             agent["openclaw_gateway_url"] = instance_name["gateway_url"]
@@ -275,6 +277,8 @@ async def update_agent(
 
     # Check if openclaw_config is being updated on an OpenClaw agent
     redeploy_cr = False
+    if "resource_profile" in update_data and agent.get("agent_type") == "openclaw":
+        redeploy_cr = True
     if "openclaw_config" in update_data and agent.get("agent_type") == "openclaw":
         oc_config = update_data["openclaw_config"] or {}
 
@@ -342,9 +346,14 @@ async def update_agent(
     }
     await config_version_repo.create(tenant_id, config_data)
 
-    # Re-deploy the OpenClaw CR if channel config changed
+    # Re-deploy the OpenClaw CR if channel config or resource profile changed
     if redeploy_cr and agent.get("openclaw_instance_name"):
         try:
+            # Resolve slug if not already set (resource_profile-only update)
+            if "slug" not in dir():
+                tenant = await tenant_repo.get(tenant_id, tenant_id)
+                slug = tenant["slug"] if tenant else "unknown"
+
             model_ep = None
             if agent.get("model_endpoint_id"):
                 model_ep = await endpoint_repo.get(tenant_id, agent["model_endpoint_id"])
@@ -356,8 +365,9 @@ async def update_agent(
                 model_endpoint=model_ep,
                 openclaw_config=agent.get("openclaw_config"),
                 agent_id=agent_id,
+                resource_profile=agent.get("resource_profile", "medium"),
             )
-            logger.info("Re-deployed OpenClaw CR %s with updated channel config", agent["openclaw_instance_name"])
+            logger.info("Re-deployed OpenClaw CR %s with updated config", agent["openclaw_instance_name"])
         except Exception as e:
             logger.error("Failed to update OpenClaw CR %s: %s", agent["openclaw_instance_name"], e)
             agent["status_message"] = f"Channel update deployed but CR update failed: {e}"

@@ -99,6 +99,29 @@ class OpenClawConfig(BaseModel):
     mcp_server_urls: List[str] = []  # MCP server URLs for tool access
 
 
+# --- Resource Sizing ---
+
+RESOURCE_PROFILES = {
+    "small": {
+        "cpu_request": "250m", "cpu_limit": "500m",
+        "memory_request": "256Mi", "memory_limit": "512Mi",
+        "pvc_size": "1Gi",
+    },
+    "medium": {
+        "cpu_request": "500m", "cpu_limit": "1000m",
+        "memory_request": "512Mi", "memory_limit": "1Gi",
+        "pvc_size": "5Gi",
+    },
+    "large": {
+        "cpu_request": "1000m", "cpu_limit": "2000m",
+        "memory_request": "1Gi", "memory_limit": "2Gi",
+        "pvc_size": "10Gi",
+    },
+}
+
+VALID_RESOURCE_PROFILES = {"small", "medium", "large"}
+
+
 class AgentCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -108,6 +131,7 @@ class AgentCreateRequest(BaseModel):
     temperature: float = Field(default=0, ge=0, le=2)
     max_tokens: Optional[int] = Field(default=None)
     timeout_seconds: int = Field(default=30, ge=1, le=300)
+    resource_profile: Literal["small", "medium", "large"] = "medium"
     openclaw_config: Optional[OpenClawConfig] = None
 
 
@@ -119,6 +143,7 @@ class AgentUpdateRequest(BaseModel):
     temperature: Optional[float] = Field(default=None, ge=0, le=2)
     max_tokens: Optional[int] = Field(default=None)
     timeout_seconds: Optional[int] = Field(default=None, ge=1, le=300)
+    resource_profile: Optional[Literal["small", "medium", "large"]] = None
     openclaw_config: Optional[OpenClawConfig] = None
 
 
@@ -133,6 +158,7 @@ class AgentResponse(BaseModel):
     temperature: float = 0
     max_tokens: Optional[int] = None
     timeout_seconds: int = 30
+    resource_profile: str = "medium"
     model_endpoint_id: Optional[UUID] = None
     current_config_version: int = 1
     tenant_id: Optional[UUID] = None

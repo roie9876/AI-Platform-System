@@ -32,6 +32,7 @@ export default function NewAgentPage() {
     temperature: 0,
     max_tokens: 0,
     timeout_seconds: 30,
+    resource_profile: "medium" as "small" | "medium" | "large",
     // OpenClaw-specific fields
     enable_web_browsing: true,
     enable_shell: false,
@@ -83,6 +84,7 @@ export default function NewAgentPage() {
         temperature: form.temperature,
         max_tokens: form.max_tokens > 0 ? form.max_tokens : null,
         timeout_seconds: form.timeout_seconds,
+        resource_profile: form.resource_profile,
       };
 
       if (form.agent_type === "openclaw") {
@@ -319,6 +321,47 @@ export default function NewAgentPage() {
                   />
                   Deep Research (GPT-5.4)
                 </label>
+              </div>
+            </div>
+
+            {/* Resource Profile */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-600 uppercase tracking-wide">
+                Resource Profile
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { value: "small", label: "Small", cpu: "250m / 500m", mem: "256Mi / 512Mi", disk: "1Gi", desc: "Low-traffic bot, single channel" },
+                  { value: "medium", label: "Medium", cpu: "500m / 1000m", mem: "512Mi / 1Gi", disk: "5Gi", desc: "Standard agent, multi-channel" },
+                  { value: "large", label: "Large", cpu: "1000m / 2000m", mem: "1Gi / 2Gi", disk: "10Gi", desc: "High-traffic, heavy memory/tools" },
+                ] as const).map((p) => (
+                  <label
+                    key={p.value}
+                    className={`relative flex cursor-pointer rounded-lg border p-3 ${
+                      form.resource_profile === p.value
+                        ? "border-purple-500 bg-purple-50 ring-2 ring-purple-500"
+                        : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="resource_profile"
+                      value={p.value}
+                      checked={form.resource_profile === p.value}
+                      onChange={() => setForm({ ...form, resource_profile: p.value })}
+                      className="sr-only"
+                    />
+                    <div className="w-full">
+                      <span className="block text-sm font-medium text-gray-900">{p.label}</span>
+                      <span className="mt-1 block text-xs text-gray-500">{p.desc}</span>
+                      <div className="mt-2 text-xs text-gray-400 space-y-0.5">
+                        <div>CPU: {p.cpu}</div>
+                        <div>Memory: {p.mem}</div>
+                        <div>Disk: {p.disk}</div>
+                      </div>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
 

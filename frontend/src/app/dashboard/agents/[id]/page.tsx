@@ -44,6 +44,7 @@ interface Agent {
   temperature: number;
   max_tokens: number | null;
   timeout_seconds: number;
+  resource_profile?: string;
   model_endpoint_id: string | null;
   current_config_version: number;
   whatsapp_status?: string | null;
@@ -242,6 +243,8 @@ export default function AgentDetailPage() {
     telegram_channel_instructions: "",
   });
   const [channelsDirty, setChannelsDirty] = useState(false);
+  const [resourceProfile, setResourceProfile] = useState<"small" | "medium" | "large">("medium");
+  const [resourceProfileDirty, setResourceProfileDirty] = useState(false);
 
   useEffect(() => {
     fetch("/api/config")
@@ -451,6 +454,9 @@ export default function AgentDetailPage() {
       if (selectedEndpointId !== (agent.model_endpoint_id || "")) {
         body.model_endpoint_id = selectedEndpointId || null;
       }
+      if (resourceProfileDirty && agent.agent_type === "openclaw") {
+        body.resource_profile = resourceProfile;
+      }
 
       // Include channel config if dirty (OpenClaw agents)
       if (channelsDirty && agent.agent_type === "openclaw") {
@@ -508,12 +514,13 @@ export default function AgentDetailPage() {
       });
       setAgent(updated);
       setChannelsDirty(false);
+      setResourceProfileDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setIsSaving(false);
     }
-  }, [agent, agentId, isSaving, systemPrompt, selectedEndpointId, channelsDirty, channelForm]);
+  }, [agent, agentId, isSaving, systemPrompt, selectedEndpointId, channelsDirty, channelForm, resourceProfile, resourceProfileDirty]);
 
   const handleChatStop = useCallback(() => {
     abortRef.current?.abort();
@@ -529,6 +536,10 @@ export default function AgentDetailPage() {
         setEndpoints(endpointsData.endpoints);
         setSystemPrompt(agentData.system_prompt || "");
         setSelectedEndpointId(agentData.model_endpoint_id || "");
+        // Initialize resource profile
+        if (agentData.resource_profile) {
+          setResourceProfile(agentData.resource_profile as "small" | "medium" | "large");
+        }
         // Initialize channel form from existing config
         if (agentData.agent_type === "openclaw" && agentData.openclaw_config) {
           const oc = agentData.openclaw_config;
@@ -985,6 +996,41 @@ export default function AgentDetailPage() {
                 onChange={(s) => { setChannels(s); setChannelsDirty(true); }}
                 agentId={agentId}
               />
+            </div>
+
+            {/* Resource Profile */}
+            <div className="space-y-2 border-t border-gray-100 pt-3">
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Resource Profile</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: "small", label: "Small", desc: "250m CPU, 256Mi RAM, 1Gi disk" },
+                  { value: "medium", label: "Medium", desc: "500m CPU, 512Mi RAM, 5Gi disk" },
+                  { value: "large", label: "Large", desc: "1000m CPU, 1Gi RAM, 10Gi disk" },
+                ] as const).map((p) => (
+                  <label
+                    key={p.value}
+                    className={`relative flex cursor-pointer rounded-lg border p-2.5 ${
+                      resourceProfile === p.value
+                        ? "border-[#7C3AED] bg-purple-50 ring-1 ring-[#7C3AED]"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="resource_profile_edit"
+                      value={p.value}
+                      checked={resourceProfile === p.value}
+                      onChange={() => { setResourceProfile(p.value); setResourceProfileDirty(true); }}
+                      className="sr-only"
+                    />
+                    <div>
+                      <span className="block text-xs font-medium text-gray-900">{p.label}</span>
+                      <span className="block text-[10px] text-gray-400 mt-0.5">{p.desc}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400">Changing profile triggers a pod restart</p>
             </div>
 
             {/* Gmail */}

@@ -236,6 +236,17 @@ module servicebus './modules/servicebus.bicep' = {
   }
 }
 
+module storage './modules/storage.bicep' = {
+  name: 'storage-deployment'
+  params: {
+    location: location
+    environmentName: environmentName
+    logAnalyticsWorkspaceId: loganalytics.outputs.workspaceId
+    workloadIdentityPrincipalId: identity.outputs.workloadIdentityPrincipalId
+    tags: commonTags
+  }
+}
+
 module agc './modules/agc.bicep' = {
   name: 'agc-deployment'
   params: {
@@ -369,3 +380,9 @@ output aiServicesEndpoint string = aiServices.outputs.aiEndpoint
 
 @description('Azure AI Services account name')
 output aiServicesAccountName string = aiServices.outputs.aiAccountName
+
+@description('Storage account name for agent archives')
+output storageAccountName string = storage.outputs.storageAccountName
+
+@description('Blob endpoint URL')
+output blobEndpoint string = storage.outputs.blobEndpoint

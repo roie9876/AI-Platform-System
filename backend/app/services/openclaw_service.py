@@ -836,6 +836,7 @@ class OpenClawService:
         system_prompt: str,
         model_endpoint: Optional[dict],
         openclaw_config: Optional[dict],
+        resource_profile: str = "medium",
     ) -> dict:
         """Deploy an OpenClawInstance for the given agent.
 
@@ -868,6 +869,7 @@ class OpenClawService:
             model_id=model_id,
             base_url=base_url,
             openclaw_config=openclaw_config or {},
+            resource_profile=resource_profile,
         )
 
         # Build K8s Secret with values from Key Vault (OpenClaw reads via envFrom)
@@ -1018,6 +1020,7 @@ class OpenClawService:
         model_endpoint: Optional[dict],
         openclaw_config: Optional[dict],
         agent_id: str = "",
+        resource_profile: str = "medium",
     ) -> None:
         """Update an existing OpenClawInstance CR."""
         namespace = f"tenant-{tenant_slug}"
@@ -1042,6 +1045,7 @@ class OpenClawService:
             model_id=model_id,
             base_url=base_url,
             openclaw_config=openclaw_config or {},
+            resource_profile=resource_profile,
         )
 
         loop = asyncio.get_event_loop()
@@ -1131,8 +1135,11 @@ class OpenClawService:
         model_id: str,
         base_url: str,
         openclaw_config: dict,
+        resource_profile: str = "medium",
     ) -> dict:
         """Build the OpenClawInstance CR body."""
+        from app.api.v1.schemas import RESOURCE_PROFILES
+        profile = RESOURCE_PROFILES.get(resource_profile, RESOURCE_PROFILES["medium"])
         provider_name = model_id.split("/")[0] if "/" in model_id else "azure-openai-responses"
         model_name = model_id.split("/")[-1]
 
@@ -1358,7 +1365,17 @@ class OpenClawService:
                     "pullPolicy": "Always",
                 },
                 "envFrom": [{"secretRef": {"name": f"{instance_name}-secrets"}}],
-                "storage": {"persistence": {"enabled": True, "size": "10Gi"}},
+                "storage": {"persistence": {"enabled": True, "size": profile["pvc_size"]}},
+                "resources": {
+                    "requests": {
+                        "cpu": profile["cpu_request"],
+                        "memory": profile["memory_request"],
+                    },
+                    "limits": {
+                        "cpu": profile["cpu_limit"],
+                        "memory": profile["memory_limit"],
+                    },
+                },
                 "config": {"raw": raw_config},
             },
         }

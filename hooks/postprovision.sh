@@ -26,6 +26,7 @@ TENANT_KEY_VAULT_NAME="${TENANT_KEY_VAULT_NAME:-${tenantKeyVaultName:-}}"
 WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-${workloadIdentityClientId:-}}"
 AGC_FQDN_FROM_BICEP="${AGC_FQDN_FROM_BICEP:-${agcFqdn:-}}"
 AGENTS_DOMAIN="${AGENTS_DOMAIN:-${agentsDomain:-}}"
+STORAGE_ACCOUNT_NAME="${STORAGE_ACCOUNT_NAME:-${storageAccountName:-}}"
 
 # Map Bicep outputs to local variables
 ACR_SERVER="${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER not set from Bicep outputs}"
@@ -230,6 +231,8 @@ sed -i.bak "s|\${KEY_VAULT_NAME}|${KEY_VAULT_NAME}|g" "$TEMP_DIR/base/configmap.
 sed -i.bak "s|\${TENANT_KEY_VAULT_NAME}|${TENANT_KEY_VAULT_NAME}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${CORS_ORIGINS}|${CORS_ORIGINS}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${AGENTS_DOMAIN}|${AGENTS_DOMAIN:-}|g" "$TEMP_DIR/base/configmap.yaml"
+sed -i.bak "s|\${STORAGE_ACCOUNT_NAME}|${STORAGE_ACCOUNT_NAME:-}|g" "$TEMP_DIR/base/configmap.yaml"
+sed -i.bak "s|\${ACR_SERVER}|${ACR_SERVER}|g" "$TEMP_DIR/base/configmap.yaml"
 
 # Substitute secret-provider-class variables
 find "$TEMP_DIR/base/secrets/" -name "*.yaml" -exec sed -i.bak \
@@ -237,9 +240,9 @@ find "$TEMP_DIR/base/secrets/" -name "*.yaml" -exec sed -i.bak \
   -e "s|\${KEY_VAULT_NAME}|${KEY_VAULT_NAME}|g" \
   -e "s|\${AZURE_TENANT_ID}|${AZURE_TENANT_ID}|g" {} \;
 
-# Substitute ${ACR_SERVER} in ALL deployment manifests
-find "$TEMP_DIR/base/" -name "deployment.yaml" -exec sed -i.bak \
-  "s|\${ACR_SERVER}|${ACR_SERVER}|g" {} \;
+# Substitute ${ACR_SERVER} in ALL deployment manifests and CronJobs
+find "$TEMP_DIR/base/" -name "deployment.yaml" -o -name "cronjob.yaml" | xargs sed -i.bak \
+  "s|\${ACR_SERVER}|${ACR_SERVER}|g; s|\${ACR_LOGIN_SERVER}|${ACR_SERVER}|g"
 
 # Substitute ${WORKLOAD_IDENTITY_CLIENT_ID} in service-account.yaml
 sed -i.bak "s|\${WORKLOAD_IDENTITY_CLIENT_ID}|${WORKLOAD_IDENTITY_CLIENT_ID}|g" "$TEMP_DIR/base/service-account.yaml"
