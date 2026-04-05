@@ -29,8 +29,10 @@ OPENCLAW_VERSION = "v1alpha1"
 OPENCLAW_PLURAL = "openclawinstances"
 
 # Custom OpenClaw image (patched for Baileys group-message fix)
+# ACR_LOGIN_SERVER is set per-environment via configmap (e.g. stumsftaiplatformdevacr.azurecr.io)
+_acr = os.getenv("ACR_LOGIN_SERVER", "stumsftaiplatformprodacr.azurecr.io")
 OPENCLAW_IMAGE_REPO = os.getenv(
-    "OPENCLAW_IMAGE_REPO", "stumsftaiplatformprodacr.azurecr.io/openclaw-patched"
+    "OPENCLAW_IMAGE_REPO", f"{_acr}/openclaw-patched"
 )
 OPENCLAW_IMAGE_TAG = os.getenv("OPENCLAW_IMAGE_TAG", "latest")
 
@@ -1343,8 +1345,9 @@ class OpenClawService:
 
         if channels_config:
             raw_config["channels"] = channels_config
-        if mcp_servers:
-            raw_config["agents"]["defaults"]["mcpServers"] = mcp_servers
+        # NOTE: mcpServers is NOT a valid OpenClaw config key (v0.25.x strict
+        # validation rejects unknown root keys).  Remote MCP servers will need
+        # to be connected via OpenClaw skills/plugins in a future iteration.
 
         cr = {
             "apiVersion": f"{OPENCLAW_GROUP}/{OPENCLAW_VERSION}",
@@ -1376,7 +1379,8 @@ class OpenClawService:
                         "memory": profile["memory_limit"],
                     },
                 },
-                "config": {"raw": raw_config},
+                "config": {"mergeMode": "overwrite", "raw": raw_config},
+                "runtimeDeps": {"pnpm": True},
             },
         }
 
@@ -1658,9 +1662,14 @@ class OpenClawService:
         auth_type = (model_endpoint or {}).get("auth_type", "api_key")
 
         if auth_type == "entra_id":
-            # Entra ID auth — workload identity provides credentials,
-            # no API key needed. Set empty key so OpenClaw uses DefaultAzureCredential.
-            logger.info("Model uses Entra ID auth — skipping API key from Key Vault")
+            # Entra ID auth — the token-proxy sidecar injects bearer tokens,
+            # so no real API key is needed.  However, the OpenClaw provider
+            # config references ${AZURE_API_KEY} and v0.25.x strict secrets
+            # resolver hard-fails if the env var is missing.  Inject a
+            # placeholder so the resolver is satisfied; the value is never
+            # sent to Azure (the token-proxy overwrites the auth header).
+            logger.info("Model uses Entra ID auth — injecting placeholder AZURE_API_KEY")
+            data["AZURE_API_KEY"] = base64.b64encode(b"entra-id-managed").decode()
         else:
             api_key = await self._get_kv_secret("azure-openai-api-key")
             if not api_key:

@@ -53,11 +53,13 @@ helm upgrade --install keda kedacore/keda \
   --wait --timeout 5m
 
 # --- 3. OpenClaw Operator ---
+# Ref: https://github.com/openclaw-rocks/openclaw-operator/blob/main/docs/deployment.md#azure-aks
 echo "[3/4] OpenClaw operator..."
 kubectl create namespace openclaw-system --dry-run=client -o yaml | kubectl apply -f -
-helm upgrade --install openclaw-operator oci://registry.openclaw.rocks/charts/openclaw-operator \
+helm upgrade --install openclaw-operator oci://ghcr.io/openclaw-rocks/charts/openclaw-operator \
   --namespace openclaw-system \
-  --wait --timeout 5m 2>/dev/null || \
+  --set leaderElection.enabled=true \
+  --wait --timeout 5m || \
   echo "WARNING: OpenClaw operator install failed. Verify OCI registry access."
 
 # --- 4. cert-manager (conditional — only when AGENTS_DOMAIN is set, per D-07) ---
