@@ -307,7 +307,7 @@ v4.0 pivots the platform architecture from wrapping OpenClaw behind a custom UI 
 - [x] **Phase 28: Infrastructure Audit & Foundation** — Validate provision-from-zero, resolve drift, establish wildcard DNS/TLS *(completed 2025-07-18)*
 - [x] **Phase 29: Token Proxy** — Transparent LLM proxy with universal token tracking and per-tenant budgets *(completed 2025-07-16)*
 - [x] **Phase 30: Platform MCP Servers** — Cosmos DB memory, AI Search, and group rules as native agent tools (completed 2026-04-04)
-- [ ] **Phase 31: Auth Gateway & Native UI Access** — Authenticated subdomain routing to OpenClaw native UI
+- [x] **Phase 31: Auth Gateway & Native UI Access** — Authenticated subdomain routing to OpenClaw native UI (completed 2026-04-05)
 - [ ] **Phase 32: Dual-Mode Operation** — Validate platform UI and native UI work simultaneously with full parity
 
 ### Phase Details
@@ -373,12 +373,12 @@ Plans:
   3. User can only access agents belonging to their tenant — cross-tenant access is blocked
   4. WebSocket-based features (live chat, real-time updates) work through the auth proxy without degradation
   5. User can click "Open Agent Console" in platform frontend to open the native UI in a new tab
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 31-01-PLAN.md — Auth gateway FastAPI service (OIDC, sessions, proxy, WebSocket)
 - [x] 31-02-PLAN.md — K8s infrastructure (Deployment, Ingress, postprovision, NetworkPolicy)
-- [ ] 31-03-PLAN.md — OpenClaw gateway config + frontend "Open Agent Console" button
+- [x] 31-03-PLAN.md — OpenClaw gateway config + frontend "Open Agent Console" button
 
 **UI hint**: yes
 
@@ -421,7 +421,7 @@ Phase 28 (Infrastructure Audit & Foundation)
 | 28. Infrastructure Audit & Foundation | 0/? | Not started | - |
 | 29. Token Proxy | 0/? | Not started | - |
 | 30. Platform MCP Servers | 3/3 | Complete    | 2026-04-04 |
-| 31. Auth Gateway & Native UI Access | 2/3 | In Progress|  |
+| 31. Auth Gateway & Native UI Access | 3/3 | Complete   | 2026-04-05 |
 | 32. Dual-Mode Operation | 0/? | Not started | - |
 
 ---
