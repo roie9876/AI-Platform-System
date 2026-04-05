@@ -18,15 +18,21 @@ eval "$(azd env get-values | sed 's/^/export /')"
 AZURE_ENV_NAME="${AZURE_ENV_NAME:-prod}"
 AZURE_RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:?AZURE_RESOURCE_GROUP not set}"
 
+# azd stores Bicep outputs in camelCase — map to UPPER_SNAKE_CASE
+ACR_LOGIN_SERVER="${ACR_LOGIN_SERVER:-${acrLoginServer:-}}"
+AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-${aksClusterName:-}}"
+KEY_VAULT_NAME="${KEY_VAULT_NAME:-${keyVaultName:-}}"
+TENANT_KEY_VAULT_NAME="${TENANT_KEY_VAULT_NAME:-${tenantKeyVaultName:-}}"
+WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-${workloadIdentityClientId:-}}"
+AGENTS_DOMAIN="${AGENTS_DOMAIN:-${agentsDomain:-}}"
+
 # Map Bicep outputs to local variables
 ACR_SERVER="${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER not set from Bicep outputs}"
 ACR_NAME=$(echo "${ACR_SERVER}" | cut -d. -f1)
 AKS_CLUSTER="${AKS_CLUSTER_NAME:?AKS_CLUSTER_NAME not set from Bicep outputs}"
 KEY_VAULT_NAME="${KEY_VAULT_NAME:-stumsft-aiplat-${AZURE_ENV_NAME}-kv}"
 TENANT_KEY_VAULT_NAME="${TENANT_KEY_VAULT_NAME:-${KEY_VAULT_NAME}}"
-WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-}"
 AZURE_TENANT_ID="${AZURE_TENANT_ID:-$(az account show --query tenantId -o tsv)}"
-AGENTS_DOMAIN="${AGENTS_DOMAIN:-}"
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
 echo "  Environment:    ${AZURE_ENV_NAME}"
