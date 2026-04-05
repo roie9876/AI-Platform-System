@@ -873,7 +873,7 @@ class OpenClawService:
         )
 
         # Build K8s Secret with values from Key Vault (OpenClaw reads via envFrom)
-        secret_data = await self._build_k8s_secret(instance_name, openclaw_config or {})
+        secret_data = await self._build_k8s_secret(instance_name, openclaw_config or {}, model_endpoint)
 
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
@@ -1650,19 +1650,24 @@ class OpenClawService:
     #  K8s Secret builder (fetches values from Key Vault)
     # ------------------------------------------------------------------ #
 
-    async def _build_k8s_secret(self, instance_name: str, openclaw_config: dict) -> dict:
+    async def _build_k8s_secret(self, instance_name: str, openclaw_config: dict, model_endpoint: Optional[dict] = None) -> dict:
         """Fetch secrets from Key Vault and return K8s Secret data dict."""
         import base64
 
-        api_key = await self._get_kv_secret("azure-openai-api-key")
-        if not api_key:
-            raise RuntimeError("Could not fetch azure-openai-api-key from Key Vault")
+        data = {}
+        auth_type = (model_endpoint or {}).get("auth_type", "api_key")
+
+        if auth_type == "entra_id":
+            # Entra ID auth — workload identity provides credentials,
+            # no API key needed. Set empty key so OpenClaw uses DefaultAzureCredential.
+            logger.info("Model uses Entra ID auth — skipping API key from Key Vault")
+        else:
+            api_key = await self._get_kv_secret("azure-openai-api-key")
+            if not api_key:
+                raise RuntimeError("Could not fetch azure-openai-api-key from Key Vault")
+            data["AZURE_API_KEY"] = base64.b64encode(api_key.encode()).decode()
 
         api_base = await self._get_kv_secret("azure-openai-api-base")
-
-        data = {
-            "AZURE_API_KEY": base64.b64encode(api_key.encode()).decode(),
-        }
         if api_base:
             data["AZURE_API_BASE"] = base64.b64encode(api_base.encode()).decode()
 
