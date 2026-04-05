@@ -28,6 +28,9 @@ param userNodeCount int = 1
 @description('VM size for user node pool')
 param userNodeVmSize string = 'Standard_D4s_v5'
 
+@description('Object ID of the deployer principal for AKS RBAC Cluster Admin')
+param deployerPrincipalId string = ''
+
 @description('Kubernetes version')
 param kubernetesVersion string = '1.33'
 
@@ -102,6 +105,17 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
         osDiskSizeGB: 128
       }
     ]
+  }
+}
+
+// AKS RBAC Cluster Admin for deployer (Azure AD RBAC enabled cluster)
+resource aksRbacClusterAdminDeployer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(cluster.id, deployerPrincipalId, 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
+  scope: cluster
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b') // Azure Kubernetes Service RBAC Cluster Admin
+    principalId: deployerPrincipalId
+    principalType: 'User'
   }
 }
 

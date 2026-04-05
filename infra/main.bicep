@@ -172,6 +172,7 @@ module aks './modules/aks.bicep' = {
     userNodeCount: aksUserNodeCount
     userNodeVmSize: aksUserNodeVmSize
     kubernetesVersion: aksKubernetesVersion
+    deployerPrincipalId: deployerPrincipalId
     tags: commonTags
   }
 }
