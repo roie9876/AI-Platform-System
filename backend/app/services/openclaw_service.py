@@ -1660,7 +1660,7 @@ class OpenClawService:
         import base64
 
         data = {}
-        auth_type = (model_endpoint or {}).get("auth_type", "api_key")
+        auth_type = (model_endpoint or {}).get("auth_type", "entra_id")
 
         if auth_type == "entra_id":
             # Entra ID auth — the token-proxy sidecar injects bearer tokens,
