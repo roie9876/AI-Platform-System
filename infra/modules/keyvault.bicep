@@ -154,6 +154,15 @@ resource secretEntraAdminGroupId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' 
   }
 }
 
+// Cookie signing secret for auth-gateway sessions (auto-generated)
+resource secretCookieSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: vault
+  name: 'cookie-secret'
+  properties: {
+    value: uniqueString(vault.id, 'cookie-secret', subscription().subscriptionId)
+  }
+}
+
 // Placeholder secrets — required by SecretProviderClass, user must update post-deploy
 resource secretEntraClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: vault

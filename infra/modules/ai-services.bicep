@@ -22,6 +22,15 @@ param embeddingModelVersion string = '1'
 @description('Embedding model TPM capacity (in thousands)')
 param embeddingModelCapacity int = 120
 
+@description('LLM chat model to deploy (platform-level, shared across tenants)')
+param llmModelName string = 'gpt-5.4'
+
+@description('LLM chat model version')
+param llmModelVersion string = '2025-04-14'
+
+@description('LLM chat model TPM capacity (in thousands)')
+param llmModelCapacity int = 80
+
 @description('Tags to apply to all resources')
 param tags object = {}
 
@@ -64,6 +73,29 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
       version: embeddingModelVersion
     }
   }
+}
+
+// ============================================================================
+// LLM chat model deployment (platform-level, shared across tenants)
+// ============================================================================
+
+resource llmDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+  parent: aiAccount
+  name: llmModelName
+  sku: {
+    name: 'GlobalStandard'
+    capacity: llmModelCapacity
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: llmModelName
+      version: llmModelVersion
+    }
+  }
+  dependsOn: [
+    embeddingDeployment
+  ]
 }
 
 // ============================================================================

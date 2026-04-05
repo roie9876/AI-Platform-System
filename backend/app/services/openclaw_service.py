@@ -1109,10 +1109,10 @@ class OpenClawService:
     def _resolve_model(endpoint: Optional[dict]) -> tuple[str, str]:
         """Map a platform ModelEndpoint to OpenClaw provider/model + base URL."""
         if not endpoint:
-            return "azure-openai-responses/gpt-4.1", ""
+            return "azure-openai-responses/gpt-5.4", ""
 
         provider = (endpoint.get("provider_type") or "").lower()
-        model = endpoint.get("model_name", "gpt-4.1")
+        model = endpoint.get("model_name", "gpt-5.4")
         api_base = endpoint.get("api_base", "")
 
         if "azure" in provider:
