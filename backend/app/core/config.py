@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     WORKFLOW_ENGINE_URL: str = "http://workflow-engine:8000"
     SERVICE_NAME: str = "monolith"
 
+    # Auth gateway / native UI domain (optional — enables subdomain routing)
+    AGENTS_DOMAIN: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     def model_post_init(self, __context: object) -> None:

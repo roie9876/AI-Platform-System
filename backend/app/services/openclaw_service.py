@@ -1311,19 +1311,22 @@ class OpenClawService:
 
         # Gateway config — enable OpenAI-compatible HTTP endpoints so the
         # platform can route playground chat through /v1/chat/completions.
-        # auth mode=none: gateway is bound to loopback (pod-internal only)
-        # and protected by NetworkPolicy, so no additional auth needed.
-        # The platform still sends X-Forwarded-User and X-Openclaw-Scopes
-        # headers for identity/scope propagation.
+        # When AGENTS_DOMAIN is set, bind to all interfaces and trust cluster
+        # CIDR so the auth-gateway can proxy browser traffic to the native UI.
+        # Otherwise, keep loopback binding (pod-internal only via NetworkPolicy).
+        from app.core.config import settings as _settings
+        gateway_bind = "0.0.0.0" if _settings.AGENTS_DOMAIN else "loopback"
+        gateway_trusted = ["10.0.0.0/8"] if _settings.AGENTS_DOMAIN else ["127.0.0.0/8"]
+
         raw_config["gateway"] = {
             "auth": {
                 "mode": "none",
             },
-            "bind": "loopback",
+            "bind": gateway_bind,
             "controlUi": {
                 "allowedOrigins": ["*"],
             },
-            "trustedProxies": ["127.0.0.0/8"],
+            "trustedProxies": gateway_trusted,
             "http": {
                 "endpoints": {
                     "chatCompletions": {"enabled": True},

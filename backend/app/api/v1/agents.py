@@ -46,6 +46,7 @@ async def create_agent(
 ):
     agent_data = {
         "name": body.name,
+        "slug": body.name.lower().replace(" ", "-"),
         "description": body.description,
         "system_prompt": body.system_prompt,
         "agent_type": body.agent_type,
