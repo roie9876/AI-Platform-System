@@ -178,6 +178,17 @@ find "$TEMP_DIR/base/secrets/" -name "*.yaml" -exec sed -i.bak \
 find "$TEMP_DIR/base/" -name "deployment.yaml" -exec sed -i.bak \
   "s|\${ACR_SERVER}|${ACR_SERVER}|g" {} \;
 
+# Substitute ingress variables (AGC FQDN and resource ID)
+AGC_RESOURCE_ID="${agcId:-}"
+if [ -n "$AGC_FQDN" ] && [ -n "$AGC_RESOURCE_ID" ]; then
+  sed -i.bak -e "s|\${AGC_FQDN}|${AGC_FQDN}|g" \
+             -e "s|\${AGC_RESOURCE_ID}|${AGC_RESOURCE_ID}|g" \
+    "$TEMP_DIR/base/ingress.yaml"
+else
+  echo -e "  ${YELLOW}⚠  AGC frontend not ready — removing ingress.yaml from deployment${NC}"
+  rm -f "$TEMP_DIR/base/ingress.yaml"
+fi
+
 # Clean up .bak files
 find "$TEMP_DIR" -name "*.bak" -delete
 
