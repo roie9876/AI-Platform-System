@@ -1322,14 +1322,17 @@ class OpenClawService:
         # platform can route playground chat through /v1/chat/completions.
         # Always bind to 0.0.0.0 — the K8s Service routes traffic to the pod's
         # IP, so loopback binding prevents the api-gateway from reaching the
-        # OpenClaw gateway.  Auth is "none" and NetworkPolicy restricts access.
-        gateway_trusted = ["10.0.0.0/8", "192.168.0.0/16"]
+        # OpenClaw gateway.  Auth is "none" — the nginx gateway-proxy sidecar
+        # handles external traffic (TCP stream proxy 18790→18789 loopback).
+        # bind MUST be "loopback" when auth.mode is "none", otherwise OpenClaw
+        # refuses to start ("Refusing to bind gateway to lan without auth").
+        gateway_trusted = ["127.0.0.0/8", "10.0.0.0/8", "192.168.0.0/16"]
 
         raw_config["gateway"] = {
             "auth": {
                 "mode": "none",
             },
-            "bind": "0.0.0.0",
+            "bind": "loopback",
             "controlUi": {
                 "allowedOrigins": ["*"],
             },
