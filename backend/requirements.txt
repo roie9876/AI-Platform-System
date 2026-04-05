@@ -35,3 +35,5 @@ kubernetes>=29.0.0
 azure-servicebus>=7.10.0
 azure-keyvault-secrets>=4.8.0
 websockets>=13.0
+msal>=1.31.0
+itsdangerous>=2.1.0
