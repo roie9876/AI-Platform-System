@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from azure.identity.aio import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential, WorkloadIdentityCredential
 from azure.servicebus.aio import ServiceBusClient
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,28 @@ REQUEST_QUEUE = "agent-requests"
 _shutdown_event: asyncio.Event | None = None
 
 
+def _get_credential():
+    """Use WorkloadIdentityCredential with the managed-identity client ID.
+
+    AZURE_CLIENT_ID is the Entra SPA app (no federated credentials).
+    AZURE_WORKLOAD_CLIENT_ID is the managed identity that *has* federation.
+    """
+    workload_client_id = os.getenv("AZURE_WORKLOAD_CLIENT_ID")
+    token_file = os.getenv("AZURE_FEDERATED_TOKEN_FILE")
+    if workload_client_id and token_file:
+        return WorkloadIdentityCredential(
+            client_id=workload_client_id,
+            tenant_id=os.getenv("AZURE_TENANT_ID", ""),
+            token_file_path=token_file,
+        )
+    return DefaultAzureCredential()
+
+
 def _get_client() -> ServiceBusClient:
     if SERVICE_BUS_CONN_STRING:
         return ServiceBusClient.from_connection_string(SERVICE_BUS_CONN_STRING)
     elif SERVICE_BUS_FQNS:
-        credential = DefaultAzureCredential()
+        credential = _get_credential()
         return ServiceBusClient(fully_qualified_namespace=SERVICE_BUS_FQNS, credential=credential)
     else:
         raise RuntimeError("SERVICE_BUS_NAMESPACE or SERVICE_BUS_CONNECTION_STRING must be set")

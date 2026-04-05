@@ -1,11 +1,12 @@
 import logging
+import os
 import re
 import time
 from typing import Optional, List, Dict, Any, AsyncGenerator
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
-from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity.aio import DefaultAzureCredential, WorkloadIdentityCredential, get_bearer_token_provider
 
 from app.services.keyvault_client import get_tenant_secret, TENANT_KV_NAME
 
@@ -98,13 +99,22 @@ class CircuitBreaker:
 _circuit_breaker = CircuitBreaker()
 
 # Cache Azure credential to avoid re-creating per request.
-_azure_credential: Optional[DefaultAzureCredential] = None
+_azure_credential: Optional[DefaultAzureCredential | WorkloadIdentityCredential] = None
 
 
-def _get_azure_credential() -> DefaultAzureCredential:
+def _get_azure_credential() -> DefaultAzureCredential | WorkloadIdentityCredential:
     global _azure_credential
     if _azure_credential is None:
-        _azure_credential = DefaultAzureCredential()
+        workload_client_id = os.environ.get("AZURE_WORKLOAD_CLIENT_ID")
+        token_file = os.environ.get("AZURE_FEDERATED_TOKEN_FILE")
+        if workload_client_id and token_file:
+            _azure_credential = WorkloadIdentityCredential(
+                client_id=workload_client_id,
+                tenant_id=os.environ.get("AZURE_TENANT_ID", ""),
+                token_file_path=token_file,
+            )
+        else:
+            _azure_credential = DefaultAzureCredential()
     return _azure_credential
 
 

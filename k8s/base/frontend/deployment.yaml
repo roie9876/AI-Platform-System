@@ -16,11 +16,13 @@ spec:
   selector:
     matchLabels:
       app: frontend
+      app.kubernetes.io/part-of: aiplatform
   template:
     metadata:
       labels:
         app: frontend
         app.kubernetes.io/name: frontend
+        app.kubernetes.io/part-of: aiplatform
     spec:
       serviceAccountName: aiplatform-workload
       containers:
@@ -44,6 +46,18 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: AZURE_TENANT_ID
+            - name: PLATFORM_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: aiplatform-config
+                  key: PLATFORM_BASE_URL
+                  optional: true
+            - name: AGENTS_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: aiplatform-config
+                  key: AGENTS_DOMAIN
+                  optional: true
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"

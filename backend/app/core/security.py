@@ -166,15 +166,25 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # Managed Identity support
-from azure.identity.aio import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential, WorkloadIdentityCredential
 
-_credential: DefaultAzureCredential | None = None
+_credential: DefaultAzureCredential | WorkloadIdentityCredential | None = None
 
 
-def get_azure_credential() -> DefaultAzureCredential:
+def get_azure_credential() -> DefaultAzureCredential | WorkloadIdentityCredential:
     global _credential
     if _credential is None:
-        _credential = DefaultAzureCredential()
+        import os
+        workload_client_id = os.environ.get("AZURE_WORKLOAD_CLIENT_ID")
+        token_file = os.environ.get("AZURE_FEDERATED_TOKEN_FILE")
+        if workload_client_id and token_file:
+            _credential = WorkloadIdentityCredential(
+                client_id=workload_client_id,
+                tenant_id=os.environ.get("AZURE_TENANT_ID", ""),
+                token_file_path=token_file,
+            )
+        else:
+            _credential = DefaultAzureCredential()
     return _credential
 
 
