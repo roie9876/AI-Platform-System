@@ -315,7 +315,7 @@ async def path_auth_login(request: Request):
     return_to = str(request.query_params.get("return_to", ""))
     redirect_uri = f"{_base_url()}/agents/auth/callback"
     auth_url = _msal_app.get_authorization_request_url(
-        scopes=["openid", "profile", "email"],
+        scopes=[],
         redirect_uri=redirect_uri,
         state=json.dumps({"return_to": return_to}),
     )
@@ -337,7 +337,7 @@ async def path_auth_callback(request: Request):
     redirect_uri = f"{_base_url()}/agents/auth/callback"
     result = _msal_app.acquire_token_by_authorization_code(
         code=code,
-        scopes=["openid", "profile", "email"],
+        scopes=[],
         redirect_uri=redirect_uri,
     )
 
@@ -519,7 +519,7 @@ async def auth_login(request: Request):
     return_to = str(request.query_params.get("return_to", ""))
     redirect_uri = f"{_base_url()}/auth/callback"
     auth_url = _msal_app.get_authorization_request_url(
-        scopes=["openid", "profile", "email"],
+        scopes=[],
         redirect_uri=redirect_uri,
         state=json.dumps({"return_to": return_to}),
     )
@@ -543,7 +543,7 @@ async def auth_callback(request: Request):
     redirect_uri = f"{_base_url()}/auth/callback"
     result = _msal_app.acquire_token_by_authorization_code(
         code=code,
-        scopes=["openid", "profile", "email"],
+        scopes=[],
         redirect_uri=redirect_uri,
     )
 

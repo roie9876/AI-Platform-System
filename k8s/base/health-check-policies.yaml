@@ -115,3 +115,26 @@ spec:
         statusCodes:
           - start: 200
             end: 299
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: auth-gateway-health-check
+  namespace: aiplatform
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: auth-gateway
+  default:
+    interval: 15s
+    timeout: 10s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    port: 8000
+    http:
+      path: /healthz
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
