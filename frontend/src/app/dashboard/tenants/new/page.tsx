@@ -13,7 +13,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, setCurrentTenantId } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 
 // --------------- Step Indicator ---------------
@@ -154,6 +154,9 @@ export default function NewTenantPage() {
         }
       );
       const tenantId = tenantRes.id;
+
+      // Set tenant context so subsequent API calls use the correct X-Tenant-Id
+      setCurrentTenantId(tenantId);
 
       let endpointId: string | null = null;
       if (
