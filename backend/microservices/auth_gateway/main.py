@@ -425,11 +425,14 @@ async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
 # WebSocket proxy — path-based mode (/agents/{slug}/{path})
 # ---------------------------------------------------------------------------
 
+@app.websocket("/agents/{agent_slug}")
 @app.websocket("/agents/{agent_slug}/{path:path}")
 async def path_proxy_websocket(websocket: WebSocket, agent_slug: str, path: str = ""):
     """Path-based WebSocket proxy to OpenClaw pod."""
+    logger.info("WS upgrade for agent=%s path=%s cookies=%s", agent_slug, path, dict(websocket.cookies))
     user_context = _get_user_from_ws_cookie(websocket)
     if user_context is None:
+        logger.warning("WS auth failed — no valid session cookie")
         await websocket.close(code=1008, reason="Authentication required")
         return
 
@@ -455,9 +458,15 @@ async def path_proxy_websocket(websocket: WebSocket, agent_slug: str, path: str 
         instance_name = f"oc-openclaw-agent-{agent.get('id', agent_slug)[:8]}"
     pod_ws_url = f"ws://{instance_name}.tenant-{tenant_slug}.svc.cluster.local:18789/{path}"
 
+    # Forward Origin so OpenClaw controlUi allows the connection
+    extra_headers = {}
+    origin = websocket.headers.get("origin")
+    if origin:
+        extra_headers["Origin"] = origin
+
     await websocket.accept()
     try:
-        async with websockets.connect(pod_ws_url) as pod_ws:
+        async with websockets.connect(pod_ws_url, additional_headers=extra_headers) as pod_ws:
             async def client_to_pod():
                 try:
                     while True:

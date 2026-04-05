@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import httpx
+from azure.identity.aio import WorkloadIdentityCredential, DefaultAzureCredential
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -26,6 +27,43 @@ from app.repositories.cosmos_client import close_cosmos_client
 from app.repositories.token_log_repository import TokenLogRepository
 
 logger = logging.getLogger(__name__)
+
+# Azure OpenAI uses the Cognitive Services scope for Entra ID auth
+_AZURE_OPENAI_SCOPE = "https://cognitiveservices.azure.com/.default"
+_azure_credential = None
+_cached_token = None
+_token_expires_on = 0
+
+
+def _get_azure_credential():
+    global _azure_credential
+    if _azure_credential is None:
+        # Use the managed identity client ID from the service account annotation,
+        # NOT the Entra app client ID that may be in AZURE_CLIENT_ID env var
+        managed_identity_client_id = os.getenv("AZURE_WORKLOAD_CLIENT_ID")
+        try:
+            if managed_identity_client_id:
+                logger.info("Using WorkloadIdentityCredential with managed identity %s", managed_identity_client_id)
+                _azure_credential = WorkloadIdentityCredential(client_id=managed_identity_client_id)
+            else:
+                _azure_credential = WorkloadIdentityCredential()
+        except Exception:
+            _azure_credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
+    return _azure_credential
+
+
+async def _get_azure_openai_token() -> str:
+    """Get a valid Azure AD token for Azure OpenAI, with caching."""
+    global _cached_token, _token_expires_on
+    now = time.time()
+    if _cached_token and _token_expires_on > now + 60:
+        return _cached_token
+    cred = _get_azure_credential()
+    token = await cred.get_token(_AZURE_OPENAI_SCOPE)
+    _cached_token = token.token
+    _token_expires_on = token.expires_on
+    logger.info("Acquired new Azure AD token for Azure OpenAI (expires in %ds)", int(_token_expires_on - now))
+    return _cached_token
 
 AZURE_OPENAI_BASE = os.getenv(
     "AZURE_OPENAI_BASE", "https://ai-platform-system.openai.azure.com"
@@ -55,6 +93,10 @@ async def lifespan(app: FastAPI):
     if _http_client is not None:
         await _http_client.aclose()
         _http_client = None
+    global _azure_credential
+    if _azure_credential is not None:
+        await _azure_credential.close()
+        _azure_credential = None
     await close_cosmos_client()
 
 
@@ -290,13 +332,23 @@ async def proxy_post(request: Request, tenant_id: str, agent_id: str, path: str)
     if request.query_params:
         upstream_url += f"?{request.query_params}"
 
-    # Forward headers (strip host, keep api-key and content-type)
+    # Forward headers — replace API key with Azure AD Bearer token
     forward_headers = {
         k: v
         for k, v in request.headers.items()
-        if k.lower() not in ("host", "content-length", "transfer-encoding")
+        if k.lower() not in ("host", "content-length", "transfer-encoding", "api-key", "authorization")
     }
     forward_headers["content-type"] = "application/json"
+
+    # Use managed identity to authenticate with Azure OpenAI
+    try:
+        ad_token = await _get_azure_openai_token()
+        forward_headers["Authorization"] = f"Bearer {ad_token}"
+    except Exception:
+        logger.exception("Failed to acquire Azure AD token — falling back to api-key header")
+        api_key = request.headers.get("api-key")
+        if api_key:
+            forward_headers["api-key"] = api_key
 
     start_time = time.monotonic()
 
@@ -329,8 +381,18 @@ async def proxy_passthrough(
     forward_headers = {
         k: v
         for k, v in request.headers.items()
-        if k.lower() not in ("host", "content-length", "transfer-encoding")
+        if k.lower() not in ("host", "content-length", "transfer-encoding", "api-key", "authorization")
     }
+
+    # Use managed identity to authenticate with Azure OpenAI
+    try:
+        ad_token = await _get_azure_openai_token()
+        forward_headers["Authorization"] = f"Bearer {ad_token}"
+    except Exception:
+        logger.exception("Failed to acquire Azure AD token for passthrough")
+        api_key = request.headers.get("api-key")
+        if api_key:
+            forward_headers["api-key"] = api_key
 
     raw_body = await request.body()
 
