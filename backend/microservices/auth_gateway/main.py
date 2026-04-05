@@ -4,7 +4,10 @@ Handles browser-based OIDC login via Entra ID, session management with signed
 cookies, agent-to-pod resolution from Cosmos DB, and transparent HTTP/WebSocket
 proxying to per-tenant OpenClaw pods.
 
-Subdomain routing: agent-{slug}.agents.{domain} → OpenClaw pod in tenant-{slug} namespace.
+Two routing modes (auto-selected):
+  1. Subdomain: agent-{slug}.agents.{domain} — when AGENTS_DOMAIN is set.
+  2. Path:      {base}/agents/{slug}/...      — when AGENTS_DOMAIN is empty but
+     PLATFORM_BASE_URL (or AGC FQDN from configmap) is available.
 """
 
 from __future__ import annotations
@@ -38,10 +41,14 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 AGENTS_DOMAIN = os.getenv("AGENTS_DOMAIN", "")
+PLATFORM_BASE_URL = os.getenv("PLATFORM_BASE_URL", "").rstrip("/")
 SESSION_TTL = int(os.getenv("SESSION_TTL", "3600"))
 AGENT_CACHE_TTL = int(os.getenv("AGENT_CACHE_TTL", "60"))
 COOKIE_SECRET = os.getenv("COOKIE_SECRET", secrets.token_urlsafe(32))
 COOKIE_NAME = "_agents_session"
+
+# Routing mode: subdomain (AGENTS_DOMAIN set) or path (fallback to PLATFORM_BASE_URL)
+ROUTE_MODE = "subdomain" if AGENTS_DOMAIN else "path"
 
 _signer = URLSafeTimedSerializer(COOKIE_SECRET)
 
@@ -157,7 +164,10 @@ async def lifespan(app: FastAPI):
     init_telemetry(service_name="auth-gateway")
 
     if not AGENTS_DOMAIN:
-        logger.warning("AGENTS_DOMAIN not set — auth gateway will not route agents")
+        logger.warning(
+            "AGENTS_DOMAIN not set — running in path-based mode (PLATFORM_BASE_URL=%s)",
+            PLATFORM_BASE_URL,
+        )
 
     entra_client_id = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
     entra_client_secret = settings.ENTRA_CLIENT_SECRET
@@ -192,6 +202,45 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(health_router)
+
+
+# ---------------------------------------------------------------------------
+# Helpers — build base URL for OIDC redirects and cookie domain
+# ---------------------------------------------------------------------------
+
+def _base_url() -> str:
+    """Return the external base URL for OIDC redirects."""
+    if AGENTS_DOMAIN:
+        return f"https://agents.{AGENTS_DOMAIN}"
+    return PLATFORM_BASE_URL  # e.g. https://arh2b5...alb.azure.com
+
+
+def _cookie_domain() -> str | None:
+    """Cookie domain — scoped to agents subdomain tree or None (host-only)."""
+    if AGENTS_DOMAIN:
+        return f".agents.{AGENTS_DOMAIN}"
+    return None  # host-only cookie on the AGC FQDN
+
+
+def _set_session_cookie(response, signed_value: str) -> None:
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=signed_value,
+        domain=_cookie_domain(),
+        path="/agents/" if ROUTE_MODE == "path" else "/",
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=SESSION_TTL,
+    )
+
+
+def _delete_session_cookie(response) -> None:
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        domain=_cookie_domain(),
+        path="/agents/" if ROUTE_MODE == "path" else "/",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,15 +306,218 @@ def _error_page(status: int, title: str, message: str) -> HTMLResponse:
 
 
 # ---------------------------------------------------------------------------
-# OIDC routes
+# OIDC routes — path-based mode (/agents/auth/*)
+# ---------------------------------------------------------------------------
+
+@app.get("/agents/auth/login")
+async def path_auth_login(request: Request):
+    """Initiate OIDC login (path-based mode)."""
+    return_to = str(request.query_params.get("return_to", ""))
+    redirect_uri = f"{_base_url()}/agents/auth/callback"
+    auth_url = _msal_app.get_authorization_request_url(
+        scopes=["openid", "profile", "email"],
+        redirect_uri=redirect_uri,
+        state=json.dumps({"return_to": return_to}),
+    )
+    return RedirectResponse(url=auth_url)
+
+
+@app.get("/agents/auth/callback")
+async def path_auth_callback(request: Request):
+    """Handle OIDC callback (path-based mode)."""
+    code = request.query_params.get("code")
+    state_raw = request.query_params.get("state", "{}")
+    error = request.query_params.get("error")
+
+    if error:
+        return _error_page(401, "Authentication Failed", request.query_params.get("error_description", error))
+    if not code:
+        return _error_page(400, "Bad Request", "Missing authorization code.")
+
+    redirect_uri = f"{_base_url()}/agents/auth/callback"
+    result = _msal_app.acquire_token_by_authorization_code(
+        code=code,
+        scopes=["openid", "profile", "email"],
+        redirect_uri=redirect_uri,
+    )
+
+    if "error" in result:
+        logger.error("OIDC token exchange failed: %s", result.get("error_description"))
+        return _error_page(401, "Authentication Failed", result.get("error_description", "Token exchange failed."))
+
+    claims = result.get("id_token_claims", {})
+    user_context = extract_user_context(claims)
+    session_id = create_session(user_context)
+    signed = _signer.dumps(session_id)
+
+    try:
+        state = json.loads(state_raw)
+    except (json.JSONDecodeError, TypeError):
+        state = {}
+    return_to = state.get("return_to", f"{_base_url()}/agents/")
+
+    response = RedirectResponse(url=return_to)
+    _set_session_cookie(response, signed)
+    return response
+
+
+@app.get("/agents/auth/logout")
+async def path_auth_logout(request: Request):
+    """Clear session (path-based mode)."""
+    cookie = request.cookies.get(COOKIE_NAME)
+    if cookie:
+        try:
+            session_id = _signer.loads(cookie, max_age=SESSION_TTL)
+            _sessions.pop(session_id, None)
+        except BadSignature:
+            pass
+
+    entra_client_id = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
+    logout_url = (
+        f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/oauth2/v2.0/logout"
+        f"?post_logout_redirect_uri={quote(f'{_base_url()}/agents/')}"
+    )
+    response = RedirectResponse(url=logout_url)
+    _delete_session_cookie(response)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# HTTP proxy — path-based mode (/agents/{slug}/{path})
+# ---------------------------------------------------------------------------
+
+@app.api_route(
+    "/agents/{agent_slug}/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+)
+async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
+    """Path-based HTTP proxy — authenticates and forwards to OpenClaw pod."""
+    user_context = _get_user_from_cookie(request)
+    if user_context is None:
+        current_url = str(request.url)
+        login_url = f"{_base_url()}/agents/auth/login?return_to={quote(current_url)}"
+        return RedirectResponse(url=login_url)
+
+    agent = await resolve_agent(agent_slug)
+    if agent is None:
+        return _error_page(404, "Agent Not Found", f"No agent with slug '{agent_slug}' was found.")
+
+    agent_tenant_id = agent.get("tenant_id", "")
+    user_tenant_id = user_context.get("tenant_id", "")
+    user_roles = user_context.get("roles", [])
+    if agent_tenant_id != user_tenant_id and "platform_admin" not in user_roles:
+        return _error_page(403, "Access Denied", "This agent belongs to another tenant.")
+
+    tenant_slug = await resolve_tenant_slug(agent_tenant_id)
+    if tenant_slug is None:
+        return _error_page(500, "Internal Error", "Could not resolve tenant.")
+
+    instance_name = agent.get("openclaw_instance_name", "")
+    if not instance_name:
+        instance_name = f"oc-openclaw-agent-{agent.get('id', agent_slug)[:8]}"
+    pod_url = f"http://{instance_name}.tenant-{tenant_slug}.svc.cluster.local:18789"
+
+    target_url = f"{pod_url}/{path}"
+    if request.url.query:
+        target_url = f"{target_url}?{request.url.query}"
+
+    body = await request.body()
+    headers = dict(request.headers)
+    for hop_header in ("host", "connection", "keep-alive", "transfer-encoding", "upgrade"):
+        headers.pop(hop_header, None)
+    client_ip = request.client.host if request.client else "unknown"
+    headers["x-forwarded-for"] = client_ip
+    headers["x-real-ip"] = client_ip
+    headers["x-forwarded-proto"] = "https"
+
+    try:
+        resp = await _http_client.request(method=request.method, url=target_url, headers=headers, content=body)
+        resp_headers = dict(resp.headers)
+        for h in ("connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length"):
+            resp_headers.pop(h, None)
+        return HTMLResponse(content=resp.content, status_code=resp.status_code, headers=resp_headers)
+    except httpx.ConnectError:
+        return _error_page(502, "Agent Unavailable", "The agent pod is not reachable. It may be starting up.")
+    except httpx.TimeoutException:
+        return _error_page(504, "Gateway Timeout", "The agent pod did not respond in time.")
+
+
+# ---------------------------------------------------------------------------
+# WebSocket proxy — path-based mode (/agents/{slug}/{path})
+# ---------------------------------------------------------------------------
+
+@app.websocket("/agents/{agent_slug}/{path:path}")
+async def path_proxy_websocket(websocket: WebSocket, agent_slug: str, path: str = ""):
+    """Path-based WebSocket proxy to OpenClaw pod."""
+    user_context = _get_user_from_ws_cookie(websocket)
+    if user_context is None:
+        await websocket.close(code=1008, reason="Authentication required")
+        return
+
+    agent = await resolve_agent(agent_slug)
+    if agent is None:
+        await websocket.close(code=1008, reason="Agent not found")
+        return
+
+    agent_tenant_id = agent.get("tenant_id", "")
+    user_tenant_id = user_context.get("tenant_id", "")
+    user_roles = user_context.get("roles", [])
+    if agent_tenant_id != user_tenant_id and "platform_admin" not in user_roles:
+        await websocket.close(code=1008, reason="Access denied")
+        return
+
+    tenant_slug = await resolve_tenant_slug(agent_tenant_id)
+    if tenant_slug is None:
+        await websocket.close(code=1011, reason="Tenant resolution failed")
+        return
+
+    instance_name = agent.get("openclaw_instance_name", "")
+    if not instance_name:
+        instance_name = f"oc-openclaw-agent-{agent.get('id', agent_slug)[:8]}"
+    pod_ws_url = f"ws://{instance_name}.tenant-{tenant_slug}.svc.cluster.local:18789/{path}"
+
+    await websocket.accept()
+    try:
+        async with websockets.connect(pod_ws_url) as pod_ws:
+            async def client_to_pod():
+                try:
+                    while True:
+                        data = await websocket.receive_text()
+                        await pod_ws.send(data)
+                except WebSocketDisconnect:
+                    pass
+
+            async def pod_to_client():
+                try:
+                    async for message in pod_ws:
+                        await websocket.send_text(message)
+                except websockets.exceptions.ConnectionClosed:
+                    pass
+
+            done, pending = await asyncio.wait(
+                [asyncio.ensure_future(client_to_pod()), asyncio.ensure_future(pod_to_client())],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+    except (websockets.exceptions.WebSocketException, OSError) as exc:
+        logger.warning("WebSocket proxy error for agent %s: %s", agent_slug, exc)
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# OIDC routes — subdomain mode (agents.{domain}/auth/*)
 # ---------------------------------------------------------------------------
 
 @app.get("/auth/login")
 async def auth_login(request: Request):
-    """Initiate OIDC authorization code flow."""
+    """Initiate OIDC authorization code flow (subdomain mode)."""
     return_to = str(request.query_params.get("return_to", ""))
-    redirect_uri = f"https://agents.{AGENTS_DOMAIN}/auth/callback"
-
+    redirect_uri = f"{_base_url()}/auth/callback"
     auth_url = _msal_app.get_authorization_request_url(
         scopes=["openid", "profile", "email"],
         redirect_uri=redirect_uri,
@@ -288,7 +540,7 @@ async def auth_callback(request: Request):
     if not code:
         return _error_page(400, "Bad Request", "Missing authorization code.")
 
-    redirect_uri = f"https://agents.{AGENTS_DOMAIN}/auth/callback"
+    redirect_uri = f"{_base_url()}/auth/callback"
     result = _msal_app.acquire_token_by_authorization_code(
         code=code,
         scopes=["openid", "profile", "email"],
@@ -309,19 +561,10 @@ async def auth_callback(request: Request):
         state = json.loads(state_raw)
     except (json.JSONDecodeError, TypeError):
         state = {}
-    return_to = state.get("return_to", f"https://agents.{AGENTS_DOMAIN}/")
+    return_to = state.get("return_to", f"{_base_url()}/")
 
     response = RedirectResponse(url=return_to)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=signed,
-        domain=f".agents.{AGENTS_DOMAIN}",
-        path="/",
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=SESSION_TTL,
-    )
+    _set_session_cookie(response, signed)
     return response
 
 
@@ -339,15 +582,10 @@ async def auth_logout(request: Request):
     entra_client_id = settings.ENTRA_APP_CLIENT_ID or settings.AZURE_CLIENT_ID
     logout_url = (
         f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/oauth2/v2.0/logout"
-        f"?post_logout_redirect_uri={quote(f'https://agents.{AGENTS_DOMAIN}/')}"
+        f"?post_logout_redirect_uri={quote(f'{_base_url()}/')}"
     )
-
     response = RedirectResponse(url=logout_url)
-    response.delete_cookie(
-        key=COOKIE_NAME,
-        domain=f".agents.{AGENTS_DOMAIN}",
-        path="/",
-    )
+    _delete_session_cookie(response)
     return response
 
 
@@ -403,7 +641,7 @@ async def proxy_http(request: Request, path: str):
     user_context = _get_user_from_cookie(request)
     if user_context is None:
         current_url = str(request.url)
-        login_url = f"https://agents.{AGENTS_DOMAIN}/auth/login?return_to={quote(current_url)}"
+        login_url = f"{_base_url()}/auth/login?return_to={quote(current_url)}"
         return RedirectResponse(url=login_url)
 
     # Resolve agent

@@ -1320,18 +1320,16 @@ class OpenClawService:
 
         # Gateway config — enable OpenAI-compatible HTTP endpoints so the
         # platform can route playground chat through /v1/chat/completions.
-        # When AGENTS_DOMAIN is set, bind to all interfaces and trust cluster
-        # CIDR so the auth-gateway can proxy browser traffic to the native UI.
-        # Otherwise, keep loopback binding (pod-internal only via NetworkPolicy).
-        from app.core.config import settings as _settings
-        gateway_bind = "0.0.0.0" if _settings.AGENTS_DOMAIN else "loopback"
-        gateway_trusted = ["10.0.0.0/8"] if _settings.AGENTS_DOMAIN else ["127.0.0.0/8"]
+        # Always bind to 0.0.0.0 — the K8s Service routes traffic to the pod's
+        # IP, so loopback binding prevents the api-gateway from reaching the
+        # OpenClaw gateway.  Auth is "none" and NetworkPolicy restricts access.
+        gateway_trusted = ["10.0.0.0/8", "192.168.0.0/16"]
 
         raw_config["gateway"] = {
             "auth": {
                 "mode": "none",
             },
-            "bind": gateway_bind,
+            "bind": "0.0.0.0",
             "controlUi": {
                 "allowedOrigins": ["*"],
             },

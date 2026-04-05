@@ -72,6 +72,14 @@ spec:
                 name: api-gateway
                 port:
                   number: 8000
+          # Auth Gateway — OpenClaw native UI proxy (path-based mode)
+          - path: /agents
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-gateway
+                port:
+                  number: 8000
           # Frontend — catch-all for everything else (pages, static assets)
           - path: /
             pathType: Prefix

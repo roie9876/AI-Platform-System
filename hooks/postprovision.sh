@@ -219,18 +219,22 @@ fi
 CORS_ORIGINS='["http://localhost:3000"'
 if [ -n "$AGC_FQDN" ]; then
   CORS_ORIGINS="${CORS_ORIGINS},\"https://${AGC_FQDN}\",\"http://${AGC_FQDN}\""
+  PLATFORM_BASE_URL="https://${AGC_FQDN}"
+else
+  PLATFORM_BASE_URL=""
 fi
 if [ -n "$AGENTS_DOMAIN" ]; then
   CORS_ORIGINS="${CORS_ORIGINS},\"https://${AGENTS_DOMAIN}\""
 fi
 CORS_ORIGINS="${CORS_ORIGINS}]"
-export CORS_ORIGINS
+export CORS_ORIGINS PLATFORM_BASE_URL
 
 # Substitute configmap variables
 sed -i.bak "s|\${KEY_VAULT_NAME}|${KEY_VAULT_NAME}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${TENANT_KEY_VAULT_NAME}|${TENANT_KEY_VAULT_NAME}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${CORS_ORIGINS}|${CORS_ORIGINS}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${AGENTS_DOMAIN}|${AGENTS_DOMAIN:-}|g" "$TEMP_DIR/base/configmap.yaml"
+sed -i.bak "s|\${PLATFORM_BASE_URL}|${PLATFORM_BASE_URL:-}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${STORAGE_ACCOUNT_NAME}|${STORAGE_ACCOUNT_NAME:-}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${ACR_SERVER}|${ACR_SERVER}|g" "$TEMP_DIR/base/configmap.yaml"
 
@@ -380,12 +384,18 @@ if [ -n "$AGC_FQDN" ]; then
       # Build redirect URIs list: always include localhost + AGC FQDN
       REDIRECT_URIS='["http://localhost:3000","https://'"${AGC_FQDN}"'"]'
 
+      # Web redirect URIs for auth-gateway confidential client (OIDC callback)
+      WEB_REDIRECT_URIS='["https://'"${AGC_FQDN}"'/agents/auth/callback"]'
+      if [ -n "$AGENTS_DOMAIN" ]; then
+        WEB_REDIRECT_URIS='["https://'"${AGC_FQDN}"'/agents/auth/callback","https://agents.'"${AGENTS_DOMAIN}"'/auth/callback"]'
+      fi
+
       az rest --method PATCH \
         --uri "https://graph.microsoft.com/v1.0/applications/${ENTRA_APP_OBJECT_ID}" \
         --headers "Content-Type=application/json" \
-        --body '{"spa":{"redirectUris":'"${REDIRECT_URIS}"'}}' \
+        --body '{"spa":{"redirectUris":'"${REDIRECT_URIS}"'},"web":{"redirectUris":'"${WEB_REDIRECT_URIS}"'}}' \
         --only-show-errors 2>/dev/null && \
-        echo -e "  ${GREEN}✓ SPA redirect URI added: https://${AGC_FQDN}${NC}" || \
+        echo -e "  ${GREEN}✓ SPA + Web redirect URIs updated for ${AGC_FQDN}${NC}" || \
         echo -e "  ${YELLOW}⚠  Could not update redirect URIs (may need Application Administrator role)${NC}"
     else
       echo -e "  ${YELLOW}⚠  Could not find Entra app ${ENTRA_APP_CLIENT_ID} — redirect URI not updated${NC}"

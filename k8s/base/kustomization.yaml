@@ -34,6 +34,10 @@ resources:
   - mcp-platform-tools/deployment.yaml
   - mcp-platform-tools/service.yaml
   - mcp-platform-tools/hpa.yaml
+  - auth-gateway/deployment.yaml
+  - auth-gateway/service.yaml
+  - auth-gateway/hpa.yaml
+  - auth-gateway/pdb.yaml
   - pvc-cleanup/cronjob.yaml
 
 commonLabels:
