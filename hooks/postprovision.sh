@@ -359,6 +359,39 @@ if [ -n "${ENTRA_CLIENT_SECRET}" ] && [ "${ENTRA_CLIENT_SECRET}" != "PLACEHOLDER
   echo -e "  ${GREEN}✓ Entra client secret seeded into Key Vault${NC}"
 fi
 
+# ─── Step 9: Update Entra App Redirect URIs with AGC FQDN ───────────────────
+
+if [ -n "$AGC_FQDN" ]; then
+  step "Step 9: Update Entra App Redirect URIs"
+
+  # Read Entra app client ID from Key Vault (seeded by Bicep)
+  ENTRA_APP_CLIENT_ID=$(az keyvault secret show \
+    --vault-name "${KEY_VAULT_NAME}" \
+    --name "entra-client-id" \
+    --query "value" -o tsv 2>/dev/null || echo "")
+
+  if [ -n "$ENTRA_APP_CLIENT_ID" ]; then
+    ENTRA_APP_OBJECT_ID=$(az ad app show --id "${ENTRA_APP_CLIENT_ID}" --query "id" -o tsv 2>/dev/null || echo "")
+
+    if [ -n "$ENTRA_APP_OBJECT_ID" ]; then
+      # Build redirect URIs list: always include localhost + AGC FQDN
+      REDIRECT_URIS='["http://localhost:3000","https://'"${AGC_FQDN}"'"]'
+
+      az rest --method PATCH \
+        --uri "https://graph.microsoft.com/v1.0/applications/${ENTRA_APP_OBJECT_ID}" \
+        --headers "Content-Type=application/json" \
+        --body '{"spa":{"redirectUris":'"${REDIRECT_URIS}"'}}' \
+        --only-show-errors 2>/dev/null && \
+        echo -e "  ${GREEN}✓ SPA redirect URI added: https://${AGC_FQDN}${NC}" || \
+        echo -e "  ${YELLOW}⚠  Could not update redirect URIs (may need Application Administrator role)${NC}"
+    else
+      echo -e "  ${YELLOW}⚠  Could not find Entra app ${ENTRA_APP_CLIENT_ID} — redirect URI not updated${NC}"
+    fi
+  else
+    echo -e "  ${YELLOW}⚠  entra-client-id not found in Key Vault — redirect URI not updated${NC}"
+  fi
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""
