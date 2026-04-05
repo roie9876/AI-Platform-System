@@ -187,6 +187,7 @@ if [ -n "$AGC_FQDN" ] && [ -n "$AGC_RESOURCE_ID" ]; then
 else
   echo -e "  ${YELLOW}⚠  AGC frontend not ready — removing ingress.yaml from deployment${NC}"
   rm -f "$TEMP_DIR/base/ingress.yaml"
+  sed -i.bak '/ingress\.yaml/d' "$TEMP_DIR/base/kustomization.yaml"
 fi
 
 # Clean up .bak files
