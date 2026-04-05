@@ -394,7 +394,10 @@ async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
     """Path-based HTTP proxy — authenticates and forwards to OpenClaw pod."""
     user_context = _get_user_from_cookie(request)
     if user_context is None:
-        current_url = str(request.url)
+        # Build return URL from _base_url() — request.url has http:// behind TLS-terminating AGC
+        current_url = f"{_base_url()}{request.url.path}"
+        if request.url.query:
+            current_url = f"{current_url}?{request.url.query}"
         login_url = f"{_base_url()}/agents/auth/login?return_to={quote(current_url)}"
         return RedirectResponse(url=login_url)
 
@@ -640,7 +643,10 @@ async def proxy_http(request: Request, path: str):
     # Authenticate
     user_context = _get_user_from_cookie(request)
     if user_context is None:
-        current_url = str(request.url)
+        # Build return URL from _base_url() — request.url has http:// behind TLS-terminating AGC
+        current_url = f"{_base_url()}{request.url.path}"
+        if request.url.query:
+            current_url = f"{current_url}?{request.url.query}"
         login_url = f"{_base_url()}/auth/login?return_to={quote(current_url)}"
         return RedirectResponse(url=login_url)
 
