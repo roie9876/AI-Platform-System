@@ -213,6 +213,7 @@ export default function AgentDetailPage() {
   const [whatsappLinkStatus, setWhatsappLinkStatus] = useState<string | null>(null);
   const whatsappPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [agentsDomain, setAgentsDomain] = useState<string>("");
+  const [platformBaseUrl, setPlatformBaseUrl] = useState<string>("");
 
   // Channel config editing state
   const [channelForm, setChannelForm] = useState({
@@ -249,7 +250,10 @@ export default function AgentDetailPage() {
   useEffect(() => {
     fetch("/api/config")
       .then(res => res.json())
-      .then(config => setAgentsDomain(config.agentsDomain || ""))
+      .then(config => {
+        setAgentsDomain(config.agentsDomain || "");
+        setPlatformBaseUrl(config.platformBaseUrl || "");
+      })
       .catch(() => {});
   }, []);
 
@@ -938,7 +942,7 @@ export default function AgentDetailPage() {
       <KnowledgeSection agentId={agentId} />
 
       {/* Open Agent Console — native UI access via auth gateway */}
-      {agent.agent_type === "openclaw" && agentsDomain && (agent.slug || agent.id) && (
+      {agent.agent_type === "openclaw" && (agentsDomain || platformBaseUrl) && (agent.slug || agent.id) && (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -946,7 +950,10 @@ export default function AgentDetailPage() {
               <p className="text-xs text-gray-500 mt-0.5">Open the full native UI for this agent</p>
             </div>
             <a
-              href={`https://agent-${agent.slug || agent.id}.agents.${agentsDomain}`}
+              href={agentsDomain
+                ? `https://agent-${agent.slug || agent.id}.agents.${agentsDomain}`
+                : `${platformBaseUrl}/agents/${agent.slug || agent.id}/`
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md bg-[#7C3AED] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#6D28D9] transition-colors"
