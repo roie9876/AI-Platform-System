@@ -373,7 +373,13 @@ Plans:
   3. User can only access agents belonging to their tenant — cross-tenant access is blocked
   4. WebSocket-based features (live chat, real-time updates) work through the auth proxy without degradation
   5. User can click "Open Agent Console" in platform frontend to open the native UI in a new tab
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 31-01-PLAN.md — Auth gateway FastAPI service (OIDC, sessions, proxy, WebSocket)
+- [ ] 31-02-PLAN.md — K8s infrastructure (Deployment, Ingress, postprovision, NetworkPolicy)
+- [ ] 31-03-PLAN.md — OpenClaw gateway config + frontend "Open Agent Console" button
+
 **UI hint**: yes
 
 #### Phase 32: Dual-Mode Operation
