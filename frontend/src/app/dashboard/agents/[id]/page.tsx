@@ -36,6 +36,7 @@ interface ChatMessage {
 interface Agent {
   id: string;
   name: string;
+  slug?: string;
   description: string | null;
   system_prompt: string | null;
   agent_type?: string;
@@ -210,6 +211,7 @@ export default function AgentDetailPage() {
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [whatsappLinkStatus, setWhatsappLinkStatus] = useState<string | null>(null);
   const whatsappPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [agentsDomain, setAgentsDomain] = useState<string>("");
 
   // Channel config editing state
   const [channelForm, setChannelForm] = useState({
@@ -240,6 +242,13 @@ export default function AgentDetailPage() {
     telegram_channel_instructions: "",
   });
   const [channelsDirty, setChannelsDirty] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then(res => res.json())
+      .then(config => setAgentsDomain(config.agentsDomain || ""))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -916,6 +925,29 @@ export default function AgentDetailPage() {
 
       {/* Knowledge */}
       <KnowledgeSection agentId={agentId} />
+
+      {/* Open Agent Console — native UI access via auth gateway */}
+      {agent.agent_type === "openclaw" && agentsDomain && (agent.slug || agent.id) && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">Agent Console</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Open the full native UI for this agent</p>
+            </div>
+            <a
+              href={`https://agent-${agent.slug || agent.id}.agents.${agentsDomain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#7C3AED] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#6D28D9] transition-colors"
+            >
+              Open Agent Console
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Channels (OpenClaw agents) */}
       {agent.agent_type === "openclaw" && (
