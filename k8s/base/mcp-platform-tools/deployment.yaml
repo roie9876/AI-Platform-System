@@ -73,6 +73,8 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: AZURE_OPENAI_KEY
+            - name: EMBEDDING_MODEL
+              value: "text-embedding-3-large"
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:

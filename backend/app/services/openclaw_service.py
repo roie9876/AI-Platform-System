@@ -1245,17 +1245,10 @@ class OpenClawService:
 
             channels_config["whatsapp"] = wa_config
 
-        # MCP servers
-        mcp_servers: dict = {}
-        for url in openclaw_config.get("mcp_server_urls", []):
-            # Derive name from URL
-            name = url.rstrip("/").split("/")[-1].split(".")[0].replace("mcp-", "")
-            mcp_servers[name] = {"url": url}
-
-        # Always inject platform MCP tools server (shared service in aiplatform namespace)
-        mcp_servers["platform-tools"] = {
-            "url": "http://mcp-platform-tools.aiplatform.svc.cluster.local:8085/mcp"
-        }
+        # MCP servers — bridged via the platform-tools OpenClaw plugin
+        # The plugin is baked into the patched image and registers tools
+        # that proxy to our HTTP MCP server (mcp-platform-tools service).
+        # No stdio bridge needed — the plugin calls HTTP directly.
 
         # Model provider config — API key injected via env var from CSI, never in YAML
         providers_config = {
@@ -1342,9 +1335,18 @@ class OpenClawService:
 
         if channels_config:
             raw_config["channels"] = channels_config
-        # NOTE: mcpServers is NOT a valid OpenClaw config key (v0.25.x strict
-        # validation rejects unknown root keys).  Remote MCP servers will need
-        # to be connected via OpenClaw skills/plugins in a future iteration.
+
+        # Enable the platform-tools plugin to expose MCP tools as native
+        # OpenClaw tools.  The plugin is baked into the patched image at
+        # /app/dist/extensions/platform-tools/ and calls the HTTP MCP
+        # server running in the aiplatform namespace.
+        raw_config["plugins"] = {
+            "entries": {
+                "platform-tools": {
+                    "enabled": True,
+                }
+            }
+        }
 
         cr = {
             "apiVersion": f"{OPENCLAW_GROUP}/{OPENCLAW_VERSION}",

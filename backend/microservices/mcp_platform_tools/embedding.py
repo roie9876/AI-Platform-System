@@ -26,7 +26,7 @@ class EmbeddingService:
             api_key=os.getenv("AZURE_API_KEY", ""),
             api_version="2024-10-21",
         )
-        self._model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        self._model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-large")
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
 
     @staticmethod

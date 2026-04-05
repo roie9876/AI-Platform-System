@@ -32,11 +32,30 @@ from .platform_config import (
 
 logger = logging.getLogger(__name__)
 
+from mcp.server.transport_security import TransportSecuritySettings
+
 # ---------------------------------------------------------------------------
 #  FastMCP server
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP("mcp-platform-tools", stateless_http=True, json_response=True)
+mcp = FastMCP(
+    "mcp-platform-tools",
+    stateless_http=True,
+    json_response=True,
+    host="0.0.0.0",
+    port=8085,
+)
+
+# Allow K8s service hostname for in-cluster calls (DNS rebinding protection)
+mcp.settings.transport_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=True,
+    allowed_hosts=[
+        "127.0.0.1:*",
+        "localhost:*",
+        "[::1]:*",
+        "mcp-platform-tools.aiplatform.svc.cluster.local:*",
+    ],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +175,8 @@ async def lifespan(app: Starlette):
     svc = EmbeddingService()
     set_embedding_service(svc)
     logger.info("MCP Platform Tools server starting")
-    yield
+    async with mcp.session_manager.run():
+        yield
     await close_cosmos_client()
 
 

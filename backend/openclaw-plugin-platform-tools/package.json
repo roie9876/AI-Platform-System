@@ -1,0 +1,12 @@
+{
+  "name": "@aiplatform/platform-tools-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Platform MCP tools bridge for OpenClaw agents",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

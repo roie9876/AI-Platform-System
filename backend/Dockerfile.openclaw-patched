@@ -83,5 +83,17 @@ RUN \
         echo "Patch #4 (ts): $TS_FILE — markOnlineOnConnect: true"; \
     done
 
+# ── MCP HTTP Bridge: stdio → HTTP transport adapter ──────────────────
+# OpenClaw's acpx plugin only supports stdio-based MCP servers.
+# This bridge script translates stdio MCP to HTTP, allowing our
+# platform-tools HTTP MCP server to be used by agents.
+COPY mcp-http-bridge.mjs /app/mcp-http-bridge.mjs
+
+# ── Platform Tools Plugin: registers MCP tools as native OpenClaw tools ──
+# This plugin bridges our HTTP MCP platform-tools server into the
+# OpenClaw native tool system, so Azure OpenAI agents can use memory
+# and config tools without requiring the acpx (Claude) backend.
+COPY openclaw-plugin-platform-tools/ /app/extensions/platform-tools/
+
 # Switch back to the openclaw user
 USER 1000

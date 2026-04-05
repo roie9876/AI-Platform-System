@@ -1,0 +1,24 @@
+{
+  "id": "platform-tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "mcpUrl": {
+        "type": "string",
+        "description": "HTTP URL of the MCP platform-tools server"
+      }
+    }
+  },
+  "contracts": {
+    "tools": [
+      "platform_memory_store",
+      "platform_memory_search",
+      "platform_memory_store_structured",
+      "platform_memory_get_structured",
+      "platform_get_group_instructions",
+      "platform_get_agent_config",
+      "platform_list_configured_groups"
+    ]
+  }
+}
