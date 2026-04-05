@@ -77,6 +77,18 @@ spec:
                 secretKeyRef:
                   name: aiplatform-secrets
                   key: COOKIE_SECRET
+            - name: PLATFORM_ADMIN_EMAILS
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: PLATFORM_ADMIN_EMAILS
+                  optional: true
+            - name: ENTRA_ADMIN_GROUP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aiplatform-secrets
+                  key: ENTRA_ADMIN_GROUP_ID
+                  optional: true
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
