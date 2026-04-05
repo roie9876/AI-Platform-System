@@ -121,6 +121,17 @@ for MCP_SVC in atlassian github sharepoint platform-tools; do
   echo -e "  ${GREEN}✓ aiplatform-mcp-${MCP_SVC}${NC}"
 done
 
+# Auth gateway (build context: backend/)
+echo -e "  ${BLUE}Building aiplatform-auth-gateway...${NC}"
+az acr build \
+  --registry "${ACR_NAME}" \
+  --image "aiplatform-auth-gateway:${GIT_SHA}" \
+  --image "aiplatform-auth-gateway:latest" \
+  --file "backend/microservices/auth_gateway/Dockerfile" \
+  --platform linux/amd64 \
+  backend/
+echo -e "  ${GREEN}✓ aiplatform-auth-gateway${NC}"
+
 # Frontend (build context: frontend/)
 echo -e "  ${BLUE}Building aiplatform-frontend...${NC}"
 az acr build \
@@ -133,7 +144,7 @@ az acr build \
 echo -e "  ${GREEN}✓ aiplatform-frontend${NC}"
 
 echo ""
-echo -e "  ${GREEN}✓ All 11 images built and pushed to ${ACR_SERVER}${NC}"
+echo -e "  ${GREEN}✓ All 12 images built and pushed to ${ACR_SERVER}${NC}"
 
 # ─── Step 5: Prepare K8s manifests (temp dir — repo stays clean) ──────────────
 
@@ -167,6 +178,7 @@ export CORS_ORIGINS
 sed -i.bak "s|\${KEY_VAULT_NAME}|${KEY_VAULT_NAME}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${TENANT_KEY_VAULT_NAME}|${TENANT_KEY_VAULT_NAME}|g" "$TEMP_DIR/base/configmap.yaml"
 sed -i.bak "s|\${CORS_ORIGINS}|${CORS_ORIGINS}|g" "$TEMP_DIR/base/configmap.yaml"
+sed -i.bak "s|\${AGENTS_DOMAIN}|${AGENTS_DOMAIN:-}|g" "$TEMP_DIR/base/configmap.yaml"
 
 # Substitute secret-provider-class variables
 find "$TEMP_DIR/base/secrets/" -name "*.yaml" -exec sed -i.bak \
@@ -233,8 +245,32 @@ if [ -n "$AGENTS_DOMAIN" ]; then
   done
 
   kubectl wait --for=condition=Ready certificate/wildcard-agents-tls \
-    --namespace cert-manager --timeout=300s 2>/dev/null || \
+    --namespace aiplatform --timeout=300s 2>/dev/null || \
     echo -e "  ${YELLOW}Certificate not ready yet. DNS may need NS record delegation.${NC}"
+
+  # Deploy auth-gateway manifests
+  step "Step 8.1: Auth Gateway (Custom Domain)"
+
+  TEMP_AUTH_DIR="$TEMP_DIR/auth-gateway"
+  mkdir -p "$TEMP_AUTH_DIR"
+  cp k8s/base/auth-gateway/*.yaml "$TEMP_AUTH_DIR/"
+
+  # Substitute variables in auth-gateway manifests
+  find "$TEMP_AUTH_DIR" -name "*.yaml" -exec sed -i.bak \
+    -e "s|\${ACR_SERVER}|${ACR_SERVER}|g" \
+    -e "s|\${AGENTS_DOMAIN}|${AGENTS_DOMAIN}|g" \
+    -e "s|\${AGC_RESOURCE_ID}|${AGC_RESOURCE_ID}|g" {} \;
+  find "$TEMP_AUTH_DIR" -name "*.bak" -delete
+
+  kubectl apply -f "$TEMP_AUTH_DIR/" --namespace aiplatform
+  echo -e "  ${GREEN}✓ Auth gateway deployed${NC}"
+
+  echo -n "  Waiting for auth-gateway... "
+  if kubectl rollout status "deployment/auth-gateway" -n aiplatform --timeout=300s 2>/dev/null; then
+    echo -e "${GREEN}ready${NC}"
+  else
+    echo -e "${YELLOW}timeout (may need secrets configured)${NC}"
+  fi
 fi
 
 # ─── Step 8.5: Seed Entra Client Secret into Key Vault ───────────────────────

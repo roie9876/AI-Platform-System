@@ -13,6 +13,19 @@ spec:
         - namespaceSelector:
             matchLabels:
               app.kubernetes.io/name: alb-controller
+    # Allow from auth-gateway in aiplatform namespace (native UI proxy)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: aiplatform
+          podSelector:
+            matchLabels:
+              app: auth-gateway
+      ports:
+        - protocol: TCP
+          port: 18789
+        - protocol: TCP
+          port: 18790
     # Allow from same namespace (inter-service communication)
     - from:
         - podSelector: {}

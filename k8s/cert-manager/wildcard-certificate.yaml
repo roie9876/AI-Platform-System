@@ -2,12 +2,12 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard-agents-tls
-  namespace: cert-manager
+  namespace: aiplatform
 spec:
   secretName: wildcard-agents-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - "*.${AGENTS_DOMAIN}"
-    - "${AGENTS_DOMAIN}"
+    - "*.agents.${AGENTS_DOMAIN}"
+    - "agents.${AGENTS_DOMAIN}"

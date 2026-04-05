@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aiplatform-agents-ingress
+  annotations:
+    alb.networking.azure.io/alb-id: "${AGC_RESOURCE_ID}"
+    alb.networking.azure.io/ssl-redirect: "true"
+spec:
+  ingressClassName: azure-alb-external
+  tls:
+    - hosts:
+        - "*.agents.${AGENTS_DOMAIN}"
+        - "agents.${AGENTS_DOMAIN}"
+      secretName: wildcard-agents-tls
+  rules:
+    - host: "*.agents.${AGENTS_DOMAIN}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-gateway
+                port:
+                  number: 8000
+    - host: "agents.${AGENTS_DOMAIN}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-gateway
+                port:
+                  number: 8000
