@@ -1223,13 +1223,9 @@ class OpenClawService:
                 if group_policy == "open":
                     # Open policy: respond to all groups without requiring @mention
                     groups_cfg = {"*": {"requireMention": False}}
-                else:
-                    # Allowlist with no rules: set groupPolicy to "open" so
-                    # OpenClaw tracks incoming group messages (enabling
-                    # discovery), but require @mention so the agent does
-                    # NOT respond unless explicitly addressed.
-                    wa_config["groupPolicy"] = "open"
-                    groups_cfg = {"*": {"requireMention": True}}
+                # else: allowlist with no rules — agent ignores ALL groups
+                # (locked-down default: no response until groups are
+                # explicitly added via the UI)
             if groups_cfg:
                 wa_config["groups"] = groups_cfg
 
