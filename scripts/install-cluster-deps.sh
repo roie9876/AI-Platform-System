@@ -15,20 +15,26 @@ fi
 AGENTS_DOMAIN="${AGENTS_DOMAIN:-}"
 
 # --- 1. CSI Secrets Store Driver ---
-echo "[1/4] CSI Secrets Store Driver..."
-helm repo add csi-secrets-store-provider-azure https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
-helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
-helm repo update
+# AKS addon 'azureKeyvaultSecretsProvider' manages the driver and CRDs.
+# Only install via Helm if the addon is NOT present.
+if kubectl get crd secretproviderclasses.secrets-store.csi.x-k8s.io -o jsonpath='{.metadata.labels.kubernetes\.azure\.com/managedby}' 2>/dev/null | grep -q aks; then
+  echo "[1/4] CSI Secrets Store Driver — SKIPPED (managed by AKS addon)"
+else
+  echo "[1/4] CSI Secrets Store Driver (Helm)..."
+  helm repo add csi-secrets-store-provider-azure https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
+  helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
+  helm repo update
 
-helm upgrade --install csi-secrets-store-driver secrets-store-csi-driver/secrets-store-csi-driver \
-  --namespace kube-system \
-  --set syncSecret.enabled=true \
-  --set enableSecretRotation=true \
-  --wait --timeout 5m
+  helm upgrade --install csi-secrets-store-driver secrets-store-csi-driver/secrets-store-csi-driver \
+    --namespace kube-system \
+    --set syncSecret.enabled=true \
+    --set enableSecretRotation=true \
+    --wait --timeout 5m
 
-helm upgrade --install csi-secrets-store-provider-azure csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
-  --namespace kube-system \
-  --wait --timeout 5m
+  helm upgrade --install csi-secrets-store-provider-azure csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+    --namespace kube-system \
+    --wait --timeout 5m
+fi
 
 # --- 2. KEDA ---
 echo "[2/4] KEDA autoscaler..."
