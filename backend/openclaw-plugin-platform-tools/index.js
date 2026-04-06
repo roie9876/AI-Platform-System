@@ -181,6 +181,36 @@ function createListGroupsSchema() {
   );
 }
 
+function createConversationSearchSchema() {
+  return Type.Object(
+    {
+      tenant_id: Type.String({ description: "Tenant identifier" }),
+      agent_id: Type.String({ description: "Agent identifier" }),
+      query: Type.Optional(
+        Type.String({
+          description:
+            "Keyword or phrase to search for in past conversations (empty = recent conversations)",
+        })
+      ),
+      channel: Type.Optional(
+        Type.String({
+          description:
+            "Filter by channel e.g. 'whatsapp', 'chat' (empty = all channels)",
+        })
+      ),
+      limit: Type.Optional(
+        Type.Number({ description: "Max results to return (default: 10, max: 50)" })
+      ),
+      days_back: Type.Optional(
+        Type.Number({
+          description: "How many days back to search (default: 30, max: 365)",
+        })
+      ),
+    },
+    { additionalProperties: false }
+  );
+}
+
 // ---------------------------------------------------------------------------
 //  Plugin entry (definePluginEntry inline — avoids hash-dependent imports)
 // ---------------------------------------------------------------------------
@@ -286,6 +316,24 @@ export default {
       parameters: createListGroupsSchema(),
       async execute(_toolCallId, params) {
         const result = await callTool("tool_list_configured_groups", params);
+        return jsonResult(result);
+      },
+    });
+
+    api.registerTool({
+      name: "platform_search_conversation_history",
+      label: "Search Conversation History",
+      description:
+        "Search past conversation history stored in the platform database. " +
+        "Use this to recall older conversations when local/session memory " +
+        "doesn't have the answer. Searches both user messages and assistant " +
+        "responses by keyword.",
+      parameters: createConversationSearchSchema(),
+      async execute(_toolCallId, params) {
+        const result = await callTool(
+          "tool_search_conversation_history",
+          params
+        );
         return jsonResult(result);
       },
     });

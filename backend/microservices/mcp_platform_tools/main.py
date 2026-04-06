@@ -206,6 +206,93 @@ async def tool_create_execution_log(
 
 
 # ---------------------------------------------------------------------------
+#  Conversation history search (long-term memory via execution_logs)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def tool_search_conversation_history(
+    tenant_id: str,
+    agent_id: str,
+    query: str = "",
+    channel: str = "",
+    limit: int = 10,
+    days_back: int = 30,
+) -> dict:
+    """Search past conversation history stored in the platform database.
+    Use this to recall older conversations when local/session memory doesn't have the answer.
+    Searches both user messages and assistant responses by keyword.
+    Args:
+        query: keyword or phrase to search for in conversations (empty = recent conversations)
+        channel: filter by channel e.g. 'whatsapp', 'chat' (empty = all channels)
+        limit: max results to return (default 10, max 50)
+        days_back: how many days back to search (default 30)
+    """
+    from datetime import datetime, timedelta, timezone
+    from app.repositories.cosmos_client import get_cosmos_container
+
+    container = await get_cosmos_container("execution_logs")
+    if container is None:
+        return {"status": "error", "message": "Database not available"}
+
+    limit = min(max(1, limit), 50)
+    days_back = min(max(1, days_back), 365)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
+
+    params = [
+        {"name": "@tid", "value": tenant_id},
+        {"name": "@aid", "value": agent_id},
+        {"name": "@cutoff", "value": cutoff},
+        {"name": "@limit", "value": limit},
+    ]
+
+    conditions = [
+        "c.tenant_id = @tid",
+        "c.agent_id = @aid",
+        "c.event_type = 'model_response'",
+        "c.created_at >= @cutoff",
+    ]
+
+    if query:
+        conditions.append(
+            "(CONTAINS(c.state_snapshot.input_text, @query, true) "
+            "OR CONTAINS(c.state_snapshot.output_text, @query, true))"
+        )
+        params.append({"name": "@query", "value": query})
+
+    if channel:
+        conditions.append("c.state_snapshot.channel = @channel")
+        params.append({"name": "@channel", "value": channel})
+
+    sql = (
+        f"SELECT TOP @limit c.id, c.created_at, c.state_snapshot.input_text AS user_message, "
+        f"c.state_snapshot.output_text AS assistant_response, "
+        f"c.state_snapshot.channel AS channel, c.state_snapshot.model_name AS model, "
+        f"c.state_snapshot.tool_calls_count AS tool_calls "
+        f"FROM c WHERE {' AND '.join(conditions)} "
+        f"ORDER BY c.created_at DESC"
+    )
+
+    results = []
+    async for item in container.query_items(
+        query=sql, parameters=params, partition_key=tenant_id
+    ):
+        # Truncate long texts for readability
+        if item.get("user_message"):
+            item["user_message"] = item["user_message"][:500]
+        if item.get("assistant_response"):
+            item["assistant_response"] = item["assistant_response"][:1000]
+        results.append(item)
+
+    return {
+        "status": "ok",
+        "count": len(results),
+        "query": query or "(recent)",
+        "days_back": days_back,
+        "conversations": results,
+    }
+
+
+# ---------------------------------------------------------------------------
 #  Health endpoints (plain Starlette — not MCP tools)
 # ---------------------------------------------------------------------------
 
