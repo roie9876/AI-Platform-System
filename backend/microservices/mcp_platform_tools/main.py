@@ -164,6 +164,48 @@ async def tool_list_configured_groups(
 
 
 # ---------------------------------------------------------------------------
+#  Execution log tool (enables OpenClaw → Traces in AI Platform UI)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def tool_create_execution_log(
+    tenant_id: str,
+    agent_id: str,
+    event_type: str,
+    input_text: str = "",
+    output_text: str = "",
+    tool_calls_count: int = 0,
+    duration_ms: int = 0,
+    source: str = "openclaw",
+    channel: str = "",
+    model_name: str = "",
+) -> dict:
+    """Create an execution log entry for observability. Called by OpenClaw plugin after each conversation turn."""
+    from uuid import uuid4
+    from app.repositories.observability_repo import ExecutionLogRepository
+    repo = ExecutionLogRepository()
+    log_entry = {
+        "id": str(uuid4()),
+        "event_type": event_type,
+        "state_snapshot": {
+            "input_text": input_text[:2000] if input_text else "",
+            "output_text": output_text[:5000] if output_text else "",
+            "response_length": len(output_text) if output_text else 0,
+            "tool_calls_count": tool_calls_count,
+            "source": source,
+            "channel": channel,
+            "model_name": model_name,
+        },
+        "duration_ms": duration_ms,
+        "agent_id": agent_id,
+        "tenant_id": tenant_id,
+    }
+    created = await repo.create(tenant_id, log_entry)
+    logger.info("Created execution log %s for agent %s (type=%s)", created.get("id"), agent_id, event_type)
+    return {"status": "ok", "id": created.get("id")}
+
+
+# ---------------------------------------------------------------------------
 #  Health endpoints (plain Starlette — not MCP tools)
 # ---------------------------------------------------------------------------
 

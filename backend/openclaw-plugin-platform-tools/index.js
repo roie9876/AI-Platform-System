@@ -300,10 +300,15 @@ export default {
     if (tenantId && agentId) {
       // After each agent turn, store user messages and assistant response
       api.on("agent_end", async (event) => {
-        if (!event.success || !event.messages || event.messages.length === 0) return;
+        api.logger?.info?.(`platform-tools: agent_end fired — success=${event.success} messages=${event.messages?.length ?? "N/A"} keys=${Object.keys(event || {}).join(",")}`);
+        if (!event.success || !event.messages || event.messages.length === 0) {
+          api.logger?.info?.(`platform-tools: agent_end skipped — success=${event.success} messages=${event.messages?.length ?? 0}`);
+          return;
+        }
         try {
           const userTexts = [];
           let assistantText = "";
+          let toolCallsCount = 0;
 
           for (const msg of event.messages) {
             if (!msg || typeof msg !== "object") continue;
@@ -357,12 +362,17 @@ export default {
               if (content.length >= 3) userTexts.push(content);
             } else if (msg.role === "assistant") {
               assistantText = content;
+            } else if (msg.role === "tool") {
+              toolCallsCount++;
             }
           }
+
+          api.logger?.info?.(`platform-tools: parsed ${userTexts.length} userTexts, assistantText.length=${assistantText.length}, toolCallsCount=${toolCallsCount}`);
 
           // Store user messages
           for (const text of userTexts.slice(0, 3)) {
             try {
+              api.logger?.info?.(`platform-tools: storing user msg (${text.length} chars)...`);
               await callTool("tool_memory_store", {
                 tenant_id: tenantId,
                 agent_id: agentId,
@@ -389,8 +399,34 @@ export default {
               api.logger?.warn?.(`platform-tools: auto-store assistant msg failed: ${e}`);
             }
           }
+
+          // Create execution log for AI Platform Traces
+          const inputText = userTexts.join("\n").slice(0, 2000);
+          api.logger?.info?.(`platform-tools: creating execution log — inputText.length=${inputText.length} assistantText.length=${assistantText.length}`);
+          if (inputText || assistantText) {
+            try {
+              api.logger?.info?.(`platform-tools: calling tool_create_execution_log...`);
+              await callTool("tool_create_execution_log", {
+                tenant_id: tenantId,
+                agent_id: agentId,
+                event_type: "model_response",
+                input_text: inputText,
+                output_text: (assistantText || "").slice(0, 5000),
+                tool_calls_count: toolCallsCount,
+                duration_ms: event.durationMs || 0,
+                source: "openclaw",
+                channel: event.channel || "chat",
+                model_name: event.model || "",
+              });
+              api.logger?.info?.(`platform-tools: execution log created successfully`);
+            } catch (e) {
+              api.logger?.info?.(`platform-tools: execution log failed: ${e?.message || e}`);
+            }
+          } else {
+            api.logger?.info?.(`platform-tools: skipping execution log — no input or assistant text`);
+          }
         } catch (err) {
-          api.logger?.warn?.(`platform-tools: agent_end auto-store error: ${err}`);
+          api.logger?.info?.(`platform-tools: agent_end auto-store error: ${err?.message || err}`);
         }
       });
 

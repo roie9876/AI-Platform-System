@@ -369,6 +369,7 @@ async def update_agent(
                 openclaw_config=agent.get("openclaw_config"),
                 agent_id=agent_id,
                 resource_profile=agent.get("resource_profile", "medium"),
+                tenant_id=tenant_id,
             )
             logger.info("Re-deployed OpenClaw CR %s with updated config", agent["openclaw_instance_name"])
         except Exception as e:
@@ -628,6 +629,7 @@ async def list_agent_groups(
                         model_endpoint=model_ep,
                         openclaw_config=agent.get("openclaw_config"),
                         agent_id=agent_id,
+                        tenant_id=tenant_id,
                     )
                     logger.info("Re-deployed CR %s after auto-resolving groups", instance_name)
                 except Exception as e:

@@ -1025,6 +1025,7 @@ class OpenClawService:
         openclaw_config: Optional[dict],
         agent_id: str = "",
         resource_profile: str = "medium",
+        tenant_id: str = "",
     ) -> None:
         """Update an existing OpenClawInstance CR."""
         namespace = f"tenant-{tenant_slug}"
@@ -1044,12 +1045,13 @@ class OpenClawService:
         cr = await self._build_cr(
             instance_name=instance_name,
             namespace=namespace,
-            agent_id="",
+            agent_id=agent_id,
             system_prompt=system_prompt or "You are a helpful assistant.",
             model_id=model_id,
             base_url=base_url,
             openclaw_config=openclaw_config or {},
             resource_profile=resource_profile,
+            tenant_id=tenant_id or tenant_slug,
         )
 
         loop = asyncio.get_event_loop()
