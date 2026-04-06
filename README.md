@@ -100,6 +100,7 @@ Press `Ctrl+C` to stop all services.
   - [3.11 MCP Platform Tools Server](#311-mcp-platform-tools-server)
   - [3.12 Auth Gateway](#312-auth-gateway)
   - [3.13 LLM Proxy (Token Proxy)](#313-llm-proxy-token-proxy)
+  - [3.14 Channel Registration Guide](#314-channel-registration-guide)
 - [4. Security Architecture](#4-security-architecture)
   - [4.1 Authentication Flow](#41-authentication-flow)
   - [4.2 Tenant Isolation Model](#42-tenant-isolation-model)
@@ -852,6 +853,210 @@ The `llm-proxy` pod is a **transparent HTTP proxy** that sits between OpenClaw a
 **Routes proxied:** `/v1/chat/completions`, `/v1/embeddings`, and other OpenAI-compatible endpoints.
 
 **Why:** OpenClaw manages its own LLM calls independently. The LLM Proxy allows the platform to track token usage and costs for OpenClaw agents without modifying the OpenClaw runtime.
+
+### 3.14 Channel Registration Guide
+
+This section explains how to connect an OpenClaw agent to external messaging channels. Each channel requires specific credentials obtained outside the platform, which are then provided during agent creation or update via the UI (Channel Wizard) or the API.
+
+#### Overview — Credential Flow
+
+```
+User obtains credentials (external)
+  ↓
+Frontend Channel Wizard (or API POST /agents)
+  ↓  raw secrets are sent once
+API Gateway
+  ├── Strips raw secrets from payload
+  ├── Stores them in Azure Key Vault
+  └── Saves secret-name reference in Cosmos DB
+  ↓
+OpenClaw CR deployed to tenant namespace
+  ↓
+CSI Secret Provider mounts Key Vault secrets as env vars
+  ↓
+OpenClaw pod starts with channel credentials available
+```
+
+> **Security:** Raw secrets (tokens, passwords) are **never** stored in the database. Only Key Vault secret-name references are persisted. The actual values are mounted at pod runtime via CSI Secret Provider.
+
+#### 3.14.1 WhatsApp Registration
+
+WhatsApp uses **QR-code device linking** — no API keys or tokens required.
+
+**Prerequisites:**
+- A phone with WhatsApp installed
+- The phone number must remain active (WhatsApp session is tied to the device)
+
+**Step-by-Step:**
+
+1. **Create or update an agent** with WhatsApp enabled:
+   - In the UI: Open the Channel Wizard → enable WhatsApp
+   - Via API: Set `openclaw_config.whatsapp.whatsapp_enabled: true`
+
+2. **Configure access control:**
+   - `whatsapp_dm_policy` — `"allowlist"` (only listed phones) or `"pairing"` (pair request flow)
+   - `whatsapp_group_policy` — `"allowlist"` (only listed groups)
+   - `whatsapp_allowed_phones` — Array of phone numbers for DM access (e.g., `["+972508880989"]`)
+   - `whatsapp_group_rules` — Per-group configuration:
+     ```json
+     {
+       "group_name": "Family Group",
+       "group_jid": "120363012345678@g.us",
+       "require_mention": false,
+       "allowed_phones": ["+972508880989"],
+       "instructions": "Respond in Hebrew"
+     }
+     ```
+
+3. **Deploy the agent** — the platform creates the OpenClaw CR and pod.
+
+4. **Link WhatsApp via QR code:**
+   - In the UI: Click "Link WhatsApp" → the QR code appears
+   - Via API: `GET /api/v1/agents/{id}/whatsapp/link` → returns base64 PNG QR code
+   - Open WhatsApp on your phone → **Linked Devices** → **Link a Device** → scan the QR code
+   - The session is established. Credentials are stored on the pod's PVC (`/home/openclaw/.openclaw/credentials/whatsapp/`).
+
+5. **Verify connection:**
+   - UI shows connection status automatically
+   - Via API: `GET /api/v1/agents/{id}/whatsapp/link-status` → `{"status": "connected"}`
+
+6. **Discover groups:**
+   - After linking, the agent auto-discovers groups it's a member of
+   - `GET /api/v1/agents/{id}/groups` returns the list with group JIDs
+   - Use these JIDs in `whatsapp_group_rules` for per-group configuration
+
+**API Endpoints:**
+
+| Method | Endpoint | Purpose |
+|--------|----------|--------|
+| `GET` | `/api/v1/agents/{id}/whatsapp/link` | Get QR code for pairing |
+| `GET` | `/api/v1/agents/{id}/whatsapp/link-status` | Check if WhatsApp is connected |
+| `POST` | `/api/v1/agents/{id}/whatsapp/logout` | Clear session (requires re-link) |
+| `GET` | `/api/v1/agents/{id}/groups` | List discovered groups |
+
+> **Note:** WhatsApp credentials are **not** stored in Key Vault — the Baileys session lives on the pod's PVC. To re-link, call the logout endpoint and scan a new QR code.
+
+#### 3.14.2 Telegram Registration
+
+Telegram uses a **Bot Token** obtained from BotFather.
+
+**Prerequisites:**
+- A Telegram account
+- Access to **@BotFather** on Telegram
+
+**Step-by-Step:**
+
+1. **Create a Telegram bot:**
+   - Open Telegram → search for **@BotFather** → send `/newbot`
+   - Follow the prompts to set a name and username
+   - BotFather returns a **Bot Token** like: `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`
+   - Copy this token — you will need it in the next step
+
+2. **Get your Telegram User ID** (for DM allowlist):
+   - Search for **@userinfobot** on Telegram → send any message → it replies with your user ID (e.g., `123456789`)
+   - For group rules, get group IDs by adding **@RawDataBot** to the group temporarily
+
+3. **Create or update the agent** with Telegram config:
+   - In the UI: Open Channel Wizard → enable Telegram → paste the Bot Token and user IDs
+   - Via API:
+     ```json
+     {
+       "openclaw_config": {
+         "channels": {
+           "telegram_enabled": true,
+           "telegram_bot_token": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+           "telegram_allowed_users": ["123456789", "987654321"],
+           "dm_policy": "allowlist",
+           "telegram_group_rules": [
+             {
+               "group_name": "Dev Team",
+               "group_id": "-1001234567890",
+               "policy": "open",
+               "require_mention": true,
+               "instructions": "Respond in English"
+             }
+           ]
+         }
+       }
+     }
+     ```
+
+4. **What happens behind the scenes:**
+   - The API strips `telegram_bot_token` from the payload
+   - Stores it in Key Vault as `{tenant}-telegram-bot-token-{agent-slug}`
+   - Saves only the secret-name reference (`telegram_bot_token_secret`) in Cosmos DB
+   - The OpenClaw pod receives the token as `TELEGRAM_BOT_TOKEN` env var via CSI mount
+
+5. **The bot starts polling** — send a message to your bot on Telegram to verify it responds.
+
+**Reusing an existing token:** If you've already stored a bot token (e.g., from a previous agent), set `telegram_use_existing_secret: true` and provide `telegram_bot_token_secret` with the Key Vault secret name instead of the raw token.
+
+#### 3.14.3 Gmail Registration
+
+Gmail uses an **App Password** for IMAP/SMTP access via the Himalaya CLI.
+
+**Prerequisites:**
+- A Gmail account
+- **2-Step Verification** must be enabled on the Google Account
+
+**Step-by-Step:**
+
+1. **Enable 2-Step Verification** (if not already):
+   - Go to [Google Account Security](https://myaccount.google.com/security)
+   - Under "How you sign in to Google" → enable **2-Step Verification**
+
+2. **Generate an App Password:**
+   - Go to [App Passwords](https://myaccount.google.com/apppasswords)
+   - Select **Mail** as the app and your device
+   - Google generates a **16-character password** (e.g., `abcd efgh ijkl mnop`)
+   - Copy this password — spaces are automatically removed by the platform
+
+3. **Create or update the agent** with Gmail config:
+   - In the UI: Open Channel Wizard → enable Gmail → enter the email address and app password
+   - Via API:
+     ```json
+     {
+       "openclaw_config": {
+         "gmail": {
+           "gmail_enabled": true,
+           "gmail_email": "your-agent@gmail.com",
+           "gmail_app_password": "abcdefghijklmnop",
+           "gmail_display_name": "My AI Agent"
+         }
+       }
+     }
+     ```
+
+4. **What happens behind the scenes:**
+   - The API strips `gmail_app_password` from the payload
+   - Removes any spaces or non-breaking spaces Google inserts
+   - Stores the password in Key Vault as `{tenant}-gmail-app-password-{agent-slug}`
+   - Saves only the secret-name reference (`gmail_app_password_secret`) in Cosmos DB
+   - The OpenClaw pod receives the password as `GMAIL_APP_PASSWORD` env var via CSI mount
+   - Himalaya CLI inside the pod uses IMAP/SMTP to read, search, and send emails
+
+5. **Verify:** The agent can now read and send emails. Test by sending an email to the configured address and asking the agent to check its inbox.
+
+#### 3.14.4 Key Vault Secret Naming
+
+All channel secrets follow a consistent naming convention in Azure Key Vault:
+
+| Channel | Secret Name Format | Example |
+|---------|-------------------|--------|
+| Telegram | `{tenant}-telegram-bot-token-{agent}` | `eng-telegram-bot-token-family-agent` |
+| Gmail | `{tenant}-gmail-app-password-{agent}` | `eng-gmail-app-password-family-agent` |
+| WhatsApp | N/A (QR-based, stored on PVC) | — |
+
+#### 3.14.5 Channel Credential Lifecycle
+
+| Stage | WhatsApp | Telegram | Gmail |
+|-------|----------|----------|-------|
+| **Obtain** | N/A | @BotFather `/newbot` | Google App Passwords page |
+| **Provide** | Scan QR in UI | Paste token in Channel Wizard | Paste password in Channel Wizard |
+| **Store** | PVC on pod | Azure Key Vault | Azure Key Vault |
+| **DB Reference** | Enabled flag only | Secret name | Secret name |
+| **Runtime** | Read from PVC | `TELEGRAM_BOT_TOKEN` env var | `GMAIL_APP_PASSWORD` env var |
+| **Rotate** | Re-scan QR code | Update KV secret, redeploy | Update KV secret, redeploy |
 
 ---
 
