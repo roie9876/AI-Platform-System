@@ -895,7 +895,7 @@ export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: Cha
                       value="allowlist"
                       selected={state.whatsapp_dm_policy === "allowlist"}
                       onClick={() => update({ whatsapp_dm_policy: "allowlist" })}
-                      description="Only phone numbers you specify below can send direct messages."
+                      description="Only phone numbers you specify below can send direct messages. Leave empty to block all DMs."
                     />
                     <PolicyCard
                       value="pairing"
@@ -917,7 +917,7 @@ export function ChannelWizard({ state, onChange, agentId, mode = "manage" }: Cha
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                       />
                       <p className="mt-1 text-xs text-gray-400">
-                        International format with country code, comma-separated.
+                        International format with country code, comma-separated. Leave empty to block all direct messages.
                       </p>
                     </div>
                   )}

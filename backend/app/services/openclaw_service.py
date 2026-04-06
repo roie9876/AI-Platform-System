@@ -1190,8 +1190,10 @@ class OpenClawService:
             elif wa_allowed:
                 wa_config["allowFrom"] = [str(p) for p in wa_allowed]
             else:
-                # Empty allowFrom with allowlist policy = block all DMs
-                wa_config["allowFrom"] = []
+                # OpenClaw requires at least one entry in allowFrom for
+                # allowlist mode.  Use a dummy value that will never match
+                # a real WhatsApp sender — effectively blocks all DMs.
+                wa_config["allowFrom"] = ["_nobody_"]
 
             # Per-group rules: each rule can override policy, requireMention, allowFrom
             group_rules = whatsapp.get("whatsapp_group_rules", [])
