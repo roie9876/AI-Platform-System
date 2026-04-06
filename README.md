@@ -288,7 +288,9 @@ stateDiagram-v2
 1. Kubernetes namespace `tenant-{slug}` with ResourceQuota and NetworkPolicy
 2. Entra ID security group for tenant members
 3. Default seed data (sample agent, tools)
-4. Admin user record linked to Entra identity
+4. Admin user record linked to Entra identity (auto-created from Entra ID profile)
+
+**Cascade delete:** Deleting a tenant removes all associated resources — agents (including OpenClaw CRs and pods), tools, threads, memories, data sources, knowledge bases, Key Vault secrets, and the Kubernetes namespace. Cascade also applies at the agent level — deleting an agent cleans up its threads, memories, tool attachments, MCP tool bindings, evaluation suites, and OpenClaw instance.
 
 **Runtime isolation:**
 - Every API request → middleware extracts `tenant_id` → all Cosmos DB queries use it as partition key
@@ -527,6 +529,12 @@ The platform implements two memory scopes:
 - Retrieved via embedding similarity search when constructing agent context
 - Scoped per-agent, per-tenant — agent A's memories are never injected into agent B's context
 
+**Conversation history search:**
+- Agents can search their own past conversation history using the `conversation_search` MCP tool
+- Full-text search across all thread messages (user, assistant, tool) for the agent
+- Returns matching messages with thread context, timestamps, and sender roles
+- Enables agents to recall specific past interactions beyond what vector memory captures
+
 **Memory flow at execution time:**
 1. User sends message
 2. Load short-term: last N messages from current thread
@@ -723,6 +731,8 @@ The diagram below shows all the channels, tools, and platform services the OpenC
 | **Persistent Memory** | Hybrid vector + BM25 memory search across sessions. The agent remembers past conversations, user preferences, and context across interactions. |
 | **Cross-Channel Delivery** | Send messages across channels using the `sessions_send` tool. A message received in the Playground can trigger a Telegram notification, and vice versa. |
 | **Cross-Session Context** | Retrieve and share context across different channels — a WhatsApp conversation can inform a Telegram response for the same user. |
+| **Conversation Search** | Search past conversation history across all threads — full-text search over messages with thread context and timestamps. |
+| **Chat Tracing** | Every OpenClaw chat execution is traced end-to-end and logged to the platform's execution logs, enabling cost tracking, latency monitoring, and debugging from the Traces UI. |
 | **Identity Mapping** | Map user identities across channels (Telegram user ID, WhatsApp phone number, Playground user) to a single profile (roadmap). |
 
 #### Communication Channels — Deep Dive
@@ -816,6 +826,7 @@ spec:
 | **Secrets** | Platform stores API keys in Key Vault, provisions them as K8s Secrets referenced via `envFrom` |
 | **Sessions** | OpenClaw manages its own session state on PVC; platform sends `X-Openclaw-Session-Key` header |
 | **Memory** | Platform retrieves relevant memories from Cosmos DB and injects them as context before sending to OpenClaw |
+| **Tracing** | LLM Proxy captures token usage from every OpenClaw request; execution logs are written to Cosmos DB `execution_logs` and surfaced in the platform Traces UI |
 | **Monitoring** | Prometheus metrics exported on port 9090, scraped by Azure Monitor |
 
 ### 3.11 MCP Platform Tools Server
@@ -830,6 +841,7 @@ The `mcp-platform-tools` pod is a dedicated **FastMCP server** (port 8085) that 
 | `memory_search` | Memory | Vector similarity search using `VectorDistance()` in Cosmos DB |
 | `memory_store_structured` | Memory | Store key-value facts without embeddings (`structured_memories` container, upsert by hash) |
 | `memory_get_structured` | Memory | Retrieve structured facts by key or category |
+| `conversation_search` | Memory | Full-text search across past conversation history (all threads) for the agent |
 | `get_group_instructions` | Config | Fetch WhatsApp group-specific system prompt and settings |
 | `get_agent_config` | Config | Agent metadata (safe fields only) |
 | `list_configured_groups` | Config | All WhatsApp groups for an agent |
@@ -898,6 +910,9 @@ WhatsApp uses **QR-code device linking** — no API keys or tokens required.
    - `whatsapp_group_policy` — `"allowlist"` (only listed groups)
    - `whatsapp_allowed_phones` — Array of phone numbers for DM access (e.g., `["+972508880989"]`)
    - `whatsapp_group_rules` — Per-group configuration:
+
+   > **Security default:** The `groupAllowFrom` (who can trigger the agent in groups) is locked down by default to the same phone numbers in `whatsapp_allowed_phones`. Only if a group is explicitly set to `policy: "open"` does `groupAllowFrom` widen to `["*"]`. This means the agent will only process messages from approved contacts unless explicitly configured otherwise.
+
      ```json
      {
        "group_name": "Family Group",
