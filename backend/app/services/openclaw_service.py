@@ -1195,7 +1195,7 @@ class OpenClawService:
                 # a real WhatsApp sender — effectively blocks all DMs.
                 wa_config["allowFrom"] = ["_nobody_"]
 
-            # Per-group rules: each rule can override policy, requireMention, allowFrom
+            # Per-group rules: each rule controls requireMention and group membership
             group_rules = whatsapp.get("whatsapp_group_rules", [])
             groups_cfg: dict = {}
             if group_rules:
@@ -1219,13 +1219,11 @@ class OpenClawService:
                     entry: dict = {
                         "requireMention": rule.get("require_mention", False),
                     }
-                    # NOTE: OpenClaw's config schema only allows "requireMention"
-                    # and "allowFrom" per group. Group names and per-group
-                    # instructions are injected into the SOUL.md workspace
-                    # file via spec.workspace.initialFiles below.
-                    rule_phones = rule.get("allowed_phones", [])
-                    if rule.get("policy") == "allowlist" and rule_phones:
-                        entry["allowFrom"] = [str(p) for p in rule_phones]
+                    # NOTE: OpenClaw's per-group config schema only allows
+                    # "requireMention".  Sender filtering is handled by the
+                    # top-level "groupAllowFrom" (set to ["*"] below).
+                    # Per-group contact restrictions are enforced via SOUL.md
+                    # instructions, not native OpenClaw config.
                     groups_cfg[gid] = entry
             if not groups_cfg:
                 if group_policy == "open":
@@ -1240,11 +1238,27 @@ class OpenClawService:
             # groupAllowFrom controls which *senders* can trigger the bot
             # in groups.  Without this, groupPolicy=allowlist silently
             # drops ALL inbound group messages (isSenderAllowed returns
-            # false).  Default to ["*"] so the per-group `groups` config
-            # is the only filter.  Per-group allowFrom still restricts
-            # individual groups if needed.
+            # false).
+            #
+            # Default policy: LOCKED DOWN.  Only the approved phones
+            # (typically the owner who linked WhatsApp) can trigger the
+            # bot.  If a specific group needs to accept messages from
+            # any sender (e.g., alert forwarding), set that group's
+            # policy to "open" — this escalates groupAllowFrom to ["*"]
+            # because OpenClaw doesn't support per-group sender filtering.
             if wa_config.get("groupPolicy") == "allowlist" and groups_cfg:
-                wa_config["groupAllowFrom"] = ["*"]
+                # Check if any group explicitly allows all senders
+                has_open_group = any(
+                    r.get("policy") == "open"
+                    for r in group_rules
+                    if r.get("group_jid")
+                )
+                if has_open_group:
+                    wa_config["groupAllowFrom"] = ["*"]
+                elif wa_allowed:
+                    wa_config["groupAllowFrom"] = [str(p) for p in wa_allowed]
+                else:
+                    wa_config["groupAllowFrom"] = ["_nobody_"]
 
             # Channel-level instructions for WhatsApp
             wa_instructions = whatsapp.get("whatsapp_channel_instructions", "")
