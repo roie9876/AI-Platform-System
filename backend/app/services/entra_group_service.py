@@ -86,22 +86,125 @@ class EntraGroupService:
             logger.exception("Error creating Entra group for tenant '%s'", tenant_slug)
             return None
 
-    async def add_member(self, group_id: str, user_email: str) -> bool:
-        """Add a user to an Entra group by email (UPN lookup)."""
+    async def create_user(self, email: str, display_name: str = "Tenant Admin") -> str | None:
+        """Create a user in Entra ID. Returns the user Object ID, or None on failure.
+
+        If the user already exists, returns the existing user's Object ID.
+        Generates a random password (user must reset on first login).
+        """
         try:
             token = _get_token()
             async with httpx.AsyncClient() as client:
-                # Look up user by email / UPN
-                user_resp = await client.get(
-                    f"{GRAPH_BASE}/users/{user_email}",
+                # Check if user already exists
+                check_resp = await client.get(
+                    f"{GRAPH_BASE}/users/{email}",
                     headers={"Authorization": f"Bearer {token}"},
                     timeout=15,
                 )
-                if user_resp.status_code != 200:
-                    logger.warning("User '%s' not found in Entra: %s", user_email, user_resp.status_code)
-                    return False
+                if check_resp.status_code == 200:
+                    user_id = check_resp.json()["id"]
+                    logger.info("User '%s' already exists in Entra (id=%s)", email, user_id)
+                    return user_id
 
-                user_id = user_resp.json()["id"]
+                # Create user — requires User.ReadWrite.All
+                import secrets
+                import string
+
+                pwd_chars = string.ascii_letters + string.digits + "!@#$%&*"
+                temp_password = "".join(secrets.choice(pwd_chars) for _ in range(16))
+
+                mail_nickname = email.split("@")[0] if "@" in email else email
+
+                body = {
+                    "accountEnabled": True,
+                    "displayName": display_name,
+                    "mailNickname": mail_nickname,
+                    "userPrincipalName": email,
+                    "passwordProfile": {
+                        "forceChangePasswordNextSignIn": True,
+                        "password": temp_password,
+                    },
+                }
+
+                resp = await client.post(
+                    f"{GRAPH_BASE}/users",
+                    json=body,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=30,
+                )
+
+                if resp.status_code == 201:
+                    user_id = resp.json()["id"]
+                    logger.info(
+                        "Created Entra user '%s' (id=%s) with temporary password",
+                        email, user_id,
+                    )
+                    return user_id
+
+                # If domain is invalid (external user), invite as guest instead
+                if resp.status_code == 400 and "domain" in resp.text.lower():
+                    logger.info("Domain not verified for '%s' — inviting as guest", email)
+                    invite_body = {
+                        "invitedUserEmailAddress": email,
+                        "invitedUserDisplayName": display_name,
+                        "inviteRedirectUrl": "https://myapps.microsoft.com",
+                        "sendInvitationMessage": False,
+                    }
+                    invite_resp = await client.post(
+                        f"{GRAPH_BASE}/invitations",
+                        json=invite_body,
+                        headers={
+                            "Authorization": f"Bearer {token}",
+                            "Content-Type": "application/json",
+                        },
+                        timeout=30,
+                    )
+                    if invite_resp.status_code == 201:
+                        user_id = invite_resp.json()["invitedUser"]["id"]
+                        logger.info(
+                            "Invited external user '%s' as guest (id=%s)",
+                            email, user_id,
+                        )
+                        return user_id
+                    logger.error(
+                        "Failed to invite external user '%s': %s %s",
+                        email, invite_resp.status_code, invite_resp.text,
+                    )
+                    return None
+
+            logger.error(
+                "Failed to create Entra user '%s': %s %s",
+                email, resp.status_code, resp.text,
+            )
+            return None
+
+        except Exception:
+            logger.exception("Error creating Entra user '%s'", email)
+            return None
+
+    async def add_member(self, group_id: str, user_email: str, user_object_id: str | None = None) -> bool:
+        """Add a user to an Entra group by email (UPN lookup) or direct object ID."""
+        try:
+            token = _get_token()
+            async with httpx.AsyncClient() as client:
+                if user_object_id:
+                    # Use the object ID directly (avoids propagation delay after create)
+                    user_id = user_object_id
+                else:
+                    # Look up user by email / UPN
+                    user_resp = await client.get(
+                        f"{GRAPH_BASE}/users/{user_email}",
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=15,
+                    )
+                    if user_resp.status_code != 200:
+                        logger.warning("User '%s' not found in Entra: %s", user_email, user_resp.status_code)
+                        return False
+
+                    user_id = user_resp.json()["id"]
 
                 # Add to group
                 member_resp = await client.post(

@@ -6,6 +6,7 @@ from app.api.v1.dependencies import get_current_user
 from app.repositories.agent_repo import AgentRepository, AgentConfigVersionRepository
 from app.repositories.config_repo import ModelEndpointRepository
 from app.repositories.tenant_repo import TenantRepository
+from app.repositories.thread_repo import AgentMemoryRepository
 from app.services.openclaw_service import OpenClawService
 from app.api.v1.schemas import (
     AgentCreateRequest,
@@ -24,6 +25,7 @@ agent_repo = AgentRepository()
 config_version_repo = AgentConfigVersionRepository()
 endpoint_repo = ModelEndpointRepository()
 tenant_repo = TenantRepository()
+memory_repo = AgentMemoryRepository()
 openclaw_service = OpenClawService()
 
 
@@ -140,6 +142,7 @@ async def create_agent(
                 model_endpoint=model_ep,
                 openclaw_config=oc_config,
                 resource_profile=body.resource_profile,
+                tenant_id=tenant_id,
             )
             agent["openclaw_instance_name"] = instance_name["instance_name"]
             agent["openclaw_gateway_url"] = instance_name["gateway_url"]
@@ -403,6 +406,16 @@ async def delete_agent(
     versions = await config_version_repo.list_by_agent(tenant_id, agent_id)
     for v in versions:
         await config_version_repo.delete(tenant_id, v["id"])
+
+    # Cascade delete: remove all agent memories from Cosmos DB
+    try:
+        memories = await memory_repo.list_by_agent(tenant_id, agent_id)
+        for m in memories:
+            await memory_repo.delete(tenant_id, m["id"])
+        if memories:
+            logger.info("Cascade-deleted %d memories for agent %s", len(memories), agent_id)
+    except Exception as e:
+        logger.warning("Failed to cascade-delete memories for agent %s: %s", agent_id, e)
 
     await agent_repo.delete(tenant_id, agent_id)
 

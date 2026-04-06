@@ -151,7 +151,10 @@ class TenantService:
 
         result = await self.transition_state(tenant_id, "deleted")
 
-        # Deprovision K8s resources
+        # Cascade delete: remove ALL tenant data from Cosmos DB
+        await self._cascade_delete_cosmos_data(tenant_id)
+
+        # Deprovision K8s resources + Entra group
         try:
             from app.services.tenant_provisioning import TenantProvisioningService
 
@@ -164,4 +167,111 @@ class TenantService:
                 exc_info=True,
             )
 
+        # Finally, remove the tenant record itself
+        try:
+            await self.repo.delete(tenant_id, tenant_id)
+            logger.info("Deleted tenant record %s", tenant_id)
+        except Exception:
+            logger.warning("Failed to delete tenant record %s — left in 'deleted' state", tenant_id, exc_info=True)
+
         return result
+
+    async def _cascade_delete_cosmos_data(self, tenant_id: str) -> None:
+        """Delete all tenant data from every Cosmos DB container."""
+        from app.repositories.agent_repo import AgentRepository, AgentConfigVersionRepository
+        from app.repositories.data_source_repo import (
+            AgentDataSourceRepository,
+            DataSourceRepository,
+            DocumentChunkRepository,
+            DocumentRepository,
+        )
+        from app.repositories.evaluation_repo import (
+            EvaluationResultRepository,
+            EvaluationRunRepository,
+            TestCaseRepository,
+            TestSuiteRepository,
+        )
+        from app.repositories.execution_repo import ExecutionResultRepository
+        from app.repositories.mcp_repo import (
+            AgentMCPToolRepository,
+            MCPDiscoveredToolRepository,
+            MCPServerRepository,
+        )
+        from app.repositories.observability_repo import ExecutionLogRepository
+        from app.repositories.thread_repo import (
+            AgentMemoryRepository,
+            ThreadMessageRepository,
+            ThreadRepository,
+        )
+        from app.repositories.token_log_repository import TokenLogRepository
+        from app.repositories.tool_repo import AgentToolRepository, ToolRepository
+        from app.repositories.user_repo import UserRepository
+        from app.repositories.workflow_repo import (
+            WorkflowEdgeRepository,
+            WorkflowExecutionRepository,
+            WorkflowNodeExecutionRepository,
+            WorkflowNodeRepository,
+            WorkflowRepository,
+        )
+
+        # Also catalog_entries and config repos
+        from app.repositories.config_repo import (
+            CatalogEntryRepository,
+            CostAlertRepository,
+            ModelEndpointRepository,
+            ModelPricingRepository,
+        )
+
+        repos: list[tuple[str, CosmosRepository]] = [
+            ("agents", AgentRepository()),
+            ("agent_config_versions", AgentConfigVersionRepository()),
+            ("tools", ToolRepository()),
+            ("agent_tools", AgentToolRepository()),
+            ("mcp_servers", MCPServerRepository()),
+            ("mcp_discovered_tools", MCPDiscoveredToolRepository()),
+            ("agent_mcp_tools", AgentMCPToolRepository()),
+            ("threads", ThreadRepository()),
+            ("thread_messages", ThreadMessageRepository()),
+            ("agent_memories", AgentMemoryRepository()),
+            ("workflows", WorkflowRepository()),
+            ("workflow_nodes", WorkflowNodeRepository()),
+            ("workflow_edges", WorkflowEdgeRepository()),
+            ("workflow_executions", WorkflowExecutionRepository()),
+            ("workflow_node_executions", WorkflowNodeExecutionRepository()),
+            ("data_sources", DataSourceRepository()),
+            ("agent_data_sources", AgentDataSourceRepository()),
+            ("documents", DocumentRepository()),
+            ("document_chunks", DocumentChunkRepository()),
+            ("test_suites", TestSuiteRepository()),
+            ("test_cases", TestCaseRepository()),
+            ("evaluation_runs", EvaluationRunRepository()),
+            ("evaluation_results", EvaluationResultRepository()),
+            ("token_logs", TokenLogRepository()),
+            ("execution_logs", ExecutionLogRepository()),
+            ("execution_results", ExecutionResultRepository()),
+            ("users", UserRepository()),
+            ("model_endpoints", ModelEndpointRepository()),
+            ("model_pricing", ModelPricingRepository()),
+            ("cost_alerts", CostAlertRepository()),
+            ("catalog_entries", CatalogEntryRepository()),
+        ]
+
+        total_deleted = 0
+        for name, repo in repos:
+            try:
+                items = await repo.list_all(tenant_id)
+                for item in items:
+                    await repo.delete(tenant_id, item["id"])
+                if items:
+                    total_deleted += len(items)
+                    logger.info(
+                        "Cascade-deleted %d items from '%s' for tenant %s",
+                        len(items), name, tenant_id,
+                    )
+            except Exception:
+                logger.warning(
+                    "Failed to cascade-delete '%s' for tenant %s",
+                    name, tenant_id, exc_info=True,
+                )
+
+        logger.info("Cascade delete complete: %d total items removed for tenant %s", total_deleted, tenant_id)

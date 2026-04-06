@@ -18,6 +18,8 @@ from app.repositories.cosmos_client import close_cosmos_client
 
 from .embedding import EmbeddingService
 from .memory import (
+    memory_delete,
+    memory_delete_by_agent,
     memory_get_structured,
     memory_search,
     memory_store,
@@ -97,6 +99,25 @@ async def tool_memory_store_structured(
 ) -> dict:
     """Store a structured key-value fact (no embedding needed)."""
     return await memory_store_structured(tenant_id, agent_id, key, value, category)
+
+
+@mcp.tool()
+async def tool_memory_delete(
+    tenant_id: str,
+    agent_id: str,
+    memory_id: str,
+) -> dict:
+    """Delete a single memory by ID."""
+    return await memory_delete(tenant_id, agent_id, memory_id)
+
+
+@mcp.tool()
+async def tool_memory_delete_all(
+    tenant_id: str,
+    agent_id: str,
+) -> dict:
+    """Delete ALL memories for an agent. Use with caution."""
+    return await memory_delete_by_agent(tenant_id, agent_id)
 
 
 @mcp.tool()

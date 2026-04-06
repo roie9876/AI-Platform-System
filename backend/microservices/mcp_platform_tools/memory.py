@@ -148,6 +148,94 @@ async def memory_store_structured(
 #  memory_get_structured
 # ---------------------------------------------------------------------------
 
+async def memory_delete(
+    tenant_id: str,
+    agent_id: str,
+    memory_id: str,
+) -> dict:
+    """Delete a single memory by ID."""
+    container = await get_cosmos_container("agent_memories")
+    if container is None:
+        return {"error": "Database not configured"}
+    try:
+        await container.delete_item(item=memory_id, partition_key=tenant_id)
+        return {"deleted": memory_id}
+    except Exception as exc:
+        logger.warning("memory_delete failed for %s: %s", memory_id, exc)
+        return {"error": f"Not found or already deleted: {memory_id}"}
+
+
+async def memory_delete_by_agent(
+    tenant_id: str,
+    agent_id: str,
+) -> dict:
+    """Delete ALL memories for a given agent (cascade delete)."""
+    container = await get_cosmos_container("agent_memories")
+    if container is None:
+        return {"error": "Database not configured"}
+
+    sql = "SELECT c.id FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid"
+    params = [
+        {"name": "@tid", "value": tenant_id},
+        {"name": "@aid", "value": agent_id},
+    ]
+    deleted = 0
+    async for item in container.query_items(query=sql, parameters=params, partition_key=tenant_id):
+        try:
+            await container.delete_item(item=item["id"], partition_key=tenant_id)
+            deleted += 1
+        except Exception:
+            pass
+
+    # Also delete structured memories
+    s_container = await get_cosmos_container("structured_memories")
+    if s_container:
+        s_sql = "SELECT c.id FROM c WHERE c.tenant_id = @tid AND c.agent_id = @aid"
+        async for item in s_container.query_items(query=s_sql, parameters=params, partition_key=tenant_id):
+            try:
+                await s_container.delete_item(item=item["id"], partition_key=tenant_id)
+                deleted += 1
+            except Exception:
+                pass
+
+    return {"deleted_count": deleted, "agent_id": agent_id}
+
+
+async def memory_delete_by_tenant(
+    tenant_id: str,
+) -> dict:
+    """Delete ALL memories for a given tenant (cascade delete)."""
+    container = await get_cosmos_container("agent_memories")
+    if container is None:
+        return {"error": "Database not configured"}
+
+    sql = "SELECT c.id FROM c WHERE c.tenant_id = @tid"
+    params = [{"name": "@tid", "value": tenant_id}]
+    deleted = 0
+    async for item in container.query_items(query=sql, parameters=params, partition_key=tenant_id):
+        try:
+            await container.delete_item(item=item["id"], partition_key=tenant_id)
+            deleted += 1
+        except Exception:
+            pass
+
+    s_container = await get_cosmos_container("structured_memories")
+    if s_container:
+        s_sql = "SELECT c.id FROM c WHERE c.tenant_id = @tid"
+        async for item in s_container.query_items(query=s_sql, parameters=params, partition_key=tenant_id):
+            try:
+                await s_container.delete_item(item=item["id"], partition_key=tenant_id)
+                deleted += 1
+            except Exception:
+                pass
+
+    return {"deleted_count": deleted, "tenant_id": tenant_id}
+
+
+# ---------------------------------------------------------------------------
+#  memory_get_structured
+# ---------------------------------------------------------------------------
+
 async def memory_get_structured(
     tenant_id: str,
     agent_id: str,

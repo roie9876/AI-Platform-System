@@ -839,6 +839,7 @@ class OpenClawService:
         model_endpoint: Optional[dict],
         openclaw_config: Optional[dict],
         resource_profile: str = "medium",
+        tenant_id: str = "",
     ) -> dict:
         """Deploy an OpenClawInstance for the given agent.
 
@@ -872,6 +873,7 @@ class OpenClawService:
             base_url=base_url,
             openclaw_config=openclaw_config or {},
             resource_profile=resource_profile,
+            tenant_id=tenant_id,
         )
 
         # Build K8s Secret with values from Key Vault (OpenClaw reads via envFrom)
@@ -1138,6 +1140,7 @@ class OpenClawService:
         base_url: str,
         openclaw_config: dict,
         resource_profile: str = "medium",
+        tenant_id: str = "",
     ) -> dict:
         """Build the OpenClawInstance CR body."""
         from app.api.v1.schemas import RESOURCE_PROFILES
@@ -1366,6 +1369,10 @@ class OpenClawService:
                     "tag": OPENCLAW_IMAGE_TAG,
                     "pullPolicy": "Always",
                 },
+                "env": [
+                    {"name": "PLATFORM_TENANT_ID", "value": tenant_id or ""},
+                    {"name": "PLATFORM_AGENT_ID", "value": agent_id or ""},
+                ],
                 "envFrom": [{"secretRef": {"name": f"{instance_name}-secrets"}}],
                 "storage": {"persistence": {"enabled": True, "size": profile["pvc_size"]}},
                 "resources": {
@@ -1491,6 +1498,16 @@ class OpenClawService:
             "## Continuity\n\n"
             "Each session, you wake up fresh. These files _are_ your memory. "
             "Read them. Update them. They're how you persist.\n"
+            "\n## Long-Term Memory\n\n"
+            "You have access to a long-term memory system stored in the cloud. "
+            "Conversations are automatically saved and recalled for you.\n\n"
+            "When a user asks about something from a previous conversation "
+            "(even weeks or months ago), use the `platform_memory_search` tool "
+            "to find relevant past messages. The search is semantic — you don't "
+            "need exact words, just describe what you're looking for.\n\n"
+            "You can also explicitly store important information using "
+            "`platform_memory_store` — use it for key facts, preferences, or "
+            "decisions the user would want you to remember.\n"
         ]
 
         # Append platform-managed instructions
@@ -1915,3 +1932,17 @@ class OpenClawService:
         except client.ApiException as e:
             if e.status != 404:
                 raise
+
+        # Delete PVCs created by the StatefulSet
+        for suffix in ("data", "chromium-data"):
+            pvc_name = f"{instance_name}-{suffix}"
+            try:
+                core_v1.delete_namespaced_persistent_volume_claim(
+                    name=pvc_name,
+                    namespace=namespace,
+                )
+                logger.info("Deleted PVC %s/%s", namespace, pvc_name)
+            except client.ApiException as e:
+                if e.status != 404:
+                    logger.warning("Failed to delete PVC %s/%s: %s", namespace, pvc_name, e)
+

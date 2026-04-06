@@ -195,9 +195,13 @@ else
 
   # Microsoft Graph App ID: 00000003-0000-0000-c000-000000000000
   # User.Read.All: df021288-bdef-4463-88db-98f22de89214
+  # User.ReadWrite.All: 741f803b-c850-494e-b5df-cde7c675a1ca
+  # User.Invite.All: 09850681-111b-4a89-9571-53f73d8520bd
   # Group.ReadWrite.All: 62a82d76-70ea-41e2-9197-370581804d09
   GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
   USER_READ_ALL_ID="df021288-bdef-4463-88db-98f22de89214"
+  USER_RW_ALL_ID="741f803b-c850-494e-b5df-cde7c675a1ca"
+  USER_INVITE_ALL_ID="09850681-111b-4a89-9571-53f73d8520bd"
   GROUP_RW_ALL_ID="62a82d76-70ea-41e2-9197-370581804d09"
 
   az rest --method PATCH \
@@ -213,6 +217,14 @@ else
               \"type\": \"Role\"
             },
             {
+              \"id\": \"${USER_RW_ALL_ID}\",
+              \"type\": \"Role\"
+            },
+            {
+              \"id\": \"${USER_INVITE_ALL_ID}\",
+              \"type\": \"Role\"
+            },
+            {
               \"id\": \"${GROUP_RW_ALL_ID}\",
               \"type\": \"Role\"
             }
@@ -221,7 +233,7 @@ else
       ]
     }"
 
-  echo -e "  ${GREEN}✓ Microsoft Graph permissions added (User.Read.All, Group.ReadWrite.All)${NC}"
+  echo -e "  ${GREEN}✓ Microsoft Graph permissions added (User.Read.All, User.ReadWrite.All, User.Invite.All, Group.ReadWrite.All)${NC}"
 
   # ── Grant Admin Consent ───────────────────────────────────────────────────
   echo "  Granting admin consent for API permissions..."
@@ -275,7 +287,7 @@ else
   echo -e "  ${GREEN}║  Client ID:    ${APP_CLIENT_ID} ║${NC}"
   echo -e "  ${GREEN}║  API Scope:    api://${APP_CLIENT_ID}/access_as_user${NC}"
   echo -e "  ${GREEN}║  App Roles:    Platform.Admin, Tenant.Admin, Tenant.User║${NC}"
-  echo -e "  ${GREEN}║  Graph Perms:  User.Read.All, Group.ReadWrite.All       ║${NC}"
+  echo -e "  ${GREEN}║  Graph Perms:  User.Read/Write.All, Group.RW.All       ║${NC}"
   echo -e "  ${GREEN}║  Secret:       Stored in azd env (1-year expiry)        ║${NC}"
   echo -e "  ${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
 fi

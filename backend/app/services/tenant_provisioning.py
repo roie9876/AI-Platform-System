@@ -486,7 +486,13 @@ class TenantProvisioningService:
 
             for email in emails_to_add:
                 try:
-                    added = await svc.add_member(group_id, email)
+                    # Auto-create the user in Entra ID if they don't exist
+                    user_id = await svc.create_user(email, display_name="Tenant Admin")
+                    if not user_id:
+                        logger.warning("Could not create/find Entra user '%s' — skipping group add", email)
+                        continue
+                    # Pass user_object_id to avoid propagation delay after create
+                    added = await svc.add_member(group_id, email, user_object_id=user_id)
                     if not added:
                         logger.warning("Could not add '%s' to group %s", email, group_id)
                 except Exception:
