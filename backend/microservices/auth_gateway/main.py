@@ -466,7 +466,11 @@ async def path_proxy_websocket(websocket: WebSocket, agent_slug: str, path: str 
 
     await websocket.accept()
     try:
-        async with websockets.connect(pod_ws_url, additional_headers=extra_headers) as pod_ws:
+        async with websockets.connect(
+            pod_ws_url,
+            additional_headers=extra_headers,
+            max_size=25 * 1024 * 1024,  # 25 MB — match OpenClaw's MAX_PAYLOAD_BYTES
+        ) as pod_ws:
             async def client_to_pod():
                 try:
                     while True:
