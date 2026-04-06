@@ -97,6 +97,9 @@ Press `Ctrl+C` to stop all services.
     - [3.8.1 MCP Servers](#381-mcp-servers)
   - [3.9 Workflow Engine Pod](#39-workflow-engine-pod)
   - [3.10 OpenClaw Agent Runtime](#310-openclaw-agent-runtime)
+  - [3.11 MCP Platform Tools Server](#311-mcp-platform-tools-server)
+  - [3.12 Auth Gateway](#312-auth-gateway)
+  - [3.13 LLM Proxy (Token Proxy)](#313-llm-proxy-token-proxy)
 - [4. Security Architecture](#4-security-architecture)
   - [4.1 Authentication Flow](#41-authentication-flow)
   - [4.2 Tenant Isolation Model](#42-tenant-isolation-model)
@@ -163,7 +166,7 @@ Press `Ctrl+C` to stop all services.
 
 ### 1.1 System-Level View
 
-The platform is organized into three layers: a **Control Plane** for management, a **Runtime Plane** for execution, and a shared **Data Layer** for persistence. Eight Kubernetes pods (7 backend microservices + 1 frontend) run inside an AKS cluster behind an Application Gateway for Containers (AGC) ingress controller.
+The platform is organized into three layers: a **Control Plane** for management, a **Runtime Plane** for execution, and a shared **Data Layer** for persistence. Fourteen Kubernetes pods (13 backend microservices + 1 frontend) run inside an AKS cluster behind an Application Gateway for Containers (AGC) ingress controller.
 
 ![Azure High-Level Design](docs/architecture/azure-hld.drawio.png)
 
@@ -173,7 +176,7 @@ The architecture enforces a strict separation between **management** and **execu
 
 | Property | Control Plane | Runtime Plane |
 |----------|--------------|---------------|
-| **Pods** | `api-gateway` | `agent-executor`, `tool-executor`, `mcp-proxy`, `mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `workflow-engine`, `openclaw` (per-tenant) |
+| **Pods** | `api-gateway` | `agent-executor`, `tool-executor`, `mcp-proxy`, `mcp-platform-tools`, `mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `workflow-engine`, `auth-gateway`, `llm-proxy`, `openclaw` (per-tenant) |
 | **Purpose** | Configuration, governance, admin ops | Agent execution, tool calls, LLM routing |
 | **Traffic Pattern** | Low frequency (admin CRUD) | High frequency (user conversations) |
 | **Latency Tolerance** | Seconds acceptable | Milliseconds critical (streaming) |
@@ -187,11 +190,12 @@ The architecture enforces a strict separation between **management** and **execu
 
 | Service | Technology | Purpose |
 |---------|-----------|---------|
-| **Primary Database** | Azure Cosmos DB (NoSQL, Serverless) | All platform data — 33 containers, partitioned by `/tenant_id` |
+| **Primary Database** | Azure Cosmos DB (NoSQL, Serverless) | All platform data — 37 containers, partitioned by `/tenant_id` |
 | **Secrets** | Azure Key Vault | API keys, connection strings, Entra config |
 | **Search** | Azure AI Search | Hybrid vector + keyword search for RAG retrieval |
 | **Observability** | Application Insights + Log Analytics | APM, distributed tracing, KQL queries |
 | **Async Queue** | Azure Service Bus | Async agent execution with KEDA scale-to-zero |
+| **Blob Storage** | Azure Storage Account | Agent archives, file uploads |
 
 ---
 
@@ -210,12 +214,16 @@ Despite the name, this is **not** a routing gateway. It is a **control-plane app
 | Domain | Routes | Description |
 |--------|--------|-------------|
 | Authentication | `/api/v1/auth/*` | Entra ID SSO, device-code flow |
-| Agent CRUD | `/api/v1/agents` | Create, list, update, delete agents |
-| Model Endpoints | `/api/v1/model-endpoints` | Register LLM providers (Azure OpenAI, OpenAI, Anthropic, custom) |
+| Agent CRUD | `/api/v1/agents` | Create, list, update, delete agents; WhatsApp link management |
+| Chat | `/api/v1/agents/{id}/chat` | Synchronous SSE streaming chat, file upload |
+| Async Chat | `/api/v1/agents/{id}/chat/async` | Queue via Service Bus, poll with correlation ID |
+| Model Endpoints | `/api/v1/model-endpoints` | Register LLM providers (Azure OpenAI, OpenAI, Anthropic, Claude, Grok, custom) |
+| Knowledge | `/api/v1/knowledge` | Knowledge base CRUD, document ingestion |
 | Catalog | `/api/v1/catalog` | Browse data source connector templates |
 | Marketplace | `/api/v1/marketplace` | Share and discover agent/tool templates |
-| Evaluations | `/api/v1/evaluations` | Test suite management and execution |
-| Observability | `/api/v1/observability` | Cost dashboards, token usage, execution logs |
+| Evaluations | `/api/v1/evaluations` | Test suite management, execution, comparison |
+| Observability | `/api/v1/observability` | Cost dashboards, token usage, pricing management, cost alerts |
+| Token Usage | `/api/v1/token-usage` | Fine-grained token usage logs and summaries |
 | Tenant Admin | `/api/v1/tenants` | Tenant lifecycle (create, suspend, deactivate) |
 | Azure Integration | `/api/v1/azure/*` | Subscription connection, resource discovery |
 | AI Services | `/api/v1/ai-services` | Platform-managed AI tools (Bing, Grounding) |
@@ -378,7 +386,7 @@ Token counts are captured from the LLM response `usage` object and stored in the
 
 > 📚 **Learn the concepts:** [Runtime Plane (Education)](https://github.com/roie9876/AI-Agent-Platform/blob/main/education/en/09-runtime-plane.md)
 
-The Runtime Plane handles the actual execution of AI agents. It consists of seven shared pods plus per-tenant **OpenClaw** pods: the **Agent Executor** orchestrates the core ReAct loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, three **MCP servers** (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`) connect to external SaaS APIs, the **Workflow Engine** coordinates multi-agent flows, and **OpenClaw** provides an autonomous agent runtime with native multi-channel support (Telegram, Slack, Discord).
+The Runtime Plane handles the actual execution of AI agents. It consists of eleven shared pods plus per-tenant **OpenClaw** pods: the **Agent Executor** orchestrates the core ReAct loop, the **Tool Executor** runs tools and retrieves RAG content, the **MCP Proxy** bridges external tool protocols, four **MCP servers** (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `mcp-platform-tools`) connect to external SaaS APIs and platform internals, the **Workflow Engine** coordinates multi-agent flows, the **Auth Gateway** proxies OpenClaw native UIs with Entra ID authentication, the **LLM Proxy** transparently logs token usage, and **OpenClaw** provides an autonomous agent runtime with native multi-channel support (Telegram, WhatsApp, Slack, Discord).
 
 ### 3.1 Agent Executor Pod
 
@@ -387,7 +395,9 @@ The **primary execution engine** of the platform. This pod receives user message
 | Responsibility | Routes | Description |
 |---------------|--------|-------------|
 | Chat | `POST /api/v1/agents/{id}/chat` | Send message, receive SSE stream |
+| Chat Upload | `POST /api/v1/agents/{id}/chat/upload` | Upload file for chat context |
 | Async Chat | `POST /api/v1/agents/{id}/chat/async` | Queue via Service Bus (KEDA) |
+| Async Poll | `GET /api/v1/agents/executions/{correlation_id}` | Poll for async result |
 | Threads | `/api/v1/threads/*` | CRUD for conversation sessions |
 | Memory | `/api/v1/agents/{id}/memories` | Long-term agent memory |
 | Internal Execute | `POST /api/v1/internal/agents/{id}/execute` | Called by Workflow Engine |
@@ -470,10 +480,13 @@ The model abstraction layer provides a **unified OpenAI-compatible interface** t
 ![Model Abstraction Layer](docs/architecture/model-abstraction.drawio.png)
 
 **Multi-model routing:** Each agent has a `model_endpoint_id` pointing to a registered endpoint. The platform supports:
-- **Azure OpenAI** (Entra ID or API key auth)
+- **Azure OpenAI** (Entra ID or API key auth, including reasoning models like o4-mini)
 - **OpenAI** (API key auth)
-- **Anthropic** (API key auth)
+- **Anthropic / Claude** (API key auth)
+- **Grok** (xAI API)
 - **Custom endpoints** (any OpenAI-compatible API)
+
+The `ModelAbstractionService` automatically adapts parameters for reasoning vs. standard models (e.g., disabling `temperature` for reasoning models, using `max_completion_tokens` instead of `max_tokens`).
 
 **Circuit breaker pattern:**
 
@@ -624,8 +637,9 @@ Each external SaaS integration runs as a dedicated MCP server pod. Separate serv
 | MCP Server | External Service | API | Auth | Tools | Status |
 |---|---|---|---|---|---|
 | `mcp-atlassian` | Jira Cloud + Confluence | Atlassian REST API | API Token (Key Vault) | 12 (7 Jira + 5 Confluence) | **Active** |
-| `mcp-sharepoint` | SharePoint / OneDrive | Microsoft Graph API | Managed Identity (Entra ID) | — | Planned |
-| `mcp-github` | Repos, Issues, PRs | GitHub REST / GraphQL | GitHub App or PAT | — | Planned |
+| `mcp-sharepoint` | SharePoint / OneDrive | Microsoft Graph API | Managed Identity (Entra ID) | — | **Active** |
+| `mcp-github` | Repos, Issues, PRs | GitHub REST / GraphQL | GitHub App or PAT | — | **Active** |
+| `mcp-platform-tools` | Platform internals | FastMCP over HTTP | Workload Identity | 7 (4 memory + 3 config) | **Active** |
 
 **MCP lifecycle:**
 
@@ -803,6 +817,42 @@ spec:
 | **Memory** | Platform retrieves relevant memories from Cosmos DB and injects them as context before sending to OpenClaw |
 | **Monitoring** | Prometheus metrics exported on port 9090, scraped by Azure Monitor |
 
+### 3.11 MCP Platform Tools Server
+
+The `mcp-platform-tools` pod is a dedicated **FastMCP server** (port 8085) that exposes platform-internal capabilities as MCP tools. Unlike the external MCP servers (Atlassian, GitHub, SharePoint), this server connects to platform data stores rather than external SaaS APIs.
+
+**Tools exposed:**
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| `memory_store` | Memory | Store semantic memory with vector embedding (Cosmos DB `agent_memories`) |
+| `memory_search` | Memory | Vector similarity search using `VectorDistance()` in Cosmos DB |
+| `memory_store_structured` | Memory | Store key-value facts without embeddings (`structured_memories` container, upsert by hash) |
+| `memory_get_structured` | Memory | Retrieve structured facts by key or category |
+| `get_group_instructions` | Config | Fetch WhatsApp group-specific system prompt and settings |
+| `get_agent_config` | Config | Agent metadata (safe fields only) |
+| `list_configured_groups` | Config | All WhatsApp groups for an agent |
+
+**Architecture:** Built with FastMCP + Starlette (async Python). Uses Azure OpenAI `text-embedding-3-large` for embedding generation. Runs 2 replicas with HPA. Authenticates to Azure via Workload Identity (no API keys in pods).
+
+### 3.12 Auth Gateway
+
+The `auth-gateway` pod provides **OIDC authentication and reverse proxying** for OpenClaw agent native UIs. When users access an agent's web interface at `/agents/{slug}`, the auth gateway:
+
+1. Initiates an Entra ID OIDC login flow
+2. Validates the user's identity and tenant membership
+3. Proxies authenticated requests (including WebSocket upgrades) to the correct OpenClaw pod in the tenant namespace
+
+**Key features:** Rate limiting, Pod Disruption Budget for HA, session cookie management.
+
+### 3.13 LLM Proxy (Token Proxy)
+
+The `llm-proxy` pod is a **transparent HTTP proxy** that sits between OpenClaw agents and Azure OpenAI. It intercepts LLM requests, forwards them to the real Azure OpenAI endpoint, and captures token usage from responses for cost tracking.
+
+**Routes proxied:** `/v1/chat/completions`, `/v1/embeddings`, and other OpenAI-compatible endpoints.
+
+**Why:** OpenClaw manages its own LLM calls independently. The LLM Proxy allows the platform to track token usage and costs for OpenClaw agents without modifying the OpenClaw runtime.
+
 ---
 
 ## 4. Security Architecture
@@ -866,7 +916,7 @@ The **Agent Executor** supports a scale-to-zero pattern via Azure Service Bus + 
 
 ### 5.4 Cosmos DB Partition Strategy
 
-All 33 containers use `/tenant_id` as partition key:
+All 37 containers use `/tenant_id` as partition key:
 
 - **Single-partition queries**: All tenant-scoped operations are O(1) partition reads (lowest RU cost)
 - **Independent scaling**: Each partition scales independently based on storage and throughput
@@ -907,10 +957,10 @@ Every logical component maps to a specific Microsoft Azure service:
 
 | Logical Component | Microsoft Product | How It's Used |
 |-------------------|-------------------|---------------|
-| **Compute** | Azure Kubernetes Service (AKS) | Hosts all 6 pods (5 backend + 1 frontend) |
+| **Compute** | Azure Kubernetes Service (AKS) | Hosts all 14 pods (13 backend + 1 frontend) |
 | **Ingress / Edge** | Application Gateway for Containers (AGC) | TLS termination, path-based routing, health checks |
 | **Container Registry** | Azure Container Registry (ACR) | Docker image storage and vulnerability scanning |
-| **Primary Database** | Azure Cosmos DB (NoSQL, Serverless) | 33 containers, all platform data, partition key = `/tenant_id` |
+| **Primary Database** | Azure Cosmos DB (NoSQL, Serverless) | 37 containers, all platform data, partition key = `/tenant_id` |
 | **Search / RAG** | Azure AI Search | Hybrid vector + keyword search for knowledge retrieval |
 | **Secrets** | Azure Key Vault | API keys, connection strings, Entra config |
 | **Identity (Users)** | Microsoft Entra ID | User SSO, JWT authentication, group-based RBAC |
@@ -923,7 +973,7 @@ Every logical component maps to a specific Microsoft Azure service:
 | **Networking** | Azure VNet + CNI Overlay | Network isolation, pod-level networking |
 | **Default LLM** | Azure OpenAI Service | Default LLM provider (Entra ID auth or API key) |
 | **Content Safety** | Azure AI Content Safety | Pre/post-execution content filtering (planned) |
-| **IaC** | Azure Bicep | 10 modules for all infrastructure provisioning |
+| **IaC** | Azure Bicep | 16 modules for all infrastructure provisioning |
 
 ### 7.2 Azure Resource Topology
 
@@ -936,38 +986,49 @@ graph TB
         Log["📋 Log Analytics"]
         Identity["🪪 Managed Identity"]
         Cosmos["🗄️ Cosmos DB<br/>Serverless"]
+        AI["🤖 AI Services<br/>(OpenAI)"]
     end
 
     subgraph "Wave 2 — Depends on Wave 1"
         ACR["📦 ACR<br/>Container Registry"]
         AKS["☸️ AKS Cluster<br/>K8s 1.33"]
         KV["🔐 Key Vault"]
+        KVT["🔐 Key Vault<br/>(Tenants)"]
     end
 
-    subgraph "Wave 3 — Observability"
-        AI["📊 App Insights"]
+    subgraph "Wave 3 — Observability & Services"
+        AppIns["📊 App Insights"]
         Alerts["🚨 Azure Monitor<br/>Alerts"]
+        SB["📬 Service Bus"]
+        Storage["💾 Blob Storage"]
+        AGC["🌐 AGC"]
     end
 
     VNet --> AKS
     Identity --> AKS & KV & Cosmos
-    Log --> AKS & AI & Cosmos
+    Log --> AKS & AppIns & Cosmos
     ACR --> AKS
-    AI --> Alerts
+    AppIns --> Alerts
 ```
 
 | Resource | Bicep Module | Key Config |
 |----------|-------------|------------|
 | VNet | `vnet.bicep` | CNI Overlay, pod CIDR `192.168.0.0/16`, service CIDR `172.16.0.0/16` |
-| AKS | `aks.bicep` | K8s 1.33, system pool (2×D4s_v5), user pool (1×D4s_v5), Workload Identity |
-| Cosmos DB | `cosmos.bicep` | Serverless, session consistency, 33 containers |
+| AKS | `aks.bicep` | K8s 1.33, system pool (2×D4s_v5), user pool (1–5×D4s_v5 autoscaling), Workload Identity |
+| Cosmos DB | `cosmos.bicep` | Serverless, session consistency, vector-enabled containers |
 | ACR | `acr.bicep` | Standard SKU, AKS `AcrPull` RBAC |
 | Key Vault | `keyvault.bicep` | RBAC-enabled, soft delete (7 days) |
+| Key Vault (Tenants) | `keyvault-tenants.bicep` | Per-tenant secret isolation |
 | Log Analytics | `loganalytics.bicep` | 30-day retention |
 | App Insights | `appinsights.bicep` | Linked to Log Analytics |
 | Managed Identity | `identity.bicep` | Workload Identity + AKS identity |
 | AGC | `agc.bicep` | Azure ALB ingress controller |
 | Alerts | `alerts.bicep` | Pod restart count > 5 in 5min → email |
+| AI Services | `ai-services.bicep` | Azure OpenAI account with default embedding model |
+| Service Bus | `servicebus.bicep` | Async messaging for KEDA triggers |
+| Blob Storage | `storage.bicep` | Agent archives, file uploads |
+| DNS Zone | `dns.bicep` | Optional custom agents domain |
+| Domain | `domain.bicep` | Optional App Service Domain registration |
 
 ### 7.3 End-to-End Request Lifecycle (Microsoft Stack)
 
@@ -997,7 +1058,8 @@ The AGC ingress routes requests to the correct pod based on URL path prefix. Rul
 | 6 | `/api/v1/mcp-servers` | mcp-proxy | 8000 | MCP server registry |
 | 7 | `/api/v1/mcp` | mcp-proxy | 8000 | MCP tool operations |
 | 8 | `/api/v1/*` | api-gateway | 8000 | All other APIs (catch-all) |
-| 9 | `/` | frontend | 3000 | Web UI, static assets |
+| 9 | `/agents/*` | auth-gateway | 8000 | OpenClaw native UI proxy (Entra ID OIDC) |
+| 10 | `/` | frontend | 3000 | Web UI, static assets |
 
 **Important:** The chat endpoint `POST /api/v1/agents/{id}/chat` routes to `agent-executor` via the `/api/v1/threads` path. Agent CRUD (`GET/POST /api/v1/agents`) routes to `api-gateway` via the catch-all.
 
@@ -1018,20 +1080,27 @@ The AGC ingress routes requests to the correct pod based on URL path prefix. Rul
 | Key | Value | Purpose |
 |-----|-------|---------|
 | `COSMOS_DATABASE` | `aiplatform` | Database name |
+| `KEY_VAULT_NAME` | `${KEY_VAULT_NAME}` | Main Key Vault |
+| `TENANT_KEY_VAULT_NAME` | `${TENANT_KEY_VAULT_NAME}` | Per-tenant Key Vault |
 | `TOOL_EXECUTOR_URL` | `http://tool-executor:8000` | Inter-service call |
 | `MCP_PROXY_URL` | `http://mcp-proxy:8000` | Inter-service call |
-| `MCP_ATLASSIAN_URL` | `http://mcp-atlassian:8082` | Atlassian MCP server |
 | `AGENT_EXECUTOR_URL` | `http://agent-executor:8000` | Inter-service call |
+| `API_GATEWAY_URL` | `http://api-gateway:8000` | Inter-service call |
 | `WORKFLOW_ENGINE_URL` | `http://workflow-engine:8000` | Inter-service call |
-| `CORS_ORIGINS` | `["https://aiplatform.stumsft.com", "http://localhost:3000"]` | CORS |
+| `OTEL_SERVICE_NAME` | `ai-platform` | OpenTelemetry service name |
+| `AGENTS_DOMAIN` | `${AGENTS_DOMAIN}` | Custom domain for agent UIs |
+| `PLATFORM_BASE_URL` | `${PLATFORM_BASE_URL}` | Platform public URL |
+| `ACR_LOGIN_SERVER` | `${ACR_SERVER}` | Container registry |
+| `STORAGE_ACCOUNT_NAME` | `${STORAGE_ACCOUNT_NAME}` | Blob storage account |
+| `CORS_ORIGINS` | `${CORS_ORIGINS}` | CORS allowed origins |
 
-**Shared codebase pattern:** All 7 backend microservices share the same Python `app/` package. Each microservice's `main.py` creates a FastAPI app and mounts only the relevant routers for that service. A single Dockerfile per service copies the entire `backend/` directory and sets the entry point. The MCP servers (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`) each run as standalone FastAPI apps with dedicated Dockerfiles.
+**Shared codebase pattern:** All backend microservices share the same Python `app/` package. Each microservice's `main.py` creates a FastAPI app and mounts only the relevant routers for that service. A single Dockerfile per service copies the entire `backend/` directory and sets the entry point. The MCP servers (`mcp-atlassian`, `mcp-sharepoint`, `mcp-github`, `mcp-platform-tools`) each run as standalone apps with dedicated Dockerfiles.
 
 ---
 
 ## 9. Data Model — Cosmos DB Schema
 
-Azure Cosmos DB (serverless, NoSQL) hosts all platform data in 33 containers. Every container uses `/tenant_id` as partition key.
+Azure Cosmos DB (serverless, NoSQL) hosts all platform data in 37 containers. Every container uses `/tenant_id` as partition key.
 
 ```
 Database: aiplatform
@@ -1050,7 +1119,8 @@ Database: aiplatform
 │   ├── agent_tools               — Agent ↔ Tool join table
 │   ├── agent_mcp_tools           — Agent ↔ MCP Tool join table
 │   ├── agent_data_sources        — Agent ↔ Data Source join table
-│   ├── agent_memories            — Long-term memories (text + embedding)
+│   ├── agent_memories            — Long-term memories (text + vector embedding)
+│   ├── structured_memories       — Key-value facts without embeddings (upsert by hash)
 │   └── agent_templates           — Marketplace agent templates
 │
 ├── TOOL ECOSYSTEM
@@ -1071,6 +1141,8 @@ Database: aiplatform
 │
 ├── EXECUTION & OBSERVABILITY
 │   ├── execution_logs            — Per-execution metrics (tokens, cost, latency)
+│   ├── execution_results         — Async execution results (keyed by correlation_id)
+│   ├── token_logs                — Fine-grained token usage logging for cost tracking
 │   ├── test_suites               — Evaluation test suite definitions
 │   ├── test_cases                — Individual test cases
 │   ├── evaluation_runs           — Batch evaluation executions
@@ -1090,7 +1162,7 @@ Database: aiplatform
 
 ## 10. Frontend Architecture
 
-The frontend is a **Next.js 15** application (React 19, App Router) with **Shadcn/ui** components and **Tailwind CSS**.
+The frontend is a **Next.js 15.3** application (React 19, App Router) with **Shadcn/ui** components and **Tailwind CSS 4.0**.
 
 **Authentication:** MSAL.js (Microsoft Entra ID) — browser handles OAuth2/PKCE flow, sends Bearer token on every API call.
 
@@ -1098,17 +1170,23 @@ The frontend is a **Next.js 15** application (React 19, App Router) with **Shadc
 
 | Page | Path | Features |
 |------|------|----------|
+| Dashboard | `/dashboard` | Overview with KPI tiles |
 | Agents | `/dashboard/agents` | List, create, delete agents |
-| Agent Config | `/dashboard/agents/{id}` | Tabs: Playground, Traces, Monitor, Evaluation, Tools, Data Sources, Knowledge, AI Services, Versions |
-| Chat | Agent detail → Playground tab | SSE streaming chat, thread management |
-| Workflows | `/dashboard/workflows` | React Flow canvas, node/edge editing, execution monitor |
+| Agent Config | `/dashboard/agents/{id}` | Multi-tab: Playground, Tools, Data Sources, AI Services, Versions |
+| Chat | `/dashboard/agents/{id}/chat` | SSE streaming chat, file upload, thread management |
+| Workflows | `/dashboard/workflows` | React Flow canvas, node/edge editing |
+| Workflow Run | `/dashboard/workflows/{id}/run` | Execution monitor with per-node results |
 | Tools | `/dashboard/tools` | Custom tool creation, JSON Schema editor |
-| MCP | `/dashboard/mcp-tools` | MCP server registration, tool discovery |
+| MCP Tools | `/dashboard/mcp-tools` | MCP tool list + server management |
 | Data Sources | `/dashboard/data-sources` | File upload, URL ingestion, connector catalog |
-| Knowledge | `/dashboard/knowledge` | Azure AI Search connection, index selection |
+| Knowledge | `/dashboard/knowledge` | Knowledge base management, document ingestion |
 | Models | `/dashboard/models` | LLM endpoint management (Azure OpenAI, OpenAI, Anthropic) |
-| Evaluations | `/dashboard/evaluations` | Test suites, execution runs, score trends |
-| Observability | `/dashboard/observability` | KPI tiles, token charts, cost breakdown, logs |
+| Evaluations | `/dashboard/evaluations` | Test suites, execution runs, score comparison |
+| Guardrails | `/dashboard/guardrails` | Agent guardrails configuration |
+| Observability | `/dashboard/observability` | KPI tiles, token charts, cost breakdown |
+| Logs | `/dashboard/observability/logs` | Structured execution log viewer |
+| Cost Analysis | `/dashboard/observability/costs` | Cost breakdown by agent, model, time range |
+| Token Usage | `/dashboard/observability/tokens` | Token usage time series |
 | Marketplace | `/dashboard/marketplace` | Browse and import agent/tool templates |
 | Tenants | `/dashboard/tenants` | Admin: create, configure, suspend tenants |
 | Azure | `/dashboard/azure` | Subscription connection, resource discovery |
@@ -1321,7 +1399,9 @@ kubectl rollout restart deployment -n aiplatform
 | Key Vault | `stumsft-aiplat-{env}-kv` | Secrets management |
 | Log Analytics | `stumsft-aiplatform-{env}-logs` | Centralized logging |
 | App Insights | `stumsft-aiplatform-{env}-appins` | APM and distributed tracing |
+| Key Vault (Tenants) | `stumsft-aiplat-{env}-tkv` | Per-tenant secrets isolation |
 | Service Bus | `stumsft-aiplatform-{env}-sb` | Async messaging (KEDA triggers) |
+| Storage Account | `stumsftaiplat{env}st` | Blob storage for agent archives |
 | VNet | `stumsft-aiplatform-{env}-vnet` | Network isolation |
 | AGC | `stumsft-aiplatform-{env}-agc` | Application Gateway for Containers |
 | Managed Identity (AKS) | `stumsft-aiplatform-{env}-aks-id` | AKS control plane identity |
@@ -1339,6 +1419,7 @@ These role assignments are created automatically by Bicep:
 | Workload Identity | Service Bus Data Owner | Service Bus namespace | Send/receive async messages |
 | Workload Identity | Cognitive Services OpenAI User | AI Services account | Invoke LLM and embedding models |
 | Workload Identity | Cognitive Services OpenAI Contributor | AI Services account | Create/manage model deployments via API |
+| Workload Identity | Storage Blob Data Contributor | Storage Account | Read/write blob storage for agent archives |
 | AKS Identity | AcrPull | ACR | Pull container images |
 | Deployer (admin) | Key Vault Secrets Officer | Key Vault (main + tenants) | Read/write secrets in portal & CLI |
 | Deployer (admin) | Cosmos DB Data Contributor | Cosmos DB account | Access data in Data Explorer |
@@ -1429,69 +1510,129 @@ docker compose -f docker-compose.microservices.yml up  # Microservices mode
 | `GET` | `/api/v1/agents/{id}` | api-gateway |
 | `PUT` | `/api/v1/agents/{id}` | api-gateway |
 | `DELETE` | `/api/v1/agents/{id}` | api-gateway |
+| `GET` | `/api/v1/agents/{id}/versions` | api-gateway |
+| `POST` | `/api/v1/agents/{id}/rollback/{version}` | api-gateway |
+| `GET` | `/api/v1/agents/{id}/whatsapp/link` | api-gateway |
+| `GET` | `/api/v1/agents/{id}/whatsapp/link-status` | api-gateway |
+| `POST` | `/api/v1/agents/{id}/whatsapp/logout` | api-gateway |
+| `GET` | `/api/v1/agents/{id}/groups` | api-gateway |
+| `POST` | `/api/v1/agents/{id}/groups/refresh-cache` | api-gateway |
 
 ### Chat & Threads
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/agents/{id}/chat` | agent-executor |
+| `POST` | `/api/v1/agents/{id}/chat/upload` | agent-executor |
 | `POST` | `/api/v1/agents/{id}/chat/async` | agent-executor |
+| `GET` | `/api/v1/agents/executions/{correlation_id}` | agent-executor |
 | `GET` | `/api/v1/threads` | agent-executor |
 | `POST` | `/api/v1/threads` | agent-executor |
 | `GET` | `/api/v1/threads/{id}` | agent-executor |
 | `GET` | `/api/v1/threads/{id}/messages` | agent-executor |
+| `PATCH` | `/api/v1/threads/{id}` | agent-executor |
 | `DELETE` | `/api/v1/threads/{id}` | agent-executor |
+| `DELETE` | `/api/v1/threads` | agent-executor |
+
+### Memories
+| Method | Path | Service |
+|--------|------|---------|
+| `GET` | `/api/v1/agents/{id}/memories` | agent-executor |
+| `DELETE` | `/api/v1/agents/{id}/memories/{memory_id}` | agent-executor |
+| `DELETE` | `/api/v1/agents/{id}/memories` | agent-executor |
 
 ### Tools
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/tools` | tool-executor |
 | `GET` | `/api/v1/tools` | tool-executor |
+| `GET` | `/api/v1/tools/{id}` | tool-executor |
 | `PUT` | `/api/v1/tools/{id}` | tool-executor |
 | `DELETE` | `/api/v1/tools/{id}` | tool-executor |
+| `POST` | `/api/v1/agents/{id}/tools` | tool-executor |
+| `DELETE` | `/api/v1/agents/{id}/tools/{tool_id}` | tool-executor |
 
 ### Data Sources & RAG
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/data-sources` | tool-executor |
 | `GET` | `/api/v1/data-sources` | tool-executor |
+| `GET` | `/api/v1/data-sources/{id}` | tool-executor |
+| `PUT` | `/api/v1/data-sources/{id}` | tool-executor |
+| `DELETE` | `/api/v1/data-sources/{id}` | tool-executor |
 | `POST` | `/api/v1/data-sources/{id}/documents` | tool-executor |
 | `POST` | `/api/v1/data-sources/{id}/ingest-url` | tool-executor |
+| `GET` | `/api/v1/data-sources/{id}/documents` | tool-executor |
+| `POST` | `/api/v1/agents/{id}/data-sources` | tool-executor |
+| `DELETE` | `/api/v1/agents/{id}/data-sources/{ds_id}` | tool-executor |
 
-### Knowledge (Azure AI Search)
+### Knowledge
 | Method | Path | Service |
 |--------|------|---------|
-| `GET` | `/api/v1/knowledge/connections/{id}/indexes` | tool-executor |
-| `POST` | `/api/v1/agents/{id}/knowledge/attach/{conn_id}` | tool-executor |
-| `DELETE` | `/api/v1/agents/{id}/knowledge/detach/{conn_id}` | tool-executor |
+| `GET` | `/api/v1/knowledge` | tool-executor |
+| `POST` | `/api/v1/knowledge` | tool-executor |
+| `GET` | `/api/v1/knowledge/{kb_id}` | tool-executor |
+| `POST` | `/api/v1/knowledge/{kb_id}/documents` | tool-executor |
+| `DELETE` | `/api/v1/knowledge/{kb_id}/documents/{doc_id}` | tool-executor |
 
 ### MCP
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/mcp-servers` | mcp-proxy |
 | `GET` | `/api/v1/mcp-servers` | mcp-proxy |
+| `GET` | `/api/v1/mcp-servers/{id}` | mcp-proxy |
+| `PATCH` | `/api/v1/mcp-servers/{id}` | mcp-proxy |
+| `DELETE` | `/api/v1/mcp-servers/{id}` | mcp-proxy |
+| `POST` | `/api/v1/mcp-servers/{id}/check-status` | mcp-proxy |
 | `GET` | `/api/v1/mcp/tools` | mcp-proxy |
-| `POST` | `/api/v1/mcp/discover` | mcp-proxy |
+| `POST` | `/api/v1/mcp/discover-all` | mcp-proxy |
+| `POST` | `/api/v1/mcp/discover-single` | mcp-proxy |
+| `POST` | `/api/v1/mcp/discover-schema` | mcp-proxy |
+| `POST` | `/api/v1/agents/{id}/mcp-tools` | mcp-proxy |
+| `GET` | `/api/v1/agents/{id}/mcp-tools` | mcp-proxy |
+| `DELETE` | `/api/v1/agents/{id}/mcp-tools/{tool_id}` | mcp-proxy |
 
 ### Workflows
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/workflows` | workflow-engine |
 | `GET` | `/api/v1/workflows` | workflow-engine |
+| `GET` | `/api/v1/workflows/{id}` | workflow-engine |
+| `PUT` | `/api/v1/workflows/{id}` | workflow-engine |
+| `DELETE` | `/api/v1/workflows/{id}` | workflow-engine |
+| `POST` | `/api/v1/workflows/{id}/nodes` | workflow-engine |
+| `DELETE` | `/api/v1/workflows/{id}/nodes/{node_id}` | workflow-engine |
+| `POST` | `/api/v1/workflows/{id}/edges` | workflow-engine |
+| `DELETE` | `/api/v1/workflows/{id}/edges/{edge_id}` | workflow-engine |
 | `POST` | `/api/v1/workflows/{id}/execute` | workflow-engine |
 | `GET` | `/api/v1/workflows/{id}/executions` | workflow-engine |
+| `GET` | `/api/v1/workflows/{id}/executions/{exec_id}` | workflow-engine |
+| `POST` | `/api/v1/workflows/{id}/executions/{exec_id}/cancel` | workflow-engine |
 
 ### Model Endpoints
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/model-endpoints` | api-gateway |
 | `GET` | `/api/v1/model-endpoints` | api-gateway |
+| `GET` | `/api/v1/model-endpoints/{id}` | api-gateway |
+| `PUT` | `/api/v1/model-endpoints/{id}` | api-gateway |
+| `DELETE` | `/api/v1/model-endpoints/{id}` | api-gateway |
 
 ### Evaluations
 | Method | Path | Service |
 |--------|------|---------|
+| `GET` | `/api/v1/evaluations/test-suites` | api-gateway |
 | `POST` | `/api/v1/evaluations/test-suites` | api-gateway |
+| `GET` | `/api/v1/evaluations/test-suites/{id}` | api-gateway |
+| `PUT` | `/api/v1/evaluations/test-suites/{id}` | api-gateway |
+| `DELETE` | `/api/v1/evaluations/test-suites/{id}` | api-gateway |
+| `POST` | `/api/v1/evaluations/test-suites/{id}/cases` | api-gateway |
+| `PUT` | `/api/v1/evaluations/test-suites/{id}/cases/{case_id}` | api-gateway |
+| `DELETE` | `/api/v1/evaluations/test-suites/{id}/cases/{case_id}` | api-gateway |
 | `POST` | `/api/v1/evaluations/test-suites/{id}/run` | api-gateway |
+| `GET` | `/api/v1/evaluations/runs` | api-gateway |
 | `GET` | `/api/v1/evaluations/runs/{id}` | api-gateway |
+| `GET` | `/api/v1/evaluations/runs/{id}/results` | api-gateway |
+| `POST` | `/api/v1/evaluations/compare` | api-gateway |
 
 ### Observability
 | Method | Path | Service |
@@ -1499,24 +1640,76 @@ docker compose -f docker-compose.microservices.yml up  # Microservices mode
 | `GET` | `/api/v1/observability/dashboard` | api-gateway |
 | `GET` | `/api/v1/observability/tokens` | api-gateway |
 | `GET` | `/api/v1/observability/costs` | api-gateway |
+| `GET` | `/api/v1/observability/costs/top-agents` | api-gateway |
 | `GET` | `/api/v1/observability/logs` | api-gateway |
-| `POST` | `/api/v1/observability/alerts` | api-gateway |
+| `GET` | `/api/v1/observability/alerts` | api-gateway |
+| `GET` | `/api/v1/observability/pricing` | api-gateway |
+| `POST` | `/api/v1/observability/pricing` | api-gateway |
+| `PUT` | `/api/v1/observability/pricing/{id}` | api-gateway |
+| `DELETE` | `/api/v1/observability/pricing/{id}` | api-gateway |
+| `GET` | `/api/v1/observability/cost-alerts` | api-gateway |
+| `POST` | `/api/v1/observability/cost-alerts` | api-gateway |
+| `PUT` | `/api/v1/observability/cost-alerts/{id}` | api-gateway |
+| `DELETE` | `/api/v1/observability/cost-alerts/{id}` | api-gateway |
+
+### Token Usage
+| Method | Path | Service |
+|--------|------|---------|
+| `GET` | `/api/v1/token-usage` | api-gateway |
+| `GET` | `/api/v1/token-usage/summary` | api-gateway |
 
 ### Marketplace
 | Method | Path | Service |
 |--------|------|---------|
 | `GET` | `/api/v1/marketplace/agents` | api-gateway |
+| `GET` | `/api/v1/marketplace/agents/{id}` | api-gateway |
+| `POST` | `/api/v1/marketplace/agents/publish` | api-gateway |
 | `POST` | `/api/v1/marketplace/agents/{id}/import` | api-gateway |
 | `GET` | `/api/v1/marketplace/tools` | api-gateway |
+| `GET` | `/api/v1/marketplace/tools/{id}` | api-gateway |
+| `POST` | `/api/v1/marketplace/tools/publish` | api-gateway |
+| `POST` | `/api/v1/marketplace/tools/{id}/import` | api-gateway |
 
 ### Tenant Management
 | Method | Path | Service |
 |--------|------|---------|
 | `POST` | `/api/v1/tenants` | api-gateway |
 | `GET` | `/api/v1/tenants` | api-gateway |
-| `PUT` | `/api/v1/tenants/{id}` | api-gateway |
-| `POST` | `/api/v1/tenants/{id}/suspend` | api-gateway |
+| `GET` | `/api/v1/tenants/{id}` | api-gateway |
+| `PATCH` | `/api/v1/tenants/{id}` | api-gateway |
+| `PATCH` | `/api/v1/tenants/{id}/state` | api-gateway |
+| `PATCH` | `/api/v1/tenants/{id}/settings` | api-gateway |
 | `DELETE` | `/api/v1/tenants/{id}` | api-gateway |
+
+### Catalog
+| Method | Path | Service |
+|--------|------|---------|
+| `GET` | `/api/v1/catalog/entries` | api-gateway |
+| `POST` | `/api/v1/catalog/entries` | api-gateway |
+| `GET` | `/api/v1/catalog/entries/{id}` | api-gateway |
+
+### AI Services
+| Method | Path | Service |
+|--------|------|---------|
+| `GET` | `/api/v1/ai-services` | api-gateway |
+| `POST` | `/api/v1/ai-services/toggle` | api-gateway |
+
+### Azure Integration
+| Method | Path | Service |
+|--------|------|---------|
+| `POST` | `/api/v1/azure/auth/device-code` | api-gateway |
+| `POST` | `/api/v1/azure/auth/device-code/token` | api-gateway |
+| `POST` | `/api/v1/azure/subscriptions` | api-gateway |
+| `GET` | `/api/v1/azure/subscriptions` | api-gateway |
+| `DELETE` | `/api/v1/azure/subscriptions/{id}` | api-gateway |
+| `GET` | `/api/v1/azure/subscriptions/{id}/resources` | api-gateway |
+| `GET` | `/api/v1/azure/subscriptions/discover` | api-gateway |
+| `GET` | `/api/v1/azure/connections` | api-gateway |
+| `POST` | `/api/v1/azure/connections` | api-gateway |
+| `GET` | `/api/v1/azure/agents/{id}/connections` | api-gateway |
+| `DELETE` | `/api/v1/azure/connections/{id}` | api-gateway |
+| `PATCH` | `/api/v1/azure/connections/{id}` | api-gateway |
+| `POST` | `/api/v1/azure/connections/{id}/health-check` | api-gateway |
 
 ### Internal (Service-to-Service)
 | Method | Path | Service |
@@ -1534,18 +1727,26 @@ Full OpenAPI spec available at `/docs` (Swagger UI) and `/redoc` on each service
 ```
 ├── backend/
 │   ├── app/                          # Shared application code (all microservices import this)
-│   │   ├── api/v1/                   # API routers (18+ route files)
+│   │   ├── api/v1/                   # API routers (27+ route files)
 │   │   ├── core/                     # Config (Pydantic Settings), security (JWT, JWKS), telemetry
 │   │   ├── middleware/               # Tenant isolation, OpenTelemetry context
 │   │   ├── models/                   # Pydantic/data models (30+ entities)
-│   │   ├── repositories/            # Cosmos DB data access layer (12+ repos)
-│   │   └── services/                # Business logic (15+ services)
+│   │   ├── repositories/            # Cosmos DB data access layer (37 repos)
+│   │   └── services/                # Business logic (20+ services)
 │   ├── microservices/               # Per-service entry points
 │   │   ├── api_gateway/             # Control Plane: auth, agents, catalog, evaluations, observability
 │   │   ├── agent_executor/          # Runtime: chat, threads, memory, ReAct loop
 │   │   ├── tool_executor/           # Runtime: tools, data sources, RAG, knowledge
 │   │   ├── mcp_proxy/               # Runtime: MCP server registry, tool discovery, protocol bridge
-│   │   └── workflow_engine/         # Runtime: multi-agent DAG orchestration
+│   │   ├── mcp_platform_tools/      # Runtime: MCP server for memory storage/search & platform config
+│   │   ├── workflow_engine/         # Runtime: multi-agent DAG orchestration
+│   │   ├── auth_gateway/            # Runtime: OIDC auth proxy for OpenClaw native UIs
+│   │   └── llm_proxy/              # Runtime: transparent Azure OpenAI proxy with token logging
+│   ├── mcp_server_atlassian.py      # Standalone MCP server for Jira/Confluence
+│   ├── mcp_server_github.py         # Standalone MCP server for GitHub
+│   ├── mcp_server_sharepoint.py     # Standalone MCP server for SharePoint
+│   ├── mcp_server_web_tools.py      # Demo MCP server for web utilities
+│   ├── openclaw-plugin-platform-tools/  # OpenClaw plugin for platform tool integration
 │   ├── cli/                         # CLI client (Typer)
 │   ├── tests/                       # Test suite (pytest)
 │   ├── alembic/                     # Database migrations (legacy, pre-Cosmos)
@@ -1555,30 +1756,55 @@ Full OpenAPI spec available at `/docs` (Swagger UI) and `/redoc` on each service
 ├── frontend/
 │   └── src/
 │       ├── app/                     # Next.js App Router pages
+│       │   └── dashboard/           # All dashboard pages (agents, workflows, tools, etc.)
 │       ├── components/              # React components (Shadcn/ui + custom)
+│       │   ├── agent/               # Agent config UI, channel wizard
+│       │   ├── chat/                # Chat interface, markdown renderer
+│       │   ├── workflow/            # Workflow canvas, agent nodes, execution monitor
+│       │   ├── tools/               # Tool catalog, MCP tool panels
+│       │   ├── knowledge/           # Knowledge base UI
+│       │   ├── observability/       # Analytics toolbar, KPI tiles, chart cards
+│       │   └── ui/                  # Reusable components (badges, filters, etc.)
 │       ├── contexts/                # Auth & Tenant context providers
-│       └── lib/                     # API client, utilities
+│       └── lib/                     # API client, MSAL config, utilities
 │
 ├── infra/
 │   ├── main.bicep                   # Root Bicep template
-│   ├── modules/                     # 10 Bicep modules (AKS, Cosmos, ACR, KV, etc.)
+│   ├── modules/                     # 16 Bicep modules (AKS, Cosmos, ACR, KV, AI, Storage, etc.)
 │   └── parameters/                  # Environment-specific parameters
 │
 ├── k8s/
 │   └── base/                        # Kustomize manifests
-│       ├── ingress.yaml             # AGC routing rules
+│       ├── ingress.yaml             # AGC routing rules (10 path prefixes)
 │       ├── configmap.yaml           # Shared environment config
 │       ├── health-check-policies.yaml
 │       └── {service}/               # Per-service deployment + service YAML
+│           ├── api-gateway/
+│           ├── agent-executor/
+│           ├── tool-executor/
+│           ├── mcp-proxy/
+│           ├── mcp-platform-tools/
+│           ├── mcp-atlassian/
+│           ├── mcp-github/
+│           ├── mcp-sharepoint/
+│           ├── workflow-engine/
+│           ├── auth-gateway/
+│           ├── token-proxy/
+│           └── frontend/
 │
 ├── scripts/
 │   ├── deploy.sh                    # End-to-end deployment script
 │   ├── validate-deployment.sh       # Post-deploy health checks
 │   └── post-deploy-config.sh        # Post-deploy configuration
 │
+├── hooks/
+│   ├── preprovision.sh              # Entra ID App Registration setup
+│   ├── postprovision.sh             # AKS config, Docker build, K8s deploy
+│   └── postdeploy.sh               # Final health checks
+│
 ├── docs/
 │   └── architecture/
-│       └── HLD-ARCHITECTURE.md      # Detailed HLD (aspirational design document)
+│       └── *.drawio.png             # Architecture diagrams
 │
 ├── docker-compose.yml               # Local dev (monolith mode)
 ├── docker-compose.microservices.yml  # Local dev (microservices mode)
