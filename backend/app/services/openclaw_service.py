@@ -1152,14 +1152,18 @@ class OpenClawService:
         channels_config: dict = {}
         channels = openclaw_config.get("channels") or {}
         if channels.get("telegram_enabled"):
-            channels_config["telegram"] = {
-                "enabled": True,
-                "dmPolicy": channels.get("dm_policy", "allowlist"),
-            }
+            dm_policy = channels.get("dm_policy", "allowlist")
             allowed = channels.get("telegram_allowed_users", [])
             if not allowed:
                 # Fetch default allowed users from Key Vault
                 allowed = await self._get_kv_secret_as_list("TELEGRAMALLOWFROM")
+            # allowlist policy requires at least one allowFrom entry
+            if dm_policy == "allowlist" and not allowed:
+                allowed = ["placeholder"]
+            channels_config["telegram"] = {
+                "enabled": True,
+                "dmPolicy": dm_policy,
+            }
             if allowed:
                 channels_config["telegram"]["allowFrom"] = [str(u) for u in allowed]
 
