@@ -10,7 +10,10 @@ async def test():
     
     url = "ws://oc-openclaw-agent-c227ef5f.tenant-familiy.svc.cluster.local:18789/"
     
-    gw_token = os.environ.get("GW_TOKEN", "6f96c9d12c20de99c0c21eff0b69fbf328903975a2bbbe51d2c0699dd0a8f0f1")
+    gw_token = os.environ.get("GW_TOKEN")
+    if not gw_token:
+        print("ERROR: Set GW_TOKEN env var (from OpenClaw CR spec.config.raw.gateway.token)")
+        return
     print(f"Token: {gw_token[:20]}...")
     
     headers = {
