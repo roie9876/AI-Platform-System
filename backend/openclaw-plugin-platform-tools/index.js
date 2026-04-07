@@ -339,6 +339,26 @@ export default {
     });
 
     // -----------------------------------------------------------------------
+    //  Observe-mode config (set by backend when groups have policy="observe")
+    // -----------------------------------------------------------------------
+
+    const observeGroupsRaw = process.env.OBSERVE_MODE_GROUPS || "";
+    const observeGroups = new Set(
+      observeGroupsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    );
+    const ownerPhone = (process.env.OWNER_PHONE || "").replace(/\D/g, "");
+
+    // Stash sender info from message_received for use in before_agent_reply
+    // Map<groupJid, { senderPhone, senderName }>
+    const lastGroupSender = new Map();
+
+    if (observeGroups.size > 0) {
+      api.logger?.info?.(
+        `platform-tools: observe mode enabled for ${observeGroups.size} groups, owner=${ownerPhone}`
+      );
+    }
+
+    // -----------------------------------------------------------------------
     //  Auto-store: save every conversation turn to Cosmos DB
     // -----------------------------------------------------------------------
 
@@ -513,6 +533,90 @@ export default {
       });
 
       api.logger?.info?.(`platform-tools: auto-store and auto-recall enabled for agent ${agentId}`);
+
+      // -------------------------------------------------------------------
+      //  Observe mode: capture group messages + suppress non-owner replies
+      // -------------------------------------------------------------------
+
+      if (observeGroups.size > 0) {
+        // message_received: fire-and-forget — store ALL messages from
+        // observe-mode groups to Cosmos DB regardless of LLM processing.
+        api.on("message_received", async (event) => {
+          try {
+            const groupJid = (event.metadata?.to || "").toLowerCase();
+            if (!groupJid || !groupJid.endsWith("@g.us")) return;
+            if (!observeGroups.has(groupJid)) return;
+
+            const senderPhone = (event.metadata?.senderE164 || event.from || "")
+              .replace(/\D/g, "");
+            const senderName = event.metadata?.senderName || event.from || "unknown";
+            const content = event.content || "";
+
+            // Stash sender info for before_agent_reply
+            lastGroupSender.set(groupJid, { senderPhone, senderName });
+
+            if (!content || content.length < 1) return;
+
+            api.logger?.info?.(
+              `platform-tools: observe captured msg in ${groupJid} from ${senderName} (${senderPhone}): ${content.slice(0, 80)}...`
+            );
+
+            // Store as execution log (group_message_observed)
+            await callTool("tool_create_execution_log", {
+              tenant_id: tenantId,
+              agent_id: agentId,
+              event_type: "group_message_observed",
+              input_text: `[${senderName}] ${content}`.slice(0, 2000),
+              output_text: "",
+              tool_calls_count: 0,
+              duration_ms: 0,
+              source: "openclaw-observe",
+              channel: `whatsapp:${groupJid}`,
+              model_name: "",
+            });
+          } catch (err) {
+            api.logger?.warn?.(
+              `platform-tools: observe message_received error: ${err?.message || err}`
+            );
+          }
+        });
+
+        // before_agent_reply: suppress LLM for observe-mode groups when
+        // the sender is NOT the owner.  Returns { handled: true } which
+        // makes OpenClaw emit the NO_REPLY silent token (no message sent).
+        api.on("before_agent_reply", async (_event, ctx) => {
+          try {
+            const sessionKey = (ctx.sessionKey || "").toLowerCase();
+            // Session key format: agent:{id}:whatsapp:group:{jid}
+            const groupMatch = sessionKey.match(/:whatsapp:group:([^:]+)/);
+            if (!groupMatch) return; // not a group session
+            const groupJid = groupMatch[1];
+            if (!observeGroups.has(groupJid)) return; // not an observe group
+
+            const stashed = lastGroupSender.get(groupJid);
+            const senderPhone = stashed?.senderPhone || "";
+
+            // Allow the owner through
+            if (ownerPhone && senderPhone === ownerPhone) {
+              api.logger?.info?.(
+                `platform-tools: observe group ${groupJid} — owner message, allowing LLM`
+              );
+              return; // don't suppress
+            }
+
+            api.logger?.info?.(
+              `platform-tools: observe group ${groupJid} — suppressing LLM (sender=${senderPhone})`
+            );
+            return { handled: true };
+          } catch (err) {
+            api.logger?.warn?.(
+              `platform-tools: observe before_agent_reply error: ${err?.message || err}`
+            );
+          }
+        });
+
+        api.logger?.info?.(`platform-tools: observe-mode hooks registered`);
+      }
     } else {
       api.logger?.warn?.("platform-tools: PLATFORM_TENANT_ID or PLATFORM_AGENT_ID not set, auto-store/recall disabled");
     }

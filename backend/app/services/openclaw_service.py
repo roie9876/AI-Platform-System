@@ -1152,6 +1152,8 @@ class OpenClawService:
 
         # Channels
         channels_config: dict = {}
+        observe_group_jids: list[str] = []
+        wa_allowed: list = []
         channels = openclaw_config.get("channels") or {}
         if channels.get("telegram_enabled"):
             dm_policy = channels.get("dm_policy", "allowlist")
@@ -1216,14 +1218,22 @@ class OpenClawService:
                         # Skip blocked groups — under allowlist groupPolicy,
                         # unlisted groups are ignored automatically
                         continue
-                    entry: dict = {
-                        "requireMention": rule.get("require_mention", False),
-                    }
+                    if rule.get("policy") == "observe":
+                        # Observe mode: agent monitors all messages silently.
+                        # requireMention must be false so messages flow into
+                        # the pipeline.  The plugin's before_agent_reply
+                        # hook suppresses the LLM for non-owner senders.
+                        entry: dict = {"requireMention": False}
+                        observe_group_jids.append(gid)
+                    else:
+                        entry = {
+                            "requireMention": rule.get("require_mention", True),
+                        }
                     # NOTE: OpenClaw's per-group config schema only allows
                     # "requireMention".  Sender filtering is handled by the
-                    # top-level "groupAllowFrom" (set to ["*"] below).
-                    # Per-group contact restrictions are enforced via SOUL.md
-                    # instructions, not native OpenClaw config.
+                    # top-level "groupAllowFrom" which uses the global
+                    # approved phones list — or ["*"] when observe mode
+                    # is active.
                     groups_cfg[gid] = entry
             if not groups_cfg:
                 if group_policy == "open":
@@ -1240,21 +1250,27 @@ class OpenClawService:
             # drops ALL inbound group messages (isSenderAllowed returns
             # false).
             #
-            # Default policy: LOCKED DOWN.  Only the approved phones
-            # (typically the owner who linked WhatsApp) can trigger the
-            # bot.  If a specific group needs to accept messages from
-            # any sender (e.g., alert forwarding), set that group's
-            # policy to "open" — this escalates groupAllowFrom to ["*"]
-            # because OpenClaw doesn't support per-group sender filtering.
+            # When observe-mode groups exist, we MUST set ["*"] so that
+            # messages from all senders flow into the pipeline for
+            # capture.  The plugin's before_agent_reply hook handles
+            # suppression for non-owner senders.
+            #
+            # SAFETY: groupAllowFrom is GLOBAL — it applies to ALL
+            # groups.  When we widen it to ["*"] for observe mode, we
+            # must force requireMention=true on every NON-observe group
+            # to prevent the bot from responding to everyone.
+            #
+            # When NO observe groups exist, lock down to approved
+            # phones only.
             if wa_config.get("groupPolicy") == "allowlist" and groups_cfg:
-                # Check if any group explicitly allows all senders
-                has_open_group = any(
-                    r.get("policy") == "open"
-                    for r in group_rules
-                    if r.get("group_jid")
-                )
-                if has_open_group:
+                if observe_group_jids:
                     wa_config["groupAllowFrom"] = ["*"]
+                    # Force requireMention=true on all non-observe groups
+                    # to prevent groupAllowFrom=["*"] from leaking
+                    # unrestricted access to active groups.
+                    for gid, entry in groups_cfg.items():
+                        if gid not in observe_group_jids:
+                            entry["requireMention"] = True
                 elif wa_allowed:
                     wa_config["groupAllowFrom"] = [str(p) for p in wa_allowed]
                 else:
@@ -1309,16 +1325,21 @@ class OpenClawService:
                 "compat": {"supportsStore": False},
             })
 
+        # Set thinkingDefault to "high" when deep research is enabled
+        agent_defaults: dict = {
+            "model": {"primary": model_id},
+            "memorySearch": {
+                "enabled": True,
+                "experimental": {"sessionMemory": True},
+            },
+        }
+        if openclaw_config.get("enable_deep_research"):
+            agent_defaults["thinkingDefault"] = "high"
+
         raw_config: dict = {
             "models": {"providers": providers_config},
             "agents": {
-                "defaults": {
-                    "model": {"primary": model_id},
-                    "memorySearch": {
-                        "enabled": True,
-                        "experimental": {"sessionMemory": True},
-                    },
-                }
+                "defaults": agent_defaults,
             },
             "session": {
                 "scope": "per-sender",
@@ -1346,6 +1367,7 @@ class OpenClawService:
             "bind": "loopback",
             "controlUi": {
                 "allowedOrigins": ["*"],
+                "dangerouslyDisableDeviceAuth": True,
             },
             "trustedProxies": gateway_trusted,
             "http": {
@@ -1391,6 +1413,8 @@ class OpenClawService:
                 "env": [
                     {"name": "PLATFORM_TENANT_ID", "value": tenant_id or ""},
                     {"name": "PLATFORM_AGENT_ID", "value": agent_id or ""},
+                    {"name": "OBSERVE_MODE_GROUPS", "value": ",".join(observe_group_jids)},
+                    {"name": "OWNER_PHONE", "value": str(wa_allowed[0]) if wa_allowed else ""},
                 ],
                 "envFrom": [{"secretRef": {"name": f"{instance_name}-secrets"}}],
                 "storage": {"persistence": {"enabled": True, "size": profile["pvc_size"]}},
