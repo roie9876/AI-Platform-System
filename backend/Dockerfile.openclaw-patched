@@ -81,7 +81,41 @@ RUN \
     for TS_FILE in $(grep -rl 'markOnlineOnConnect: false' /app/extensions --include='*.ts' 2>/dev/null || true); do \
         sed -i 's/markOnlineOnConnect: false/markOnlineOnConnect: true/' "$TS_FILE" && \
         echo "Patch #4 (ts): $TS_FILE — markOnlineOnConnect: true"; \
-    done
+    done && \
+    # ── Patch #5: Include memory-slot plugins in startup plugin list ──
+    # resolveGatewayStartupPluginIds filters out plugins with
+    # hasRuntimeContractSurface (like memory-core, kind=memory) because
+    # isGatewayStartupSidecar returns false for them.  This means
+    # memory-core never loads, its register() never runs, and dreaming
+    # (cron-based memory consolidation) never activates.
+    #
+    # Fix: After the sidecar filter, add a check for activated
+    # runtime-contract plugins so memory-core is included.
+    # We replace the original filter predicate to also return true
+    # for plugins selected via the memory slot.
+    CHANNEL_IDS_FILE=$(find /app/dist -name 'channel-plugin-ids-*.js' | head -1) && \
+    if [ -n "$CHANNEL_IDS_FILE" ]; then \
+        sed -i 's/if (!isGatewayStartupSidecar(plugin)) return false;/if (!isGatewayStartupSidecar(plugin)) { const _actState = resolveEffectivePluginActivationState({ id: plugin.id, origin: plugin.origin, config: pluginsConfig, rootConfig: params.config, enabledByDefault: plugin.enabledByDefault, activationSource }); if (_actState.activated) return true; return false; }/' "$CHANNEL_IDS_FILE" && \
+        echo "Patch #5 (dist): $CHANNEL_IDS_FILE — memory-slot plugins included in startup"; \
+    else \
+        echo "Patch #5 (dist) skipped: channel-plugin-ids file not found"; \
+    fi && \
+    # ── Patch #6: Preserve plugin-registered hooks at startup ─────────
+    # startGatewaySidecars() calls clearInternalHooks() right before
+    # loadInternalHooks(), wiping ALL hooks — including those registered
+    # by plugins (e.g. memory-core's gateway:startup hook for dreaming).
+    # Plugins register hooks via registerInternalHook() during
+    # loadOpenClawPlugins(), which runs BEFORE startGatewaySidecars().
+    #
+    # Fix: Remove the clearInternalHooks() call so plugin hooks survive
+    # into the triggerInternalHook("gateway:startup") call.
+    SERVER_FILE=$(grep -rl 'clearInternalHooks();' /app/dist --include='*.js' | head -1) && \
+    if [ -n "$SERVER_FILE" ]; then \
+        sed -i 's/clearInternalHooks();//' "$SERVER_FILE" && \
+        echo "Patch #6 (dist): $SERVER_FILE — removed clearInternalHooks() to preserve plugin hooks"; \
+    else \
+        echo "Patch #6 (dist) skipped: server file not found"; \
+    fi
 
 # ── MCP HTTP Bridge: stdio → HTTP transport adapter ──────────────────
 # OpenClaw's acpx plugin only supports stdio-based MCP servers.
