@@ -1384,11 +1384,24 @@ class OpenClawService:
         # OpenClaw tools.  The plugin is baked into the patched image at
         # /app/dist/extensions/platform-tools/ and calls the HTTP MCP
         # server running in the aiplatform namespace.
+        #
+        # Enable the memory-core plugin with dreaming (memory consolidation)
+        # turned on by default.  Dreaming runs a cron schedule (default
+        # "0 3 * * *") that consolidates short-term memories into long-term
+        # signals.
         raw_config["plugins"] = {
             "entries": {
                 "platform-tools": {
                     "enabled": True,
-                }
+                },
+                "memory-core": {
+                    "enabled": True,
+                    "config": {
+                        "dreaming": {
+                            "enabled": True,
+                        },
+                    },
+                },
             }
         }
 
