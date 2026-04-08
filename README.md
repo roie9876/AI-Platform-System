@@ -855,8 +855,15 @@ The `auth-gateway` pod provides **OIDC authentication and reverse proxying** for
 1. Initiates an Entra ID OIDC login flow
 2. Validates the user's identity and tenant membership
 3. Proxies authenticated requests (including WebSocket upgrades) to the correct OpenClaw pod in the tenant namespace
+4. Injects **per-agent localStorage namespacing** so multiple agent consoles can run in separate browser tabs without session cross-contamination
+5. Patches the **JS bundle server-side** to replace OpenClaw branding with the agent's display name in the sidebar
 
-**Key features:** Rate limiting, Pod Disruption Budget for HA, session cookie management.
+**Key features:**
+
+- **localStorage Isolation:** All agents share the same browser origin (path-based routing). The gateway injects a script that prefixes all `localStorage` keys with `__oc_{agent_id}_`, preventing one agent's settings from interfering with another's.
+- **Agent Branding:** The gateway replaces `>OpenClaw</span>` in the JS bundle and the `<title>` tag with the agent's name, so each console clearly identifies which agent it belongs to. JS responses include `Cache-Control: no-cache` to prevent cross-agent browser caching.
+- **WebSocket Proxy:** Full bidirectional WebSocket proxying from the browser to the correct OpenClaw pod, including Origin header forwarding for CORS compatibility.
+- **Rate Limiting, Pod Disruption Budget for HA, session cookie management.**
 
 ### 3.13 LLM Proxy (Token Proxy)
 
@@ -1105,6 +1112,17 @@ All channel secrets follow a consistent naming convention in Azure Key Vault:
 | Service Bus namespace | Key Vault | Workload Identity |
 
 ### 4.4 Network Security Boundaries
+
+Each tenant namespace has a `tenant-isolation` NetworkPolicy that restricts egress:
+
+| Rule | Destination | Ports | Purpose |
+|------|------------|-------|---------|
+| DNS | All namespaces | 53 (UDP/TCP) | Cluster DNS resolution |
+| HTTPS egress | Public internet (excl. private ranges) | 443 | LLM APIs, external services |
+| Inter-pod | Same namespace (podSelector) | 8000 | Internal microservice calls |
+| Chrome CDP VM | `10.0.9.4/32` | 9222, 3389 | Remote browser for agent web browsing |
+
+Ingress is restricted to the ALB controller + pods within the same namespace.
 
 ![Network Security Boundaries](docs/architecture/network-security.drawio.png)
 
