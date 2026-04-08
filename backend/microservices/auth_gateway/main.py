@@ -290,6 +290,43 @@ def _error_page(status: int, title: str, message: str) -> HTMLResponse:
 
 
 # ---------------------------------------------------------------------------
+# localStorage namespace injection — isolates per-agent console sessions
+# + UI branding — shows agent name instead of "OpenClaw" in the sidebar
+# ---------------------------------------------------------------------------
+
+_LS_NAMESPACE_SCRIPT = """<script>(function(){
+var s=window.location.pathname.split('/');if(s[1]!=='agents'||!s[2])return;
+var p='__oc_'+s[2]+'_',o=window.localStorage,O={};
+['getItem','setItem','removeItem'].forEach(function(m){O[m]=o[m].bind(o)});
+o.getItem=function(k){return O.getItem(p+k)};
+o.setItem=function(k,v){return O.setItem(p+k,v)};
+o.removeItem=function(k){return O.removeItem(p+k)};
+})();</script>"""
+
+def _inject_localstorage_namespace(content: bytes, agent_slug: str, agent_name: str = "") -> bytes:
+    """Inject localStorage-namespacing script into HTML <head>."""
+    html = content.decode("utf-8", errors="replace")
+    # Replace page title with agent name
+    if agent_name:
+        html = html.replace("<title>OpenClaw Control</title>", f"<title>{agent_name} — Control</title>")
+    for tag in ("<head>", "<HEAD>"):
+        if tag in html:
+            html = html.replace(tag, tag + _LS_NAMESPACE_SCRIPT, 1)
+            return html.encode("utf-8")
+    return (_LS_NAMESPACE_SCRIPT + html).encode("utf-8")
+
+
+def _patch_js_branding(content: bytes, agent_name: str) -> bytes:
+    """Replace OpenClaw branding strings in JS bundle with agent name."""
+    text = content.decode("utf-8", errors="replace")
+    # Sidebar brand title: <span class="sidebar-brand__title">OpenClaw</span>
+    text = text.replace('>OpenClaw</span>', f'>{agent_name}</span>')
+    # Image alt attributes
+    text = text.replace('alt="OpenClaw"', f'alt="{agent_name}"')
+    return text.encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
 # OIDC routes — path-based mode (/agents/auth/*)
 # ---------------------------------------------------------------------------
 
@@ -414,7 +451,17 @@ async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
         resp_headers = dict(resp.headers)
         for h in ("connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length"):
             resp_headers.pop(h, None)
-        return HTMLResponse(content=resp.content, status_code=resp.status_code, headers=resp_headers)
+        content = resp.content
+        content_type = resp_headers.get("content-type", "")
+        agent_name = agent.get("name", "")
+        if "text/html" in content_type:
+            content = _inject_localstorage_namespace(content, agent_slug, agent_name)
+        elif agent_name and "javascript" in content_type:
+            content = _patch_js_branding(content, agent_name)
+            # Prevent browser from caching JS across agents (branding is per-agent)
+            resp_headers["cache-control"] = "no-cache, no-store, must-revalidate"
+            resp_headers["vary"] = "Cookie"
+        return HTMLResponse(content=content, status_code=resp.status_code, headers=resp_headers)
     except httpx.ConnectError:
         return _error_page(502, "Agent Unavailable", "The agent pod is not reachable. It may be starting up.")
     except httpx.TimeoutException:
@@ -457,6 +504,7 @@ async def path_proxy_websocket(websocket: WebSocket, agent_slug: str, path: str 
     if not instance_name:
         instance_name = f"oc-openclaw-agent-{agent.get('id', agent_slug)[:8]}"
     pod_ws_url = f"ws://{instance_name}.tenant-{tenant_slug}.svc.cluster.local:18789/{path}"
+    logger.info("WS proxy: slug=%s name=%s → instance=%s url=%s", agent_slug, agent.get("name"), instance_name, pod_ws_url)
 
     # Forward Origin so OpenClaw controlUi allows the connection
     extra_headers = {}

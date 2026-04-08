@@ -241,6 +241,13 @@ class TenantProvisioningService:
                             "to": [{"podSelector": {}}],
                             "ports": [{"protocol": "TCP", "port": 8000}],
                         },
+                        {
+                            "to": [{"ipBlock": {"cidr": "10.0.9.4/32"}}],
+                            "ports": [
+                                {"protocol": "TCP", "port": 9222},
+                                {"protocol": "TCP", "port": 3389},
+                            ],
+                        },
                     ],
                 },
             },
