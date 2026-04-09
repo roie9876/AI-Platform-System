@@ -313,20 +313,19 @@ Storage.prototype.removeItem=function(k){_rem.call(this,k);
 if(this===ls&&typeof k==='string'&&k.indexOf('openclaw')===0)try{_rem.call(this,p+k)}catch(e){}};
 })();</script>"""
 
-def _inject_localstorage_namespace(content: bytes, agent_slug: str, agent_name: str = "", nonce: str = "") -> bytes:
+def _inject_localstorage_namespace(content: bytes, agent_slug: str, agent_name: str = "") -> bytes:
     """Inject localStorage-namespacing script into HTML <head>."""
     html = content.decode("utf-8", errors="replace")
     # Replace page title with agent name
     if agent_name:
         html = html.replace("<title>OpenClaw Control</title>", f"<title>{agent_name} — Control</title>")
-    script = _LS_NAMESPACE_SCRIPT
-    if nonce:
-        script = script.replace('<script>', f'<script nonce="{nonce}">')
+    # Inject upload widget before </body>
+    html = _inject_upload_widget(html)
     for tag in ("<head>", "<HEAD>"):
         if tag in html:
-            html = html.replace(tag, tag + script, 1)
+            html = html.replace(tag, tag + _LS_NAMESPACE_SCRIPT, 1)
             return html.encode("utf-8")
-    return (script + html).encode("utf-8")
+    return (_LS_NAMESPACE_SCRIPT + html).encode("utf-8")
 
 
 def _patch_js_branding(content: bytes, agent_name: str) -> bytes:
@@ -337,6 +336,62 @@ def _patch_js_branding(content: bytes, agent_name: str) -> bytes:
     # Image alt attributes
     text = text.replace('alt="OpenClaw"', f'alt="{agent_name}"')
     return text.encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# File upload UI widget — injected into OpenClaw HTML to allow uploading
+# files (PDFs, docs, etc.) to the agent's workspace via HTTP POST.
+# ---------------------------------------------------------------------------
+
+_UPLOAD_WIDGET = """<style>
+#oc-upload-widget{position:fixed;bottom:16px;right:16px;z-index:9999}
+#oc-upload-btn{background:#e53935;color:#fff;border:none;border-radius:50%;width:48px;height:48px;cursor:pointer;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center}
+#oc-upload-btn:hover{background:#c62828}
+#oc-upload-btn svg{width:24px;height:24px;fill:#fff}
+#oc-upload-status{position:fixed;bottom:72px;right:16px;z-index:9999;background:#333;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;display:none;max-width:300px}
+</style>
+<div id="oc-upload-widget">
+<button id="oc-upload-btn" title="Upload file to workspace">
+<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6zm3-5l2-2v4h2v-4l2 2 1.4-1.4L12 10.2l-4.4 4.4L9 15z"/></svg>
+</button>
+</div>
+<div id="oc-upload-status"></div>
+<script>
+(function(){
+var s=window.location.pathname.split('/');
+if(s[1]!=='agents'||!s[2])return;
+var slug=s[2];
+var inp=document.createElement('input');
+inp.type='file';inp.multiple=true;
+inp.style.display='none';
+document.body.appendChild(inp);
+var btn=document.getElementById('oc-upload-btn');
+var status=document.getElementById('oc-upload-status');
+function showStatus(msg,dur){status.textContent=msg;status.style.display='block';if(dur)setTimeout(function(){status.style.display='none'},dur)}
+btn.addEventListener('click',function(){inp.click()});
+inp.addEventListener('change',function(){
+if(!inp.files||!inp.files.length)return;
+var fd=new FormData();
+for(var i=0;i<inp.files.length;i++)fd.append('files',inp.files[i]);
+showStatus('Uploading '+inp.files.length+' file(s)...');
+fetch('/agents/'+slug+'/_upload',{method:'POST',body:fd,credentials:'same-origin'})
+.then(function(r){return r.json()})
+.then(function(d){
+if(d.uploaded&&d.uploaded.length)showStatus('Uploaded: '+d.uploaded.join(', '),5000);
+else showStatus('Upload failed: '+(d.detail||'unknown error'),5000);
+}).catch(function(e){showStatus('Upload error: '+e.message,5000)});
+inp.value='';
+});
+})()
+</script>
+"""
+
+
+def _inject_upload_widget(html: str) -> str:
+    """Inject file upload widget before </body>."""
+    if "</body>" in html:
+        return html.replace("</body>", _UPLOAD_WIDGET + "</body>")
+    return html + _UPLOAD_WIDGET
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +464,108 @@ async def path_auth_logout(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# File upload endpoint — uploads files to agent pod workspace
+# ---------------------------------------------------------------------------
+
+@app.post("/agents/{agent_slug}/_upload")
+async def upload_files_to_workspace(request: Request, agent_slug: str):
+    """Upload files to the agent pod's workspace directory via K8s exec."""
+    user_context = _get_user_from_cookie(request)
+    if user_context is None:
+        return JSONResponse({"detail": "Authentication required"}, status_code=401)
+
+    agent = await resolve_agent(agent_slug)
+    if agent is None:
+        return JSONResponse({"detail": "Agent not found"}, status_code=404)
+
+    agent_tenant_id = agent.get("tenant_id", "")
+    user_tenant_id = user_context.get("tenant_id", "")
+    user_roles = user_context.get("roles", [])
+    if agent_tenant_id != user_tenant_id and "platform_admin" not in user_roles:
+        return JSONResponse({"detail": "Access denied"}, status_code=403)
+
+    tenant_slug = await resolve_tenant_slug(agent_tenant_id)
+    if tenant_slug is None:
+        return JSONResponse({"detail": "Tenant resolution failed"}, status_code=500)
+
+    form = await request.form()
+    files = form.getlist("files")
+    if not files:
+        return JSONResponse({"detail": "No files provided"}, status_code=400)
+
+    instance_name = agent.get("openclaw_instance_name", "")
+    if not instance_name:
+        instance_name = f"oc-openclaw-agent-{agent.get('id', agent_slug)[:8]}"
+    namespace = f"tenant-{tenant_slug}"
+    pod_name = f"{instance_name}-0"
+    workspace_dir = "/home/openclaw/.openclaw/workspace"
+
+    uploaded = []
+    errors = []
+
+    try:
+        from kubernetes import client as k8s_client, config as k8s_config
+        from kubernetes.stream import stream as k8s_stream
+        import tarfile
+        import io
+
+        try:
+            k8s_config.load_incluster_config()
+        except k8s_config.ConfigException:
+            k8s_config.load_kube_config()
+
+        v1 = k8s_client.CoreV1Api()
+
+        for f in files:
+            filename = f.filename
+            if not filename:
+                continue
+            # Sanitize filename — strip path separators
+            safe_name = filename.replace("/", "_").replace("\\", "_").replace("..", "_")
+            file_data = await f.read()
+
+            # Create a tar archive containing the file
+            tar_buffer = io.BytesIO()
+            with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+                info = tarfile.TarInfo(name=safe_name)
+                info.size = len(file_data)
+                tar.addfile(info, io.BytesIO(file_data))
+            tar_buffer.seek(0)
+            tar_data = tar_buffer.read()
+
+            # Exec into pod: cat | tar xf - -C workspace_dir
+            exec_cmd = ["tar", "xf", "-", "-C", workspace_dir]
+            resp = k8s_stream(
+                v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container="openclaw",
+                command=exec_cmd,
+                stdin=True,
+                stdout=True,
+                stderr=True,
+                _preload_content=False,
+            )
+            resp.write_stdin(tar_data)
+            resp.close()
+
+            err = resp.read_stderr() if hasattr(resp, "read_stderr") else ""
+            if err:
+                logger.warning("Upload stderr for %s: %s", safe_name, err)
+
+            uploaded.append(safe_name)
+            logger.info("Uploaded %s (%d bytes) to %s/%s", safe_name, len(file_data), pod_name, workspace_dir)
+
+    except Exception as exc:
+        logger.exception("File upload failed: %s", exc)
+        errors.append(str(exc))
+
+    if uploaded:
+        return JSONResponse({"uploaded": uploaded, "errors": errors})
+    return JSONResponse({"detail": "Upload failed", "errors": errors}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
 # HTTP proxy — path-based mode (/agents/{slug}/{path})
 # ---------------------------------------------------------------------------
 
@@ -468,18 +625,20 @@ async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
         content_type = resp_headers.get("content-type", "")
         agent_name = agent.get("name", "")
         if "text/html" in content_type:
-            nonce = secrets.token_urlsafe(16)
-            content = _inject_localstorage_namespace(content, agent_slug, agent_name, nonce=nonce)
-            # Allow our injected inline script via CSP nonce + fix blob:/worker for file uploads
-            csp = resp_headers.get("content-security-policy", "")
-            if csp:
-                if "script-src" in csp:
-                    csp = csp.replace("script-src ", f"script-src 'nonce-{nonce}' ")
-                if "connect-src" in csp and "blob:" not in csp:
-                    csp = csp.replace("connect-src ", "connect-src blob: ")
-                if "worker-src" not in csp:
-                    csp += "; worker-src 'self' blob:"
-                resp_headers["content-security-policy"] = csp
+            content = _inject_localstorage_namespace(content, agent_slug, agent_name)
+            # Replace OpenClaw's strict CSP with a permissive one that allows
+            # our injected inline script, file uploads (blob:), and WebSocket proxying.
+            # Auth is enforced by the gateway's OIDC layer, not CSP.
+            resp_headers["content-security-policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "img-src 'self' data: blob: https:; "
+                "font-src 'self' https://fonts.gstatic.com; "
+                "connect-src 'self' ws: wss: blob:; "
+                "worker-src 'self' blob:; "
+                "frame-ancestors 'none'"
+            )
         elif agent_name and "javascript" in content_type:
             content = _patch_js_branding(content, agent_name)
             # Prevent browser from caching JS across agents (branding is per-agent)
