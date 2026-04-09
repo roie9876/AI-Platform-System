@@ -296,24 +296,37 @@ def _error_page(status: int, title: str, message: str) -> HTMLResponse:
 
 _LS_NAMESPACE_SCRIPT = """<script>(function(){
 var s=window.location.pathname.split('/');if(s[1]!=='agents'||!s[2])return;
-var p='__oc_'+s[2]+'_',o=window.localStorage,O={};
-['getItem','setItem','removeItem'].forEach(function(m){O[m]=o[m].bind(o)});
-o.getItem=function(k){return O.getItem(p+k)};
-o.setItem=function(k,v){return O.setItem(p+k,v)};
-o.removeItem=function(k){return O.removeItem(p+k)};
+var slug=s[2],p='__oc_'+slug+'_',ls=window.localStorage;
+var _set=Storage.prototype.setItem,_rem=Storage.prototype.removeItem,_get=Storage.prototype.getItem;
+var old=_get.call(ls,'__oc_active_slug__');
+if(old&&old!==slug){var op='__oc_'+old+'_',sv=[];
+for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('openclaw')===0&&k.indexOf('__oc_')!==0)sv.push(k)}
+for(i=0;i<sv.length;i++)_set.call(ls,op+sv[i],_get.call(ls,sv[i]))}
+var cl=[];for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('openclaw')===0&&k.indexOf('__oc_')!==0)cl.push(k)}
+for(i=0;i<cl.length;i++)_rem.call(ls,cl[i]);
+var rs=[];for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf(p)===0)rs.push(k)}
+for(i=0;i<rs.length;i++)_set.call(ls,rs[i].substring(p.length),_get.call(ls,rs[i]));
+_set.call(ls,'__oc_active_slug__',slug);
+Storage.prototype.setItem=function(k,v){_set.call(this,k,v);
+if(this===ls&&typeof k==='string'&&k.indexOf('openclaw')===0)try{_set.call(this,p+k,v)}catch(e){}};
+Storage.prototype.removeItem=function(k){_rem.call(this,k);
+if(this===ls&&typeof k==='string'&&k.indexOf('openclaw')===0)try{_rem.call(this,p+k)}catch(e){}};
 })();</script>"""
 
-def _inject_localstorage_namespace(content: bytes, agent_slug: str, agent_name: str = "") -> bytes:
+def _inject_localstorage_namespace(content: bytes, agent_slug: str, agent_name: str = "", nonce: str = "") -> bytes:
     """Inject localStorage-namespacing script into HTML <head>."""
     html = content.decode("utf-8", errors="replace")
     # Replace page title with agent name
     if agent_name:
         html = html.replace("<title>OpenClaw Control</title>", f"<title>{agent_name} — Control</title>")
+    script = _LS_NAMESPACE_SCRIPT
+    if nonce:
+        script = script.replace('<script>', f'<script nonce="{nonce}">')
     for tag in ("<head>", "<HEAD>"):
         if tag in html:
-            html = html.replace(tag, tag + _LS_NAMESPACE_SCRIPT, 1)
+            html = html.replace(tag, tag + script, 1)
             return html.encode("utf-8")
-    return (_LS_NAMESPACE_SCRIPT + html).encode("utf-8")
+    return (script + html).encode("utf-8")
 
 
 def _patch_js_branding(content: bytes, agent_name: str) -> bytes:
@@ -455,7 +468,14 @@ async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
         content_type = resp_headers.get("content-type", "")
         agent_name = agent.get("name", "")
         if "text/html" in content_type:
-            content = _inject_localstorage_namespace(content, agent_slug, agent_name)
+            nonce = secrets.token_urlsafe(16)
+            content = _inject_localstorage_namespace(content, agent_slug, agent_name, nonce=nonce)
+            # Allow our injected inline script via CSP nonce
+            csp = resp_headers.get("content-security-policy", "")
+            if csp and "script-src" in csp:
+                resp_headers["content-security-policy"] = csp.replace(
+                    "script-src ", f"script-src 'nonce-{nonce}' "
+                )
         elif agent_name and "javascript" in content_type:
             content = _patch_js_branding(content, agent_name)
             # Prevent browser from caching JS across agents (branding is per-agent)
