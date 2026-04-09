@@ -25,8 +25,14 @@ from app.core.logging_config import configure_logging
 from app.health import health_router
 from app.repositories.cosmos_client import close_cosmos_client
 from app.repositories.token_log_repository import TokenLogRepository
+from app.repositories.observability_repo import ExecutionLogRepository
+from app.repositories.tenant_repo import TenantRepository
 
 logger = logging.getLogger(__name__)
+
+# Slug → UUID cache for tenant resolution
+_slug_uuid_cache: dict[str, tuple[str, float]] = {}
+_SLUG_CACHE_TTL = 300  # 5 min
 
 # Azure OpenAI uses the Cognitive Services scope for Entra ID auth
 _AZURE_OPENAI_SCOPE = "https://cognitiveservices.azure.com/.default"
@@ -70,6 +76,7 @@ AZURE_OPENAI_BASE = os.getenv(
 )
 
 token_log_repo = TokenLogRepository()
+exec_log_repo = ExecutionLogRepository()
 _http_client: httpx.AsyncClient | None = None
 
 
@@ -137,42 +144,116 @@ async def _log_usage(
     latency_ms: float,
     status_code: int,
     request_id: str | None = None,
+    request_body: dict | None = None,
+    response_data: dict | None = None,
 ) -> None:
-    """Log token usage to Cosmos DB. Best-effort — never fails the response."""
+    """Log token usage to both token_logs and execution_logs. Best-effort."""
     try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        prompt_tokens = usage.get("prompt_tokens", 0) if usage else 0
+        completion_tokens = usage.get("completion_tokens", 0) if usage else 0
+        total_tokens = usage.get("total_tokens", 0) if usage else 0
+        reasoning_tokens = (
+            (usage.get("completion_tokens_details") or {}).get("reasoning_tokens", 0)
+            if usage else 0
+        )
+        cached_tokens = (
+            (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
+            if usage else 0
+        )
+
+        # --- token_logs (existing) ---
         log_doc = {
             "id": str(uuid4()),
             "tenant_id": tenant_id,
             "agent_id": agent_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_iso,
             "model": model or "unknown",
             "api": api_type,
             "stream": is_stream,
-            "prompt_tokens": usage.get("prompt_tokens", 0) if usage else 0,
-            "completion_tokens": usage.get("completion_tokens", 0) if usage else 0,
-            "total_tokens": usage.get("total_tokens", 0) if usage else 0,
-            "reasoning_tokens": (
-                (usage.get("completion_tokens_details") or {}).get(
-                    "reasoning_tokens", 0
-                )
-                if usage
-                else 0
-            ),
-            "cached_tokens": (
-                (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
-                if usage
-                else 0
-            ),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "reasoning_tokens": reasoning_tokens,
+            "cached_tokens": cached_tokens,
             "latency_ms": round(latency_ms, 1),
             "status": status_code,
             "request_id": request_id,
         }
         await token_log_repo.log_usage(tenant_id, log_doc)
+
+        # --- execution_logs (new — feeds Traces + Monitor tabs) ---
+        body = request_body or {}
+        messages = body.get("messages") or []
+
+        # Extract tool calls from assistant messages in the conversation
+        tool_calls_summary = []
+        for msg in messages:
+            for tc in (msg.get("tool_calls") or []):
+                fn = tc.get("function") or {}
+                tool_calls_summary.append({
+                    "name": fn.get("name", "unknown"),
+                    "arguments": fn.get("arguments", ""),
+                })
+
+        # Extract tool calls from the response (assistant reply)
+        resp_choices = (response_data or {}).get("choices") or []
+        for choice in resp_choices:
+            resp_msg = choice.get("message") or {}
+            for tc in (resp_msg.get("tool_calls") or []):
+                fn = tc.get("function") or {}
+                tool_calls_summary.append({
+                    "name": fn.get("name", "unknown"),
+                    "arguments": fn.get("arguments", ""),
+                })
+
+        # Message stats
+        msg_count = len(messages)
+        has_system = any(m.get("role") == "system" for m in messages)
+        user_msgs = [m for m in messages if m.get("role") == "user"]
+        last_user_msg = ""
+        if user_msgs:
+            content = user_msgs[-1].get("content", "")
+            if isinstance(content, str):
+                last_user_msg = content[:500]
+            elif isinstance(content, list):
+                text_parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+                last_user_msg = " ".join(text_parts)[:500]
+
+        # Channel detection from request headers or agent config
+        channel = "whatsapp"  # default for OpenClaw proxied calls
+
+        exec_doc = {
+            "id": str(uuid4()),
+            "tenant_id": tenant_id,
+            "agent_id": agent_id,
+            "thread_id": request_id or str(uuid4()),
+            "event_type": "error" if status_code >= 400 else "model_response",
+            "created_at": now_iso,
+            "duration_ms": round(latency_ms, 1),
+            "token_count": {
+                "input_tokens": prompt_tokens,
+                "output_tokens": completion_tokens,
+            },
+            "state_snapshot": {
+                "model_name": model or "unknown",
+                "api_type": api_type,
+                "stream": is_stream,
+                "tool_calls": tool_calls_summary if tool_calls_summary else [],
+                "message_count": msg_count,
+                "has_system_prompt": has_system,
+                "reasoning_tokens": reasoning_tokens,
+                "cached_tokens": cached_tokens,
+                "channel": channel,
+                "last_user_message": last_user_msg,
+            },
+            "source": "llm-proxy",
+        }
+        await exec_log_repo.create(tenant_id, exec_doc)
+
         logger.debug(
-            "Logged %d tokens for tenant=%s agent=%s",
-            log_doc["total_tokens"],
-            tenant_id,
-            agent_id,
+            "Logged %d tokens for tenant=%s agent=%s (exec_log + token_log)",
+            total_tokens, tenant_id, agent_id,
         )
     except Exception:
         logger.exception("Failed to log token usage (non-fatal)")
@@ -214,6 +295,7 @@ async def _handle_non_streaming(
         _log_usage(
             tenant_id, agent_id, usage, model, api_type,
             False, latency_ms, response.status_code, request_id,
+            request_body=body, response_data=response_data,
         )
     )
 
@@ -248,9 +330,11 @@ async def _handle_streaming(
     usage_data: dict | None = None
     request_id: str | None = None
     status_code = 200
+    streamed_tool_calls: list[dict] = []
+    final_response_data: dict | None = None
 
     async def generate():
-        nonlocal usage_data, request_id, status_code
+        nonlocal usage_data, request_id, status_code, streamed_tool_calls, final_response_data
         try:
             async with client.stream(
                 "POST", url, content=json.dumps(body), headers=headers
@@ -275,6 +359,17 @@ async def _handle_streaming(
                                 usage_data = data["usage"]
                             if data.get("id") and not request_id:
                                 request_id = data["id"]
+                            # Capture tool_calls from streamed response
+                            for choice in (data.get("choices") or []):
+                                delta = choice.get("delta") or {}
+                                for tc in (delta.get("tool_calls") or []):
+                                    fn = tc.get("function") or {}
+                                    if fn.get("name"):
+                                        streamed_tool_calls.append({
+                                            "name": fn["name"],
+                                            "arguments": fn.get("arguments", ""),
+                                        })
+                            final_response_data = data
                         except (json.JSONDecodeError, ValueError):
                             pass
 
@@ -284,12 +379,23 @@ async def _handle_streaming(
             logger.error("Upstream error during streaming: %s", exc)
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
 
+        # Build a pseudo response_data for enrichment
+        resp_for_log = final_response_data or {}
+        if streamed_tool_calls:
+            resp_for_log = {
+                **resp_for_log,
+                "choices": [{"message": {"tool_calls": [
+                    {"function": tc} for tc in streamed_tool_calls
+                ]}}],
+            }
+
         # Log usage after stream completes
         latency_ms = (time.monotonic() - start_time) * 1000
         asyncio.create_task(
             _log_usage(
                 tenant_id, agent_id, usage_data, model, api_type,
                 True, latency_ms, status_code, request_id,
+                request_body=body, response_data=resp_for_log,
             )
         )
 
@@ -305,6 +411,42 @@ async def _handle_streaming(
 
 
 # ---------------------------------------------------------------------------
+#  Tenant slug resolution
+# ---------------------------------------------------------------------------
+
+
+async def _resolve_tenant_slug(slug: str) -> str:
+    """Resolve a tenant slug to its UUID. If already a UUID, return as-is."""
+    import re
+    if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', slug):
+        return slug
+    now = time.time()
+    cached = _slug_uuid_cache.get(slug)
+    if cached:
+        tid, cached_at = cached
+        if (now - cached_at) < _SLUG_CACHE_TTL:
+            return tid
+    try:
+        repo = TenantRepository()
+        container = await repo._container()
+        if container:
+            results = []
+            async for item in container.query_items(
+                query="SELECT c.id FROM c WHERE c.slug = @slug AND c.status = 'active'",
+                parameters=[{"name": "@slug", "value": slug}],
+            ):
+                results.append(item)
+            if results:
+                tid = results[0]["id"]
+                _slug_uuid_cache[slug] = (tid, now)
+                logger.info("Resolved tenant slug '%s' -> '%s'", slug, tid)
+                return tid
+    except Exception:
+        logger.exception("Failed to resolve tenant slug '%s'", slug)
+    return slug  # fallback to slug if resolution fails
+
+
+# ---------------------------------------------------------------------------
 #  Proxy routes
 # ---------------------------------------------------------------------------
 
@@ -312,6 +454,9 @@ async def _handle_streaming(
 @app.post("/proxy/{tenant_id}/{agent_id}/{path:path}")
 async def proxy_post(request: Request, tenant_id: str, agent_id: str, path: str):
     """Main proxy endpoint — forwards POST requests to Azure OpenAI."""
+    # Resolve tenant slug to UUID for consistent partition keys
+    tenant_id = await _resolve_tenant_slug(tenant_id)
+
     # Read and parse request body
     raw_body = await request.body()
     try:

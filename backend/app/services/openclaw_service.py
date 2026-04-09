@@ -1390,6 +1390,9 @@ class OpenClawService:
         # "0 3 * * *") that consolidates short-term memories into long-term
         # signals.
         raw_config["plugins"] = {
+            "slots": {
+                "memory": "memory-core",
+            },
             "entries": {
                 "platform-tools": {
                     "enabled": True,
@@ -1402,7 +1405,7 @@ class OpenClawService:
                         },
                     },
                 },
-            }
+            },
         }
 
         cr = {

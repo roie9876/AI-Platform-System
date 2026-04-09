@@ -72,7 +72,7 @@ class WhatsAppGroupRule(BaseModel):
     """Per-group rule for WhatsApp."""
     group_name: str = ""  # Human-readable label (for UI only)
     group_jid: str = ""  # WhatsApp group JID (e.g. "120363012345678@g.us") or leave empty to add later
-    policy: Literal["open", "allowlist", "blocked"] = "open"
+    policy: Literal["active", "open", "allowlist", "observe", "blocked"] = "active"
     require_mention: bool = False
     allowed_phones: List[str] = []  # Only used when policy = "allowlist"
     instructions: str = ""  # Per-group agent instructions (appended to system prompt)
@@ -104,17 +104,17 @@ class OpenClawConfig(BaseModel):
 RESOURCE_PROFILES = {
     "small": {
         "cpu_request": "250m", "cpu_limit": "500m",
-        "memory_request": "256Mi", "memory_limit": "512Mi",
+        "memory_request": "512Mi", "memory_limit": "1Gi",
         "pvc_size": "1Gi",
     },
     "medium": {
         "cpu_request": "500m", "cpu_limit": "1000m",
-        "memory_request": "512Mi", "memory_limit": "1Gi",
+        "memory_request": "1Gi", "memory_limit": "2Gi",
         "pvc_size": "5Gi",
     },
     "large": {
         "cpu_request": "1000m", "cpu_limit": "2000m",
-        "memory_request": "1Gi", "memory_limit": "2Gi",
+        "memory_request": "2Gi", "memory_limit": "4Gi",
         "pvc_size": "10Gi",
     },
 }

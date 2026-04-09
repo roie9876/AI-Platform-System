@@ -248,6 +248,13 @@ class TenantProvisioningService:
                                 {"protocol": "TCP", "port": 3389},
                             ],
                         },
+                        {
+                            "to": [{"ipBlock": {"cidr": "10.1.0.4/32"}}],
+                            "ports": [
+                                {"protocol": "TCP", "port": 9222},
+                                {"protocol": "TCP", "port": 3389},
+                            ],
+                        },
                     ],
                 },
             },

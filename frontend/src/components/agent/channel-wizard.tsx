@@ -15,6 +15,7 @@ import {
   Users,
   UserCheck,
   AtSign,
+  Eye,
   Info,
   RefreshCw,
   Loader2,
@@ -30,7 +31,7 @@ import {
 export interface WhatsAppGroupRule {
   group_name: string;
   group_jid: string;
-  policy: "open" | "allowlist" | "blocked";
+  policy: "active" | "allowlist" | "observe" | "blocked";
   require_mention: boolean;
   allowed_phones: string[];
   instructions: string;
@@ -80,7 +81,9 @@ export interface DiscoveredGroup {
 }
 
 const POLICY_LABELS = {
-  open: { label: "Anyone can interact", icon: Globe, color: "text-green-600 bg-green-50 border-green-200" },
+  active: { label: "Agent responds here", icon: Globe, color: "text-green-600 bg-green-50 border-green-200" },
+  open: { label: "Agent responds here", icon: Globe, color: "text-green-600 bg-green-50 border-green-200" },  // legacy alias
+  observe: { label: "Silent monitor", icon: Eye, color: "text-purple-600 bg-purple-50 border-purple-200" },
   allowlist: { label: "Only approved contacts", icon: UserCheck, color: "text-blue-600 bg-blue-50 border-blue-200" },
   pairing: { label: "Require pairing code", icon: Lock, color: "text-amber-600 bg-amber-50 border-amber-200" },
   blocked: { label: "Agent is blocked", icon: Ban, color: "text-red-600 bg-red-50 border-red-200" },
@@ -170,8 +173,8 @@ function WhatsAppGroupsManager({
     const rule: WhatsAppGroupRule = {
       group_name: g.display_name,
       group_jid: g.group_id,
-      policy: "open",
-      require_mention: false,
+      policy: "active",
+      require_mention: true,
       allowed_phones: [],
       instructions: "",
     };
@@ -196,8 +199,8 @@ function WhatsAppGroupsManager({
     const rule: WhatsAppGroupRule = {
       group_name: name,
       group_jid: "",
-      policy: "open",
-      require_mention: false,
+      policy: "active",
+      require_mention: true,
       allowed_phones: [],
       instructions: "",
     };
@@ -508,16 +511,16 @@ function WhatsAppGroupsManager({
                       </label>
                       <div className="grid grid-cols-1 gap-2">
                         <PolicyCard
-                          value="open"
-                          selected={rule.policy === "open"}
-                          onClick={() => updateRule(idx, { policy: "open" })}
-                          description="The agent responds to all messages from any group member."
+                          value="active"
+                          selected={rule.policy === "active" || rule.policy === "open" as string}
+                          onClick={() => updateRule(idx, { policy: "active" })}
+                          description="The agent responds to messages in this group (sender filtering uses the global approved phones list)."
                         />
                         <PolicyCard
-                          value="allowlist"
-                          selected={rule.policy === "allowlist"}
-                          onClick={() => updateRule(idx, { policy: "allowlist" })}
-                          description="The agent only responds to messages from approved phone numbers."
+                          value="observe"
+                          selected={rule.policy === "observe"}
+                          onClick={() => updateRule(idx, { policy: "observe", require_mention: false })}
+                          description="Agent silently monitors all messages and stores them. Only the owner can interact with the bot."
                         />
                         <PolicyCard
                           value="blocked"
@@ -528,29 +531,8 @@ function WhatsAppGroupsManager({
                       </div>
                     </div>
 
-                    {/* Allowed phones (allowlist only) */}
-                    {rule.policy === "allowlist" && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Approved phone numbers
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="+972501234567, +14155551234"
-                          value={rule.allowed_phones.join(", ")}
-                          onChange={(e) =>
-                            updateRule(idx, {
-                              allowed_phones: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                            })
-                          }
-                          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                        />
-                        <p className="mt-1 text-xs text-gray-400">International format, comma-separated.</p>
-                      </div>
-                    )}
-
                     {/* Require @mention */}
-                    {rule.policy !== "blocked" && (
+                    {rule.policy !== "blocked" && rule.policy !== "observe" && (
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
                         <input
                           type="checkbox"

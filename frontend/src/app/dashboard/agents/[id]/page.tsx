@@ -15,6 +15,9 @@ import { Info, MoreVertical, Send, Square, Loader2, Database, FileText, Trash2, 
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 import { CodeExecutionBlock, type ToolCallEvent, type ToolResultEvent } from "@/components/chat/code-execution-block";
 import { ChannelWizard, type ChannelWizardState, type WhatsAppGroupRule, type TelegramGroupRule } from "@/components/agent/channel-wizard";
+import { WhatsAppManagementTab } from "@/components/agent/whatsapp-management-tab";
+import { TelegramManagementTab } from "@/components/agent/telegram-management-tab";
+import type { TabId } from "@/components/agent/agent-config-top-bar";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -184,7 +187,7 @@ export default function AgentDetailPage() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [selectedEndpointId, setSelectedEndpointId] = useState("");
   const [showCatalog, setShowCatalog] = useState(false);
-  const [activeTab, setActiveTab] = useState<"playground" | "traces" | "monitor" | "evaluation">("playground");
+  const [activeTab, setActiveTab] = useState<TabId>("playground");
   const [attachedTools, setAttachedTools] = useState<Tool[]>([]);
   const [rightTab, setRightTab] = useState<"chat" | "yaml" | "code">("chat");
   const [chatInput, setChatInput] = useState("");
@@ -524,7 +527,7 @@ export default function AgentDetailPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [agent, agentId, isSaving, systemPrompt, selectedEndpointId, channelsDirty, channelForm, resourceProfile, resourceProfileDirty]);
+  }, [agent, agentId, isSaving, systemPrompt, selectedEndpointId, channelsDirty, channels, channelForm, resourceProfile, resourceProfileDirty]);
 
   const handleChatStop = useCallback(() => {
     abortRef.current?.abort();
@@ -786,6 +789,57 @@ export default function AgentDetailPage() {
     setChatError(null);
   }
 
+  // WhatsApp link handler — used by WhatsApp management tab
+  const handleLinkWhatsApp = useCallback(async () => {
+    setWhatsappLinking(true);
+    setWhatsappError(null);
+    setWhatsappLinkStatus(null);
+    if (whatsappPollRef.current) {
+      clearInterval(whatsappPollRef.current);
+      whatsappPollRef.current = null;
+    }
+    try {
+      // If already connected, logout first
+      if (agent?.whatsapp_status === "connected") {
+        await apiFetch(`/api/v1/agents/${agentId}/whatsapp/logout`, { method: "POST" });
+      }
+      const data = await apiFetch<{ qr_data: string }>(
+        `/api/v1/agents/${agentId}/whatsapp/link`
+      );
+      setWhatsappQrUrl(data.qr_data);
+      setWhatsappLinkStatus("linking");
+      const poll = setInterval(async () => {
+        try {
+          const status = await apiFetch<{ status: string; error?: string }>(
+            `/api/v1/agents/${agentId}/whatsapp/link-status`
+          );
+          if (status.status === "connected") {
+            clearInterval(poll);
+            whatsappPollRef.current = null;
+            setWhatsappLinkStatus("connected");
+            setWhatsappQrUrl(null);
+          } else if (status.status === "failed") {
+            clearInterval(poll);
+            whatsappPollRef.current = null;
+            setWhatsappLinkStatus("failed");
+            setWhatsappError(status.error || "Linking failed");
+          }
+        } catch { /* polling error — ignore */ }
+      }, 3000);
+      whatsappPollRef.current = poll;
+      setTimeout(() => {
+        if (whatsappPollRef.current === poll) {
+          clearInterval(poll);
+          whatsappPollRef.current = null;
+        }
+      }, 150000);
+    } catch (err: unknown) {
+      setWhatsappError(err instanceof Error ? err.message : "Failed to get QR code");
+    } finally {
+      setWhatsappLinking(false);
+    }
+  }, [agentId, agent?.whatsapp_status]);
+
   if (loading) {
     return (
       <div className="p-8">
@@ -996,14 +1050,7 @@ export default function AgentDetailPage() {
               </div>
             </div>
 
-            {/* WhatsApp + Telegram via Channel Wizard */}
-            <div className="border-t border-gray-100 pt-3">
-              <ChannelWizard
-                state={channels}
-                onChange={(s) => { setChannels(s); setChannelsDirty(true); }}
-                agentId={agentId}
-              />
-            </div>
+            {/* WhatsApp + Telegram moved to dedicated tabs */}
 
             {/* Resource Profile */}
             <div className="space-y-2 border-t border-gray-100 pt-3">
@@ -1232,216 +1279,6 @@ export default function AgentDetailPage() {
           </a>
         </div>
       </CollapsibleSection>
-
-      {/* WhatsApp Linking (OpenClaw agents with WhatsApp enabled) */}
-      {agent.agent_type === "openclaw" && agent.openclaw_config?.whatsapp?.whatsapp_enabled && (
-        <CollapsibleSection title="WhatsApp" defaultOpen={true}>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-medium text-gray-700">
-                {agent.whatsapp_status === "connected"
-                  ? "Connected"
-                  : agent.whatsapp_status === "pending_link"
-                  ? "Pending Link"
-                  : "Not Linked"}
-              </span>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full ${
-                  agent.whatsapp_status === "connected"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-amber-100 text-amber-700"
-                }`}
-              >
-                {agent.whatsapp_status === "connected" ? "Active" : "Setup Required"}
-              </span>
-            </div>
-
-            {/* Re-link button when connected */}
-            {agent.whatsapp_status === "connected" && !whatsappQrUrl && (
-              <button
-                type="button"
-                disabled={whatsappLinking}
-                onClick={async () => {
-                  setWhatsappLinking(true);
-                  setWhatsappError(null);
-                  setWhatsappLinkStatus(null);
-                  if (whatsappPollRef.current) {
-                    clearInterval(whatsappPollRef.current);
-                    whatsappPollRef.current = null;
-                  }
-                  try {
-                    // First logout to clear stale credentials
-                    await apiFetch(`/api/v1/agents/${agentId}/whatsapp/logout`, {
-                      method: "POST",
-                    });
-                    // Then request a fresh QR code
-                    const data = await apiFetch<{ qr_data: string }>(
-                      `/api/v1/agents/${agentId}/whatsapp/link`
-                    );
-                    setWhatsappQrUrl(data.qr_data);
-                    setWhatsappLinkStatus("linking");
-                    const poll = setInterval(async () => {
-                      try {
-                        const status = await apiFetch<{ status: string; error?: string }>(
-                          `/api/v1/agents/${agentId}/whatsapp/link-status`
-                        );
-                        if (status.status === "connected") {
-                          clearInterval(poll);
-                          whatsappPollRef.current = null;
-                          setWhatsappLinkStatus("connected");
-                          setWhatsappQrUrl(null);
-                        } else if (status.status === "failed") {
-                          clearInterval(poll);
-                          whatsappPollRef.current = null;
-                          setWhatsappLinkStatus("failed");
-                          setWhatsappError(status.error || "Linking failed");
-                        }
-                      } catch {
-                        // Polling error — ignore, will retry
-                      }
-                    }, 3000);
-                    whatsappPollRef.current = poll;
-                    setTimeout(() => {
-                      if (whatsappPollRef.current === poll) {
-                        clearInterval(poll);
-                        whatsappPollRef.current = null;
-                      }
-                    }, 150000);
-                  } catch (err: unknown) {
-                    setWhatsappError(
-                      err instanceof Error ? err.message : "Failed to re-link"
-                    );
-                  } finally {
-                    setWhatsappLinking(false);
-                  }
-                }}
-                className="w-full rounded-md bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {whatsappLinking ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Disconnecting &amp; Getting QR...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Re-link WhatsApp
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* QR code display (shown during both initial link and re-link) */}
-            {whatsappQrUrl && (
-              <div className="rounded-md border border-gray-200 bg-white p-4 flex flex-col items-center gap-2">
-                <img
-                  src={whatsappQrUrl}
-                  alt="WhatsApp QR Code"
-                  className="w-48 h-48"
-                />
-                <p className="text-xs text-gray-400 text-center">
-                  Open WhatsApp → Settings → Linked Devices → Link a Device
-                </p>
-                {whatsappLinkStatus === "linking" && (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Waiting for you to scan...
-                  </div>
-                )}
-              </div>
-            )}
-
-            {whatsappLinkStatus === "connected" && (
-              <div className="rounded-md border border-green-200 bg-green-50 p-3 text-center">
-                <p className="text-sm font-medium text-green-700">WhatsApp linked successfully!</p>
-                <p className="text-xs text-green-600 mt-1">Reload the page to see updated status.</p>
-              </div>
-            )}
-
-            {whatsappError && (
-              <p className="text-xs text-red-600">{whatsappError}</p>
-            )}
-
-            {agent.whatsapp_status !== "connected" && !whatsappQrUrl && (
-              <>
-                <p className="text-xs text-gray-500">
-                  Scan the QR code with WhatsApp on your phone to link this agent.
-                </p>
-                <button
-                  type="button"
-                  disabled={whatsappLinking}
-                  onClick={async () => {
-                    setWhatsappLinking(true);
-                    setWhatsappError(null);
-                    setWhatsappLinkStatus(null);
-                    // Clear any existing poll
-                    if (whatsappPollRef.current) {
-                      clearInterval(whatsappPollRef.current);
-                      whatsappPollRef.current = null;
-                    }
-                    try {
-                      const data = await apiFetch<{ qr_data: string }>(
-                        `/api/v1/agents/${agentId}/whatsapp/link`
-                      );
-                      setWhatsappQrUrl(data.qr_data);
-                      setWhatsappLinkStatus("linking");
-                      // Poll for link completion every 3 seconds
-                      const poll = setInterval(async () => {
-                        try {
-                          const status = await apiFetch<{ status: string; error?: string }>(
-                            `/api/v1/agents/${agentId}/whatsapp/link-status`
-                          );
-                          if (status.status === "connected") {
-                            clearInterval(poll);
-                            whatsappPollRef.current = null;
-                            setWhatsappLinkStatus("connected");
-                            setWhatsappQrUrl(null);
-                          } else if (status.status === "failed") {
-                            clearInterval(poll);
-                            whatsappPollRef.current = null;
-                            setWhatsappLinkStatus("failed");
-                            setWhatsappError(status.error || "Linking failed");
-                          }
-                        } catch {
-                          // Polling error — ignore, will retry
-                        }
-                      }, 3000);
-                      whatsappPollRef.current = poll;
-                      // Auto-stop polling after 2.5 minutes
-                      setTimeout(() => {
-                        if (whatsappPollRef.current === poll) {
-                          clearInterval(poll);
-                          whatsappPollRef.current = null;
-                        }
-                      }, 150000);
-                    } catch (err: unknown) {
-                      setWhatsappError(
-                        err instanceof Error ? err.message : "Failed to get QR code"
-                      );
-                    } finally {
-                      setWhatsappLinking(false);
-                    }
-                  }}
-                  className="w-full rounded-md bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {whatsappLinking ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Getting QR Code...
-                    </>
-                  ) : (
-                    <>
-                      <Smartphone className="h-3.5 w-3.5" />
-                      Link WhatsApp
-                    </>
-                  )}
-                </button>
-              </>
-            )}
-          </div>
-        </CollapsibleSection>
-      )}
     </div>
   );
 
@@ -1672,9 +1509,14 @@ export default function AgentDetailPage() {
         agentId={agentId}
         version={agent.current_config_version}
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab as "playground" | "traces" | "monitor" | "evaluation")}
+        onTabChange={(tab) => setActiveTab(tab as TabId)}
         onSave={handleSave}
         isSaving={isSaving}
+        visibleTabs={
+          agent.agent_type === "openclaw"
+            ? ["playground", "whatsapp", "telegram", "traces", "monitor", "evaluation"]
+            : ["playground", "traces", "monitor", "evaluation"]
+        }
         onDelete={async () => {
           if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
           try {
@@ -1693,6 +1535,24 @@ export default function AgentDetailPage() {
             agentName={agent.name}
             leftPanel={leftPanel}
             rightPanel={rightPanel}
+          />
+        )}
+        {activeTab === "whatsapp" && (
+          <WhatsAppManagementTab
+            agentId={agentId}
+            channels={channels}
+            onChannelsChange={(s) => { setChannels(s); setChannelsDirty(true); }}
+            whatsappStatus={agent.whatsapp_status}
+            onLinkWhatsApp={handleLinkWhatsApp}
+            whatsappQrUrl={whatsappQrUrl}
+            whatsappLinking={whatsappLinking}
+          />
+        )}
+        {activeTab === "telegram" && (
+          <TelegramManagementTab
+            agentId={agentId}
+            channels={channels}
+            onChannelsChange={(s) => { setChannels(s); setChannelsDirty(true); }}
           />
         )}
         {activeTab === "traces" && (

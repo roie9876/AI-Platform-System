@@ -117,6 +117,23 @@ RUN \
         echo "Patch #6 (dist) skipped: server file not found"; \
     fi
 
+# ── Patch #7: Suppress non-fatal "Agent listener" crash ──────────────
+# pi-agent-core has a bug where a subprocess stdout event fires after
+# the agent run has ended, throwing "Agent listener invoked outside
+# active run". OpenClaw's unhandled rejection handler treats ALL
+# unknown errors as fatal (process.exit(1)).
+#
+# Fix: Patch isTransientUnhandledRejectionError() to also return true
+# for "Agent listener invoked outside active run" errors — they're
+# harmless late callbacks, not real failures.
+RUN UNHANDLED_FILE=$(find /app/dist -maxdepth 1 -name 'unhandled-rejections-*.js' | head -1) && \
+    if [ -n "$UNHANDLED_FILE" ]; then \
+        sed -i 's/return isTransientNetworkError(err) || isTransientSqliteError(err);/return isTransientNetworkError(err) || isTransientSqliteError(err) || (err \&\& typeof err === "object" \&\& typeof err.message === "string" \&\& err.message.includes("Agent listener invoked outside active run"));/' "$UNHANDLED_FILE" && \
+        echo "Patch #7 (dist): $UNHANDLED_FILE — Agent listener crash suppressed"; \
+    else \
+        echo "Patch #7 (dist) skipped: unhandled-rejections file not found"; \
+    fi
+
 # ── MCP HTTP Bridge: stdio → HTTP transport adapter ──────────────────
 # OpenClaw's acpx plugin only supports stdio-based MCP servers.
 # This bridge script translates stdio MCP to HTTP, allowing our

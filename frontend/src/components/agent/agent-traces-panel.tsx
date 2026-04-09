@@ -153,10 +153,12 @@ export function AgentTracesPanel({ agentId }: { agentId: string }) {
                         {toolNames}
                       </td>
                     </tr>
-                    {isExpanded && (
+                    {isExpanded && (() => {
+                      const snap = (log.state_snapshot ?? {}) as Record<string, unknown>;
+                      return (
                       <tr key={`${log.id}-detail`} className="bg-gray-50">
                         <td colSpan={10} className="px-6 py-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div>
                               <h4 className="font-medium text-gray-900 mb-2">Execution Details</h4>
                               <dl className="space-y-1 text-gray-600">
@@ -187,9 +189,62 @@ export function AgentTracesPanel({ agentId }: { agentId: string }) {
                               </dl>
                             </div>
                             <div>
+                              <h4 className="font-medium text-gray-900 mb-2">Context</h4>
+                              <dl className="space-y-1 text-gray-600">
+                                {!!snap.channel && (
+                                  <div className="flex gap-2">
+                                    <dt className="font-medium text-gray-500 w-28">Channel:</dt>
+                                    <dd>
+                                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                                        {String(snap.channel)}
+                                      </span>
+                                    </dd>
+                                  </div>
+                                )}
+                                {snap.reasoning_tokens != null && Number(snap.reasoning_tokens) > 0 && (
+                                  <div className="flex gap-2">
+                                    <dt className="font-medium text-gray-500 w-28">Reasoning:</dt>
+                                    <dd className="tabular-nums">{Number(snap.reasoning_tokens).toLocaleString()} tokens</dd>
+                                  </div>
+                                )}
+                                {snap.cached_tokens != null && Number(snap.cached_tokens) > 0 && (
+                                  <div className="flex gap-2">
+                                    <dt className="font-medium text-gray-500 w-28">Cached:</dt>
+                                    <dd className="tabular-nums">{Number(snap.cached_tokens).toLocaleString()} tokens</dd>
+                                  </div>
+                                )}
+                                {snap.message_count != null && (
+                                  <div className="flex gap-2">
+                                    <dt className="font-medium text-gray-500 w-28">Messages:</dt>
+                                    <dd>{String(snap.message_count)}</dd>
+                                  </div>
+                                )}
+                                {!!snap.api_type && (
+                                  <div className="flex gap-2">
+                                    <dt className="font-medium text-gray-500 w-28">API:</dt>
+                                    <dd>{String(snap.api_type)}</dd>
+                                  </div>
+                                )}
+                                {snap.stream != null && (
+                                  <div className="flex gap-2">
+                                    <dt className="font-medium text-gray-500 w-28">Streaming:</dt>
+                                    <dd>{snap.stream ? "Yes" : "No"}</dd>
+                                  </div>
+                                )}
+                              </dl>
+                              {!!snap.last_user_message && (
+                                <div className="mt-3">
+                                  <h4 className="font-medium text-gray-900 mb-1">Last User Message</h4>
+                                  <div className="rounded bg-white border px-3 py-2 text-xs text-gray-700 max-h-20 overflow-auto whitespace-pre-wrap">
+                                    {String(snap.last_user_message)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div>
                               {log.tool_calls && log.tool_calls.length > 0 && (
                                 <div className="mb-3">
-                                  <h4 className="font-medium text-gray-900 mb-2">Tool Calls</h4>
+                                  <h4 className="font-medium text-gray-900 mb-2">Tool Calls ({log.tool_calls.length})</h4>
                                   <ul className="space-y-1">
                                     {log.tool_calls.map((tc, i) => (
                                       <li key={i} className="rounded bg-white px-3 py-1.5 border text-xs font-mono">
@@ -204,11 +259,11 @@ export function AgentTracesPanel({ agentId }: { agentId: string }) {
                                   </ul>
                                 </div>
                               )}
-                              {log.state_snapshot && (log.state_snapshot as Record<string, unknown>).rag_sources ? (
+                              {snap.rag_sources ? (
                                 <div>
                                   <h4 className="font-medium text-gray-900 mb-2">RAG Sources</h4>
                                   <pre className="rounded bg-white border px-3 py-2 text-xs overflow-auto max-h-32">
-                                    {JSON.stringify((log.state_snapshot as Record<string, unknown>).rag_sources, null, 2)}
+                                    {JSON.stringify(snap.rag_sources, null, 2)}
                                   </pre>
                                 </div>
                               ) : null}
@@ -216,7 +271,8 @@ export function AgentTracesPanel({ agentId }: { agentId: string }) {
                           </div>
                         </td>
                       </tr>
-                    )}
+                      );
+                    })()}
                   </React.Fragment>
                 );
               })

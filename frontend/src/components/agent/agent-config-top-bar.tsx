@@ -4,24 +4,31 @@ import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, ChevronDown, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 
+type TabId = "playground" | "traces" | "monitor" | "evaluation" | "whatsapp" | "telegram";
+
 interface AgentConfigTopBarProps {
   agentName: string;
   agentId: string;
   version?: number;
   lastSaved?: string;
-  activeTab?: "playground" | "traces" | "monitor" | "evaluation";
+  activeTab?: TabId;
   onTabChange?: (tab: string) => void;
   onSave?: () => void;
   isSaving?: boolean;
   onDelete?: () => void;
+  visibleTabs?: TabId[];
 }
 
-const subNavTabs = [
+const allTabs: { id: TabId; label: string }[] = [
   { id: "playground", label: "Playground" },
+  { id: "whatsapp", label: "WhatsApp" },
+  { id: "telegram", label: "Telegram" },
   { id: "traces", label: "Traces" },
   { id: "monitor", label: "Monitor" },
   { id: "evaluation", label: "Evaluation" },
-] as const;
+];
+
+export type { TabId };
 
 export function AgentConfigTopBar({
   agentName,
@@ -33,7 +40,11 @@ export function AgentConfigTopBar({
   onSave,
   isSaving,
   onDelete,
+  visibleTabs,
 }: AgentConfigTopBarProps) {
+  const subNavTabs = visibleTabs
+    ? allTabs.filter((t) => visibleTabs.includes(t.id))
+    : allTabs.filter((t) => !["whatsapp", "telegram"].includes(t.id));
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
