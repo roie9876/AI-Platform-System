@@ -470,12 +470,16 @@ async def path_proxy_http(request: Request, agent_slug: str, path: str = ""):
         if "text/html" in content_type:
             nonce = secrets.token_urlsafe(16)
             content = _inject_localstorage_namespace(content, agent_slug, agent_name, nonce=nonce)
-            # Allow our injected inline script via CSP nonce
+            # Allow our injected inline script via CSP nonce + fix blob:/worker for file uploads
             csp = resp_headers.get("content-security-policy", "")
-            if csp and "script-src" in csp:
-                resp_headers["content-security-policy"] = csp.replace(
-                    "script-src ", f"script-src 'nonce-{nonce}' "
-                )
+            if csp:
+                if "script-src" in csp:
+                    csp = csp.replace("script-src ", f"script-src 'nonce-{nonce}' ")
+                if "connect-src" in csp and "blob:" not in csp:
+                    csp = csp.replace("connect-src ", "connect-src blob: ")
+                if "worker-src" not in csp:
+                    csp += "; worker-src 'self' blob:"
+                resp_headers["content-security-policy"] = csp
         elif agent_name and "javascript" in content_type:
             content = _patch_js_branding(content, agent_name)
             # Prevent browser from caching JS across agents (branding is per-agent)
@@ -542,15 +546,21 @@ async def path_proxy_websocket(websocket: WebSocket, agent_slug: str, path: str 
             async def client_to_pod():
                 try:
                     while True:
-                        data = await websocket.receive_text()
-                        await pod_ws.send(data)
+                        msg = await websocket.receive()
+                        if "text" in msg:
+                            await pod_ws.send(msg["text"])
+                        elif "bytes" in msg:
+                            await pod_ws.send(msg["bytes"])
                 except WebSocketDisconnect:
                     pass
 
             async def pod_to_client():
                 try:
                     async for message in pod_ws:
-                        await websocket.send_text(message)
+                        if isinstance(message, bytes):
+                            await websocket.send_bytes(message)
+                        else:
+                            await websocket.send_text(message)
                 except websockets.exceptions.ConnectionClosed:
                     pass
 
@@ -814,15 +824,21 @@ async def proxy_websocket(websocket: WebSocket, path: str):
             async def client_to_pod():
                 try:
                     while True:
-                        data = await websocket.receive_text()
-                        await pod_ws.send(data)
+                        msg = await websocket.receive()
+                        if "text" in msg:
+                            await pod_ws.send(msg["text"])
+                        elif "bytes" in msg:
+                            await pod_ws.send(msg["bytes"])
                 except WebSocketDisconnect:
                     pass
 
             async def pod_to_client():
                 try:
                     async for message in pod_ws:
-                        await websocket.send_text(message)
+                        if isinstance(message, bytes):
+                            await websocket.send_bytes(message)
+                        else:
+                            await websocket.send_text(message)
                 except websockets.exceptions.ConnectionClosed:
                     pass
 
