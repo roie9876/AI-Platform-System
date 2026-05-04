@@ -17,6 +17,7 @@ import {
   BarChart3,
   Store,
   Building2,
+  Upload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/tools", label: "Tools", icon: Wrench, enabled: true },
   { href: "/dashboard/knowledge", label: "Knowledge", icon: BookOpen, enabled: true },
   { href: "/dashboard/data-sources", label: "Data Sources", icon: FolderOpen, enabled: true },
+  { href: "/dashboard/file-upload", label: "File Upload", icon: Upload, enabled: true },
   { href: "/dashboard/workflows", label: "Workflows", icon: GitBranch, enabled: true },
   { href: "/dashboard/observability", label: "Observability", icon: BarChart3, enabled: true },
   { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck, enabled: true },
